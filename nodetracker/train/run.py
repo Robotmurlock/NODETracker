@@ -1,11 +1,16 @@
+"""
+Training script
+"""
 import logging
 import os
+from pathlib import Path
 
 import hydra
+import yaml
 from omegaconf import OmegaConf, DictConfig
 from pytorch_lightning import Trainer
-from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.callbacks import ModelCheckpoint
+from pytorch_lightning.loggers import TensorBoardLogger
 from torch.utils.data import DataLoader
 
 from nodetracker.common.project import CONFIGS_PATH, ASSETS_PATH, OUTPUTS_PATH
@@ -17,10 +22,30 @@ from nodetracker.node import LightningODEVAE
 logger = logging.getLogger('TrainScript')
 
 
+def save_config(cfg: dict, path: str) -> None:
+    """
+    Saves config as yaml file
+
+    Args:
+        cfg: Raw dict config
+        path: Path where to store config
+    """
+    logger.info(f'Saving config to "{path}"')
+    Path(path).parent.mkdir(exist_ok=True, parents=True)
+    with open(path, 'w', encoding='utf-8') as f:
+        yaml.safe_dump(cfg, f)
+
+
 @hydra.main(config_path=CONFIGS_PATH, config_name='default', version_base='1.1')
 def main(cfg: DictConfig):
     logger.info(f'Configuration:\n{OmegaConf.to_yaml(cfg)}')
-    cfg = GlobalConfig.from_dict(OmegaConf.to_object(cfg))
+    raw_cfg = OmegaConf.to_object(cfg)
+    cfg = GlobalConfig.from_dict(raw_cfg)
+
+    logs_path = os.path.join(OUTPUTS_PATH, cfg.train.logging_cfg.path)
+    logger.info(f'TensorBoard logger output path: "{logs_path}"')
+    logs_config_path = os.path.join(logs_path, cfg.train.logging_cfg.name, 'config.yaml')
+    save_config(raw_cfg, logs_config_path)
 
     dataset_train_path = os.path.join(ASSETS_PATH, cfg.dataset.train_path)
     logger.info(f'Dataset train path: "{dataset_train_path}".')
@@ -59,9 +84,7 @@ def main(cfg: DictConfig):
         noise_std=cfg.model.train_cfg.noise_std
     )
 
-    tb_logging_path = os.path.join(OUTPUTS_PATH, cfg.train.logging_cfg.path)
-    logger.info(f'TensorBoard logger output path: "{tb_logging_path}"')
-    tb_logger = TensorBoardLogger(save_dir=tb_logging_path, name=cfg.train.logging_cfg.name)
+    tb_logger = TensorBoardLogger(save_dir=logs_path, name=cfg.train.logging_cfg.name)
     trainer = Trainer(
         gpus=cfg.train.trainer_cfg.gpus,
         accelerator=cfg.train.trainer_cfg.accelerator,

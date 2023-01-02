@@ -1,11 +1,18 @@
+"""
+ODE Solver implementations. Supports:
+- Euler Method
+"""
 from abc import ABC, abstractmethod
 from typing import Union, Callable, Tuple
 
 import torch
-import torch.nn as nn
+from torch import nn
 
 
 class ODESolver(ABC):
+    """
+    Interface definition for ODESolver
+    """
     @abstractmethod
     def solve(
             self,
@@ -46,6 +53,10 @@ class ODESolver(ABC):
 
 
 class EulerMethod(ODESolver):
+    """
+    Implementation of Euler Method algorithm
+    https://en.wikipedia.org/wiki/Euler_method
+    """
     def __init__(self, max_step_size: float):
         """
         Simplest ODESolver
@@ -91,4 +102,3 @@ class EulerMethod(ODESolver):
 
 
 DefaultODESolver = EulerMethod(0.05)  # Default ODESolver
-

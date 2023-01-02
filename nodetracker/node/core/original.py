@@ -1,12 +1,15 @@
+"""
+Original NeuralODE implementation
+"""
 from typing import Tuple, Any, Callable
+
+import numpy as np
+import torch
+from torch import nn
+
 from nodetracker.node.core.solver import DefaultODESolver
 
-import torch
-import torch.nn as nn
-import numpy as np
 
-
-# This module represents state change function in ODE
 class ODEF(nn.Module):
     """
     Parametrized dynamics function (dz/dt) superclass
@@ -76,8 +79,10 @@ class ODEF(nn.Module):
         return torch.cat([p.flatten() for p in self.parameters()])
 
 
-# Implementation of Adjoint method
 class ODEAdjoint(torch.autograd.Function):
+    """
+    Implementation of Pontryagin Adjoint method
+    """
     @staticmethod
     def create_aug_dynamics(batch_size, shape, func) -> Callable:
         """
@@ -227,7 +232,7 @@ class NeuralODE(nn.Module):
     Wrapper for ADJoint function
     """
     def __init__(self, func: ODEF):
-        super(NeuralODE, self).__init__()
+        super().__init__()
         self.func = func
 
     def forward(self, z0: torch.Tensor, t: torch.Tensor, full_sequence: bool = False) -> torch.Tensor:

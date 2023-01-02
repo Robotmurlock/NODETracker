@@ -1,16 +1,22 @@
+"""
+Generative latent functions time-series model
+"""
 from typing import Tuple, Optional
 
+import pytorch_lightning as pl
 import torch
-import torch.nn as nn
+from torch import nn
 
 from nodetracker.node.core import ODEF, NeuralODE
 from nodetracker.utils.meter import MetricMeter
-import pytorch_lightning as pl
 
 
 class RNNEncoder(nn.Module):
+    """
+    Time-series RNN encoder. Can work with time-series with variable lengths and possible missing values.
+    """
     def __init__(self, input_dim: int, hidden_dim: int, latent_dim: int):
-        super(RNNEncoder, self).__init__()
+        super().__init__()
         self._latent_dim = latent_dim
 
         self._rnn = nn.GRU(input_dim + 1, hidden_dim)
@@ -39,6 +45,12 @@ class RNNEncoder(nn.Module):
 
 
 class MLPODEF(ODEF):
+    """
+    Multi layer perceptron ODEF. Includes N consecutive layers of:
+    - Linear layer
+    - LayerNorm
+    - LeakyReLU
+    """
     def __init__(self, dim: int, hidden_dim: int, n_layers: int = 2):
         super(ODEF, self).__init__()
         assert n_layers >= 1, f'Minimum number of layers is 1 but found {n_layers}'
@@ -62,8 +74,11 @@ class MLPODEF(ODEF):
 
 
 class NODEDecoder(nn.Module):
+    """
+    NODE decoder performs extrapolation at latent space which can be then used to reconstruct/forecast time-series.
+    """
     def __init__(self, latent_dim: int, hidden_dim: int, output_dim: int):
-        super(NODEDecoder, self).__init__()
+        super().__init__()
 
         self._ode = NeuralODE(MLPODEF(latent_dim, hidden_dim, n_layers=2))
         self._latent2hidden = nn.Linear(latent_dim, hidden_dim)
@@ -79,8 +94,11 @@ class NODEDecoder(nn.Module):
 
 
 class ODEVAE(nn.Module):
+    """
+    ODEVAE - A generative latent function time-series model
+    """
     def __init__(self, observable_dim: int, hidden_dim: int, latent_dim: int):
-        super(ODEVAE, self).__init__()
+        super().__init__()
 
         self._encoder = RNNEncoder(observable_dim, hidden_dim, latent_dim)
         self._decoder = NODEDecoder(latent_dim, hidden_dim, observable_dim)
@@ -98,8 +116,11 @@ class ODEVAE(nn.Module):
 
 
 class ELBO(nn.Module):
+    """
+    Implementation of VAE ELBO loss function
+    """
     def __init__(self, noise_std: float):
-        super(ELBO, self).__init__()
+        super().__init__()
         self._noise_std = noise_std
 
     def forward(self, x_hat: torch.Tensor, x_true: torch.Tensor, z0_mean: torch.Tensor, z0_log_var: torch.Tensor) \
@@ -112,8 +133,11 @@ class ELBO(nn.Module):
 
 
 class LightningODEVAE(pl.LightningModule):
+    """
+    PytorchLightning wrapper for ODEVAE model
+    """
     def __init__(self, observable_dim: int, hidden_dim: int, latent_dim: int, noise_std: float = 0.1, learning_rate: float = 1e-3):
-        super(LightningODEVAE, self).__init__()
+        super().__init__()
         self._model = ODEVAE(observable_dim, hidden_dim, latent_dim)
         self._loss_func = ELBO(noise_std)
         self._learning_rate = learning_rate
@@ -125,13 +149,13 @@ class LightningODEVAE(pl.LightningModule):
         return self._model(x, t_obs, t_all, generate)
 
     def training_step(self, batch: Tuple[torch.Tensor, ...], *args, **kwargs) -> torch.Tensor:
-        bboxes_obs, bboxes_unobs, ts_obs, ts_unobs = batch
+        bboxes_obs, _, ts_obs, _ = batch
         bboxes_hat, z0_mean, z0_log_var = self.forward(bboxes_obs, ts_obs)
         loss, kl_div_loss, likelihood_loss = self._loss_func(bboxes_hat, bboxes_obs, z0_mean, z0_log_var)
 
         self._meter.push('train/loss', loss)
-        self._meter.push('train/kl_div_loss', loss)
-        self._meter.push('train/likelihood_loss', loss)
+        self._meter.push('train/kl_div_loss', kl_div_loss)
+        self._meter.push('train/likelihood_loss', likelihood_loss)
 
         return loss
 
@@ -144,8 +168,8 @@ class LightningODEVAE(pl.LightningModule):
         loss, kl_div_loss, likelihood_loss = self._loss_func(bboxes_hat, bboxes_all, z0_mean, z0_log_var)
 
         self._meter.push('val/loss', loss)
-        self._meter.push('val/kl_div_loss', loss)
-        self._meter.push('val/likelihood_loss', loss)
+        self._meter.push('val/kl_div_loss', kl_div_loss)
+        self._meter.push('val/likelihood_loss', likelihood_loss)
 
         return loss
 

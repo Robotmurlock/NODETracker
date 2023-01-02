@@ -1,3 +1,6 @@
+"""
+Set of path constants relative to project source (independent of project location on system).
+"""
 import os
 
 

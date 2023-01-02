@@ -1,3 +1,9 @@
+"""
+Config structure. Config should be loaded as dictionary and parsed into GlobalConfig Python object. Benefits:
+- Structure and type validation (using dacite library)
+- Custom validations
+- Python IDE autocomplete
+"""
 from dataclasses import dataclass
 from typing import Optional
 
@@ -44,6 +50,7 @@ class TrainCheckpointConfig:
     metric_monitor: str
     resume_from: Optional[str]
 
+
 @dataclass
 class TrainConfig:
     experiment: str
@@ -58,6 +65,9 @@ class TrainConfig:
 
 @dataclass
 class GlobalConfig:
+    """
+    Scripts GlobalConfig
+    """
     dataset: DatasetConfig
     train: TrainConfig
     model: ModelConfig

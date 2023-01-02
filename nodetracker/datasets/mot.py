@@ -1,3 +1,6 @@
+"""
+MOT Challenge Dataset support
+"""
 import configparser
 import enum
 import logging
@@ -22,6 +25,9 @@ class LabelType(enum.Enum):
 
 @dataclass
 class SceneInfo:
+    """
+    MOT Scene metadata (name, frame shape, ...)
+    """
     name: str
     seqlength: Union[str, int]
     framerate: Union[str, int]
@@ -229,7 +235,7 @@ class TorchMOTTrajectoryDataset(Dataset):
             future_len: Number of unobserved data poitns
             label_type: Label Type
         """
-        super(TorchMOTTrajectoryDataset, self).__init__()
+        super().__init__()
         self._dataset = MOTDataset(
             path=path,
             history_len=history_len,
