@@ -1,0 +1,4 @@
+train_path: 'MOT20Labels/train'
+val_path: 'MOT20Labels/val'
+history_len: 5
+future_len: 3
