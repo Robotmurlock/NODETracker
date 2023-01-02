@@ -1,5 +1,6 @@
 """
 Original NeuralODE implementation
+https://arxiv.org/pdf/1806.07366.pdf
 """
 from typing import Tuple, Any, Callable
 
