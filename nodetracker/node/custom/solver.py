@@ -9,9 +9,9 @@ import torch
 from torch import nn
 
 
-class ODESolver(ABC):
+class ODESolverWithDataPoints(ABC):
     """
-    Interface definition for ODESolver
+    Interface definition for ODESolverWithDataPoints
     """
     @abstractmethod
     def solve(
@@ -19,6 +19,7 @@ class ODESolver(ABC):
             z0: torch.Tensor,
             t0: torch.Tensor,
             t1: torch.Tensor,
+            x0: torch.Tensor,
             f: Union[nn.Module, Callable],
             return_all_states: bool = False
     ) -> Tuple[torch.Tensor, torch.Tensor]:
@@ -29,6 +30,7 @@ class ODESolver(ABC):
             z0: Start state ~ z(t0)
             t0: Start time
             t1: End time
+            x0: Data at t0 time point
             f: State change function (slope)
             return_all_states: Return all intermediate states
 
@@ -43,16 +45,17 @@ class ODESolver(ABC):
             z0: torch.Tensor,
             t0: torch.Tensor,
             t1: torch.Tensor,
+            x0: torch.Tensor,
             f: Union[nn.Module, Callable],
             return_all_states: bool = False
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         solve() method wrapper
         """
-        return self.solve(z0, t0, t1, f, return_all_states=return_all_states)
+        return self.solve(z0, t0, t1, x0, f, return_all_states=return_all_states)
 
 
-class EulerMethod(ODESolver):
+class EulerMethodWithDataPoints(ODESolverWithDataPoints):
     """
     Implementation of Euler Method algorithm
     https://en.wikipedia.org/wiki/Euler_method
@@ -73,6 +76,7 @@ class EulerMethod(ODESolver):
             z0: torch.Tensor,
             t0: torch.Tensor,
             t1: torch.Tensor,
+            x0: torch.Tensor,
             f: Union[nn.Module, Callable],
             return_all_states: bool = False
     ) -> Tuple[torch.Tensor, torch.Tensor]:
@@ -87,7 +91,7 @@ class EulerMethod(ODESolver):
         zs = [z0]
         ts = [t0]
         for _ in range(n_steps):
-            z = z + f(z, t) * h
+            z = z + f(z, t, x0) * h
             t = t + h
 
             if return_all_states:
@@ -101,4 +105,4 @@ class EulerMethod(ODESolver):
         return z, t  # only last state
 
 
-DefaultODESolver = EulerMethod(0.05)  # Default ODESolver
+DefaultODESolverWithDataPoints = EulerMethodWithDataPoints(0.05)  # Default DefaultODESolverWithDataPoints

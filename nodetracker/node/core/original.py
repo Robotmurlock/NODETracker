@@ -242,3 +242,27 @@ class NeuralODE(nn.Module):
         if full_sequence:
             return z
         return z[-1]
+
+
+def main() -> None:
+    class Linear2dTimeInvariantODEF(ODEF):
+        """
+        Simple ODEF for testing
+        """
+        def __init__(self):
+            super().__init__()
+            self._linear = nn.Linear(2, 2, bias=False)
+
+        def forward(self, z: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
+            _ = t
+            return self._linear(z)
+
+    node = NeuralODE(Linear2dTimeInvariantODEF())
+    z0 = torch.randn(2).view(1, 2)
+    ts = torch.randn(3).view(-1, 1, 1)
+    print('Last state output shape:', node(z0, ts, full_sequence=False).shape)
+    print('Full state sequence output shape:', node(z0, ts, full_sequence=True).shape)
+
+
+if __name__ == '__main__':
+    main()
