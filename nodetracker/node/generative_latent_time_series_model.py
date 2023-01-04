@@ -7,6 +7,7 @@ import pytorch_lightning as pl
 import torch
 from torch import nn
 
+from nodetracker.library import time_series
 from nodetracker.node.core import ODEF, NeuralODE
 from nodetracker.utils.meter import MetricMeter
 
@@ -25,10 +26,7 @@ class RNNEncoder(nn.Module):
 
     def forward(self, x_obs: torch.Tensor, t_obs: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         # Using relative time point values instead of absolute time point values
-        t_diff = torch.zeros_like(t_obs)
-        t_diff[0] = 0
-        t_diff[1:] = t_obs[1:] - t_obs[:-1]
-        t_diff = t_diff.to(x_obs)
+        t_diff = time_series.transform.first_difference(t_obs)
 
         # Add relative time points to input data
         xt = torch.cat([x_obs, t_diff], dim=-1)
@@ -106,8 +104,8 @@ class ODEVAE(nn.Module):
     def forward(self, x: torch.Tensor, t_obs: torch.Tensor, t_all: Optional[torch.Tensor] = None, generate: bool = False) \
             -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         t_all = t_all if t_all is not None else t_obs
-        assert t_all.shape[0] >= t_obs.shape[
-            0], f'All time points must contain at lease observable time points. Shapes (all, obs): {t_all.shape[0]}, {t_obs.shape[0]}'
+        assert t_all.shape[0] >= t_obs.shape[0], \
+            f'All time points must contain at lease observable time points. Shapes (all, obs): {t_all.shape[0]}, {t_obs.shape[0]}'
 
         z0_mean, z0_log_var = self._encoder(x, t_obs)
         z0 = z0_mean if not generate else z0_mean + torch.randn_like(z0_mean) * torch.exp(0.5 * z0_log_var)

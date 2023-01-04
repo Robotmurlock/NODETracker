@@ -108,7 +108,11 @@ def main():
     xs = torch.randn(4, 3, 7)
     ts_obs = torch.randn(4, 3, 1)
     ts_all = torch.randn(6, 3, 1)
-    print(f'Output shape: {[v.shape for v in odernnvae(xs, ts_obs, ts_all)]}')
+    expected_shapes = [(6, 3, 7), (3, 3), (3,3)]
+
+    output = odernnvae(xs, ts_obs, ts_all)
+    shapes = [v.shape for v in output]
+    assert shapes == expected_shapes, f'Expected shapes {expected_shapes} but found {shapes}!'
 
 
 if __name__ == '__main__':

@@ -1,5 +1,7 @@
 """
 Building block: MultiLayerPerceptron
+
+TODO: Move outside of NODE
 """
 import torch
 from torch import nn
@@ -76,7 +78,10 @@ def main() -> None:
     )
 
     x = torch.randn(32, 5)  # (batch_size, dim)
-    print('Output shape:', mlp(x).shape)
+    expected_shape = (32, 5)
+
+    output = mlp(x)
+    assert output.shape == expected_shape, f'Expected shape {expected_shape} but found {output.shape}!'
 
 
 if __name__ == '__main__':
