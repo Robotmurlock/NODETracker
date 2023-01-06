@@ -147,18 +147,18 @@ class LightningODEVAE(pl.LightningModule):
         return self._model(x, t_obs, t_all, generate)
 
     def training_step(self, batch: Tuple[torch.Tensor, ...], *args, **kwargs) -> torch.Tensor:
-        bboxes_obs, _, ts_obs, _ = batch
+        bboxes_obs, _, ts_obs, _, _ = batch
         bboxes_hat, z0_mean, z0_log_var = self.forward(bboxes_obs, ts_obs)
         loss, kl_div_loss, likelihood_loss = self._loss_func(bboxes_hat, bboxes_obs, z0_mean, z0_log_var)
 
-        self._meter.push('train/loss', loss)
-        self._meter.push('train/kl_div_loss', kl_div_loss)
-        self._meter.push('train/likelihood_loss', likelihood_loss)
+        self._meter.push('training/loss', loss)
+        self._meter.push('training/kl_div_loss', kl_div_loss)
+        self._meter.push('training/likelihood_loss', likelihood_loss)
 
         return loss
 
     def validation_step(self, batch: Tuple[torch.Tensor, ...], *args, **kwargs) -> torch.Tensor:
-        bboxes_obs, bboxes_unobs, ts_obs, ts_unobs = batch
+        bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, _ = batch
         ts_all = torch.cat([ts_obs, ts_unobs], dim=0)
         bboxes_all = torch.cat([bboxes_obs, bboxes_unobs], dim=0)
 

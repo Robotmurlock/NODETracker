@@ -1,4 +1,5 @@
-train_path: 'MOT20Labels/train'
-val_path: 'MOT20Labels/val'
-history_len: 5
-future_len: 3
+train_path: 'MOT20-Test/train'
+val_path: 'MOT20-Test/val'
+test_path: 'MOT20-Test/test'
+history_len: 2
+future_len: 1

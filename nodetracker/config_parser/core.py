@@ -14,6 +14,7 @@ import dacite
 class DatasetConfig:
     train_path: str
     val_path: str
+    test_path: str
     history_len: int
     future_len: int
 
@@ -32,9 +33,10 @@ class ModelConfig:
 
 
 @dataclass
-class TrainerConfig:
+class ResourcesConfig:
     gpus: int
     accelerator: str
+    num_workers: int
 
 
 @dataclass
@@ -55,21 +57,31 @@ class TrainCheckpointConfig:
 class TrainConfig:
     experiment: str
     batch_size: int
-    num_workers: int
     max_epochs: int
     learning_rate: float
 
-    trainer_cfg: TrainerConfig
     logging_cfg: TrainLoggingConfig
     checkpoint_cfg: TrainCheckpointConfig
+
+@dataclass
+class EvalConfig:
+    model_type: str
+    experiment: str
+    batch_size: int
+    num_workers: int
+    inference_name: str
+    checkpoint_path: str
+
 
 @dataclass
 class GlobalConfig:
     """
     Scripts GlobalConfig
     """
+    resources: ResourcesConfig
     dataset: DatasetConfig
     train: TrainConfig
+    eval: EvalConfig
     model: ModelConfig
 
     @classmethod

@@ -12,9 +12,11 @@ from typing import Dict, Tuple, List, Any, Union
 import numpy as np
 import pandas as pd
 import torch
+from torch.utils.data import DataLoader
 from torch.utils.data import Dataset
 from tqdm import tqdm
 
+from nodetracker.datasets.utils import ode_dataloader_collate_func
 from nodetracker.utils.logging import configure_logging
 
 
@@ -29,6 +31,7 @@ class SceneInfo:
     MOT Scene metadata (name, frame shape, ...)
     """
     name: str
+    path: str
     seqlength: Union[str, int]
     framerate: Union[str, int]
     imdir: str
@@ -46,7 +49,6 @@ class SceneInfo:
         self.imwidth = int(self.imwidth)
 
 
-SceneIndex = Dict[str, str]
 SceneInfoIndex = Dict[str, SceneInfo]
 
 
@@ -61,16 +63,16 @@ class MOTDataset:
         Args:
             path: Path to dataset
             history_len: Number of observed data points
-            future_len: Number of unobserved data poitns
+            future_len: Number of unobserved data points
             label_type: Label Type
         """
         self._history_len = history_len
         self._future_len = future_len
 
-        self._scene_file_index, self._scene_info_index = self._index_dataset(path, label_type)
+        self._scene_info_index = self._index_dataset(path, label_type)
         self._label_type = label_type
 
-        self._data_labels, self._n_labels = self._parse_labels(self._scene_file_index)
+        self._data_labels, self._n_labels = self._parse_labels(self._scene_info_index)
         self._trajectory_index = self._create_trajectory_index(self._data_labels, self._history_len, self._future_len)
 
     @property
@@ -81,7 +83,21 @@ class MOTDataset:
         return self._label_type
 
     @staticmethod
-    def _index_dataset(path: str, label_type: LabelType) -> Tuple[SceneIndex, SceneInfoIndex]:
+    def _get_image_path(scene_info: SceneInfo, frame_id: int) -> str:
+        """
+        Get frame path for given scene and frame id
+
+        Args:
+            scene_info: scene metadata
+            frame_id: frame number
+
+        Returns:
+            Path to image (frame)
+        """
+        return os.path.join(scene_info.path, scene_info.imdir, f'{frame_id:06d}.{scene_info.imext}')
+
+    @staticmethod
+    def _index_dataset(path: str, label_type: LabelType) -> SceneInfoIndex:
         """
         Index dataset content. Format: { {scene_name}: {scene_labels_path} }
 
@@ -90,12 +106,11 @@ class MOTDataset:
             label_type: Use ground truth bboxes or detections
 
         Returns:
-            Index to scenes and scene files
+            Index to scenes
         """
         scene_names = [file for file in os.listdir(path) if not file.startswith('.')]
         logger.debug(f'Found {len(scene_names)} scenes. Names: {scene_names}.')
 
-        index: SceneIndex = {}
         scene_info_index: SceneInfoIndex = {}
 
         for scene_name in scene_names:
@@ -103,20 +118,22 @@ class MOTDataset:
             scene_files = os.listdir(scene_directory)
             assert label_type.value in scene_files, f'Ground truth file "{label_type.value}" not found. Contents: {scene_files}'
             gt_path = os.path.join(scene_directory, label_type.value, f'{label_type.value}.txt')
-            index[scene_name] = gt_path
 
             assert 'seqinfo.ini' in scene_files, f'Scene config file "seqinfo.ini" not found. Contents: {scene_files}'
             scene_info_path = os.path.join(scene_directory, 'seqinfo.ini')
             raw_info = configparser.ConfigParser()
             raw_info.read(scene_info_path)
-            scene_info = SceneInfo(**dict(raw_info['Sequence']))
+            raw_info = dict(raw_info['Sequence'])
+            raw_info['path'] = gt_path
+
+            scene_info = SceneInfo(**raw_info)
             scene_info_index[scene_name] = scene_info
             logger.debug(f'Scene info {scene_info}.')
 
-        return index, scene_info_index
+        return scene_info_index
 
     @staticmethod
-    def _parse_labels(index: SceneIndex) -> Tuple[Dict[str, list], int]:
+    def _parse_labels(scene_infos: SceneInfoIndex) -> Tuple[Dict[str, list], int]:
         """
         Loads all labels dictionary with format:
         {
@@ -126,7 +143,7 @@ class MOTDataset:
         }
 
         Args:
-            index: Dataset File Index
+            scene_infos: Scene Metadata
 
         Returns:
             Labels dictionary
@@ -134,13 +151,12 @@ class MOTDataset:
         data = defaultdict(list)
         n_labels = 0
 
-        for scene_name, scene_path in index.items():
-            df = pd.read_csv(scene_path, header=None)
+        for scene_name, scene_info in scene_infos.items():
+            df = pd.read_csv(scene_info.path, header=None)
             df = df[df[7] == 1]  # Ignoring non-pedestrian objects
 
             df = df.iloc[:, :6]
             df.columns = ['frame_id', 'object_id', 'ymin', 'xmin', 'w', 'h']
-            # df = df[['frame_id', 'object_id', 'xmin', 'ymin', 'w', 'h']]  # Reorder coordinates to xywh format
             df['object_global_id'] = scene_name + '_' + df['object_id'].astype(str)  # object id is not unique over all scenes
             df = df.drop(columns='object_id', axis=1)
             df = df.sort_values(by=['object_global_id', 'frame_id'])
@@ -150,11 +166,12 @@ class MOTDataset:
             for object_global_id, df_grp in tqdm(object_groups, desc=f'Parsing {scene_name}', unit='pedestrian'):
                 df_grp = df_grp.drop(columns='object_global_id', axis=1).set_index('frame_id')
                 assert df_grp.index.max() - df_grp.index.min() + 1 == df_grp.index.shape[0], f'Object {object_global_id} has missing data points!'
+
                 for frame_id, row in df_grp.iterrows():
                     data[object_global_id].append({
                         'frame_id': frame_id,
                         'bbox': row.values.tolist(),
-                        'image_path': None  # TODO
+                        'image_path': MOTDataset._get_image_path(scene_info, frame_id)
                     })
 
         logger.debug(f'Parsed labels. Dataset size is {n_labels}.')
@@ -198,7 +215,8 @@ class MOTDataset:
         metadata = {
             'scene_name': scene_name,
             'frame_ids': frame_ids,
-            'object_id': object_id
+            'object_id': object_id,
+            'image_paths': [item['image_path'] for item in raw_traj]
         }
 
         # Bboxes
@@ -211,8 +229,6 @@ class MOTDataset:
         frame_ts = np.array(frame_ids, dtype=np.float32)
         frame_ts = frame_ts - frame_ts[0] + 1  # Transforming to relative time values
         frame_ts = np.expand_dims(frame_ts, -1)
-
-        # TODO: Images paths
 
         # Observed - Unobserved
         bboxes_obs = bboxes[:self._history_len]
@@ -232,7 +248,7 @@ class TorchMOTTrajectoryDataset(Dataset):
         Args:
             path: Path to dataset
             history_len: Number of observed data points
-            future_len: Number of unobserved data poitns
+            future_len: Number of unobserved data points
             label_type: Label Type
         """
         super().__init__()
@@ -246,20 +262,20 @@ class TorchMOTTrajectoryDataset(Dataset):
     def __len__(self) -> int:
         return len(self._dataset)
 
-    def __getitem__(self, index: int) -> Tuple[torch.tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-        bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, _ = self._dataset[index]  # FIXME: Ignoring metadata for now
+    def __getitem__(self, index: int) -> Tuple[torch.tensor, torch.Tensor, torch.Tensor, torch.Tensor, dict]:
+        bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, metadata = self._dataset[index]
         bboxes_obs = torch.from_numpy(bboxes_obs)
         bboxes_unobs = torch.from_numpy(bboxes_unobs)
         ts_obs = torch.from_numpy(ts_obs)
         ts_unobs = torch.from_numpy(ts_unobs)
 
-        return bboxes_obs, bboxes_unobs, ts_obs, ts_unobs
+        return bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, metadata
 
 def run_test() -> None:
     from nodetracker.common.project import ASSETS_PATH
     configure_logging(logging.DEBUG)
 
-    dataset_path = os.path.join(ASSETS_PATH, 'MOT20Labels', 'train')
+    dataset_path = os.path.join(ASSETS_PATH, 'MOT20', 'train')
     dataset = MOTDataset(dataset_path, history_len=4, future_len=4)
 
     print(f'Dataset size: {len(dataset)}')
@@ -268,8 +284,16 @@ def run_test() -> None:
     torch_dataset = TorchMOTTrajectoryDataset(dataset_path, history_len=4, future_len=4)
 
     print(f'Torch Dataset size: {len(torch_dataset)}')
-    print(f'Torch Sample example shapes: {[x.shape for x in torch_dataset[5][:-1]]}')
-    print(f'Torch Sample example: {torch_dataset[5]}')
+    print(f'Torch sample example shapes: {[x.shape for x in torch_dataset[5][:-1]]}')
+    print(f'Torch sample example: {torch_dataset[5]}')
+
+    torch_dataloader = DataLoader(torch_dataset, batch_size=4, collate_fn=ode_dataloader_collate_func)
+    for bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, metadata in torch_dataloader:
+        print(f'Torch batch sample example shapes: bboxes_obs={bboxes_obs.shape}, bboxes_unobs={bboxes_unobs.shape}, '
+              f'ts_obs={ts_obs.shape}, ts_unobs={ts_unobs.shape}')
+        print('Torch batch metadata', metadata)
+
+        break
 
 
 if __name__ == '__main__':

@@ -1,12 +1,7 @@
 experiment: 'exp01_baseline'
 batch_size: 32
-num_workers: 8
-max_epochs: 10
+max_epochs: 3
 learning_rate: 1e-3
-
-trainer_cfg:
-  gpus: 0
-  accelerator: 'cpu'
 
 logging_cfg:
   path: 'logs'
@@ -14,6 +9,6 @@ logging_cfg:
   log_every_n_steps: 1
 
 checkpoint_cfg:
-  path: 'checkpoints/${train.experiment}'
+  path: '${train.experiment}/checkpoints'
   metric_monitor: 'val/loss'
   resume_from: null
