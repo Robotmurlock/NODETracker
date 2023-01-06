@@ -1,7 +1,7 @@
 """
 Kalman Filter torch wrapper
 """
-from typing import Optional
+from typing import Optional, Tuple
 
 import numpy as np
 import torch
@@ -19,8 +19,8 @@ class TorchConstantVelocityODKalmanFilter(nn.Module):
         super().__init__()
         self._kf = ConstantVelocityODKalmanFilter(*args, **kwargs)
 
-    def forward(self, x: torch.Tensor, t_obs: torch.Tensor, t_unobs: Optional[torch.Tensor] = None) \
-            -> torch.Tensor:
+    def forward(self, x: torch.Tensor, t_obs: torch.Tensor, t_unobs: Optional[torch.Tensor] = None, *args, **kwargs) \
+            -> Tuple[torch.Tensor, ...]:
         assert x.shape[1] == 1, f'Kalman filter does not support batch size different than 1! Got shape: {x.shape}.'
         assert x.shape[2] == 4, f'Kalman filter expected 4 measurements! Got shape: {x.shape}.'
 
@@ -50,7 +50,7 @@ class TorchConstantVelocityODKalmanFilter(nn.Module):
 
         batched_preds = np.stack(preds)
         batched_preds = torch.from_numpy(batched_preds).to(device)
-        return batched_preds
+        return batched_preds,
 
 
 def main() -> None:
@@ -59,7 +59,7 @@ def main() -> None:
     t_obs = torch.tensor([10, 11, 12, 13, 14], dtype=torch.float32).view(-1, 1, 1)
     t_unobs = torch.tensor([15, 17, 18], dtype=torch.float32).view(-1, 1, 1)
 
-    output = tkf(x, t_obs, t_unobs)
+    output, *_ = tkf(x, t_obs, t_unobs)
     expected_shape = (3, 4, 1)
     assert output.shape == expected_shape, f'Expected shape {expected_shape} but found {output.shape}!'
 

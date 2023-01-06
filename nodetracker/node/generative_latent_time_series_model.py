@@ -101,16 +101,17 @@ class ODEVAE(nn.Module):
         self._encoder = RNNEncoder(observable_dim, hidden_dim, latent_dim)
         self._decoder = NODEDecoder(latent_dim, hidden_dim, observable_dim)
 
-    def forward(self, x: torch.Tensor, t_obs: torch.Tensor, t_all: Optional[torch.Tensor] = None, generate: bool = False) \
-            -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        t_all = t_all if t_all is not None else t_obs
-        assert t_all.shape[0] >= t_obs.shape[0], \
-            f'All time points must contain at lease observable time points. Shapes (all, obs): {t_all.shape[0]}, {t_obs.shape[0]}'
+    def forward(self, x: torch.Tensor, t_obs: torch.Tensor, t_unobs: Optional[torch.Tensor] = None, generate: bool = False, *args, **kwargs) \
+            -> Tuple[torch.Tensor, ...]:
+        n_obs = t_obs.shape[0]
+        t_all = torch.cat([t_obs, t_unobs], dim=0) if t_unobs is not None else t_obs
 
         z0_mean, z0_log_var = self._encoder(x, t_obs)
         z0 = z0_mean if not generate else z0_mean + torch.randn_like(z0_mean) * torch.exp(0.5 * z0_log_var)
-        x_hat = self._decoder(z0, t_all)
-        return x_hat, z0_mean, z0_log_var
+        x_hat_all = self._decoder(z0, t_all)
+        x_hat = x_hat_all[n_obs:, :, :]
+
+        return x_hat, x_hat_all, z0_mean, z0_log_var
 
 
 class ELBO(nn.Module):
@@ -143,12 +144,12 @@ class LightningODEVAE(pl.LightningModule):
         self._meter = MetricMeter()
 
     def forward(self, x: torch.Tensor, t_obs: torch.Tensor, t_all: Optional[torch.Tensor] = None, generate: bool = False) \
-            -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+            -> Tuple[torch.Tensor, ...]:
         return self._model(x, t_obs, t_all, generate)
 
     def training_step(self, batch: Tuple[torch.Tensor, ...], *args, **kwargs) -> torch.Tensor:
         bboxes_obs, _, ts_obs, _, _ = batch
-        bboxes_hat, z0_mean, z0_log_var = self.forward(bboxes_obs, ts_obs)
+        _, bboxes_hat, z0_mean, z0_log_var = self.forward(bboxes_obs, ts_obs)
         loss, kl_div_loss, likelihood_loss = self._loss_func(bboxes_hat, bboxes_obs, z0_mean, z0_log_var)
 
         self._meter.push('training/loss', loss)
@@ -162,7 +163,7 @@ class LightningODEVAE(pl.LightningModule):
         ts_all = torch.cat([ts_obs, ts_unobs], dim=0)
         bboxes_all = torch.cat([bboxes_obs, bboxes_unobs], dim=0)
 
-        bboxes_hat, z0_mean, z0_log_var = self.forward(bboxes_obs, ts_obs, ts_all)
+        _, bboxes_hat, z0_mean, z0_log_var = self.forward(bboxes_obs, ts_obs, ts_all)
         loss, kl_div_loss, likelihood_loss = self._loss_func(bboxes_hat, bboxes_all, z0_mean, z0_log_var)
 
         self._meter.push('val/loss', loss)
@@ -184,8 +185,9 @@ def run_test():
     model = LightningODEVAE(4, 3, 2)
     x_obs = torch.randn(3, 1, 4)
     t_obs = torch.randn(3, 1, 1)
+    t_unobs = torch.randn(2, 1, 1)
 
-    print('Output:', [x.shape for x in model(x_obs, t_obs)])
+    print('Output:', [x.shape for x in model(x_obs, t_obs, t_unobs)])
 
 
 if __name__ == '__main__':
