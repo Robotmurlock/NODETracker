@@ -1,7 +1,6 @@
 experiment: 'exp01_baseline'
-model_type: 'ignored_for_not'
 batch_size: 32
 num_workers: 8
 
 inference_name: 'initial'
-checkpoint_path: '${eval.experiment}/checkpoints/last.ckpt'
+checkpoint: 'last.ckpt'

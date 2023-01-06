@@ -2,12 +2,12 @@
 Model factory method
 """
 import enum
-from typing import Union
+from typing import Union, Optional
 
-
-from nodetracker.node.trajectory_filter import TrajectoryFilter
-from nodetracker.node.kalman_filter import TorchConstantVelocityODKalmanFilter
 from nodetracker.node.generative_latent_time_series_model import LightningODEVAE
+from nodetracker.node.kalman_filter import TorchConstantVelocityODKalmanFilter
+from nodetracker.node.trajectory_filter import TrajectoryFilter
+
 
 class ModelType(enum.Enum):
     ODEVAE = 'odevae'
@@ -28,13 +28,15 @@ class ModelType(enum.Enum):
         """
         return self.value in [ModelType.ODEVAE.value]
 
-def create_model(model_type: Union[ModelType, str], params: dict) -> 'TrajectoryFilter':
+def load_or_create_model(model_type: Union[ModelType, str], params: dict, checkpoint_path: Optional[str] = None) \
+        -> Union['TrajectoryFilter', LightningODEVAE]:
     """
-    Creates model given name and parameters
+    Loads trained (if given checkpoint path) or creates new model given name and parameters
 
     Args:
         model_type: Model type
         params: Model parameters
+        checkpoint_path: Load pretrained model
 
     Returns:
         Model
@@ -47,4 +49,6 @@ def create_model(model_type: Union[ModelType, str], params: dict) -> 'Trajectory
         ModelType.KALMAN_FILTER: TorchConstantVelocityODKalmanFilter
     }
 
-    return catalog[model_type](**params)
+    if checkpoint_path is None:
+        return catalog[model_type](**params)
+    return catalog[model_type].load_from_checkpoint(checkpoint_path, **params)

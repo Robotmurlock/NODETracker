@@ -1,6 +1,6 @@
-observable_dim: 4
-latent_dim: 32
-hidden_dim: 32
-
-train_cfg:
+type: 'odevae'
+params:
+  observable_dim: 4
+  hidden_dim: 32
+  latent_dim: 32
   noise_std: 0.1

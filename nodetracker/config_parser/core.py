@@ -12,6 +12,7 @@ import dacite
 
 @dataclass
 class DatasetConfig:
+    name: str
     train_path: str
     val_path: str
     test_path: str
@@ -20,16 +21,9 @@ class DatasetConfig:
 
 
 @dataclass
-class ModelTrainConfig:
-    noise_std: float
-
-
-@dataclass
 class ModelConfig:
-    observable_dim: int
-    latent_dim: int
-    hidden_dim: int
-    train_cfg: ModelTrainConfig
+    type: str
+    params: dict
 
 
 @dataclass
@@ -42,7 +36,6 @@ class ResourcesConfig:
 @dataclass
 class TrainLoggingConfig:
     path: str
-    name: str
     log_every_n_steps: int
 
 
@@ -65,12 +58,11 @@ class TrainConfig:
 
 @dataclass
 class EvalConfig:
-    model_type: str
     experiment: str
     batch_size: int
     num_workers: int
     inference_name: str
-    checkpoint_path: str
+    checkpoint: str
 
 
 @dataclass

@@ -101,7 +101,7 @@ class ODEVAE(nn.Module):
         self._encoder = RNNEncoder(observable_dim, hidden_dim, latent_dim)
         self._decoder = NODEDecoder(latent_dim, hidden_dim, observable_dim)
 
-    def forward(self, x: torch.Tensor, t_obs: torch.Tensor, t_unobs: Optional[torch.Tensor] = None, generate: bool = False, *args, **kwargs) \
+    def forward(self, x: torch.Tensor, t_obs: torch.Tensor, t_unobs: Optional[torch.Tensor] = None, generate: bool = False) \
             -> Tuple[torch.Tensor, ...]:
         n_obs = t_obs.shape[0]
         t_all = torch.cat([t_obs, t_unobs], dim=0) if t_unobs is not None else t_obs
@@ -109,9 +109,9 @@ class ODEVAE(nn.Module):
         z0_mean, z0_log_var = self._encoder(x, t_obs)
         z0 = z0_mean if not generate else z0_mean + torch.randn_like(z0_mean) * torch.exp(0.5 * z0_log_var)
         x_hat_all = self._decoder(z0, t_all)
-        x_hat = x_hat_all[n_obs:, :, :]
+        x_unobs_hat = x_hat_all[n_obs:, :, :]
 
-        return x_hat, x_hat_all, z0_mean, z0_log_var
+        return x_unobs_hat, x_hat_all, z0_mean, z0_log_var
 
 
 class ELBO(nn.Module):
@@ -147,10 +147,27 @@ class LightningODEVAE(pl.LightningModule):
             -> Tuple[torch.Tensor, ...]:
         return self._model(x, t_obs, t_all, generate)
 
+    @staticmethod
+    def preprocess_batch(batch: tuple) -> tuple:
+        """
+        Unpacks batch and creates full trajectory tensors
+
+        Args:
+            batch: Raw batch
+
+        Returns:
+            Preprocessing batch
+        """
+        bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, metadata = batch
+        ts_all = torch.cat([ts_obs, ts_unobs], dim=0)
+        bboxes_all = torch.cat([bboxes_obs, bboxes_unobs], dim=0)
+        return bboxes_obs, bboxes_unobs, bboxes_all, ts_obs, ts_unobs, ts_all, metadata
+
     def training_step(self, batch: Tuple[torch.Tensor, ...], *args, **kwargs) -> torch.Tensor:
-        bboxes_obs, _, ts_obs, _, _ = batch
-        _, bboxes_hat, z0_mean, z0_log_var = self.forward(bboxes_obs, ts_obs)
-        loss, kl_div_loss, likelihood_loss = self._loss_func(bboxes_hat, bboxes_obs, z0_mean, z0_log_var)
+        bboxes_obs, _, bboxes_all, ts_obs, ts_unobs, _, _ = self.preprocess_batch(batch)
+
+        _, bboxes_hat_all, z0_mean, z0_log_var = self.forward(bboxes_obs, ts_obs, ts_unobs)
+        loss, kl_div_loss, likelihood_loss = self._loss_func(bboxes_hat_all, bboxes_all, z0_mean, z0_log_var)
 
         self._meter.push('training/loss', loss)
         self._meter.push('training/kl_div_loss', kl_div_loss)
@@ -159,18 +176,21 @@ class LightningODEVAE(pl.LightningModule):
         return loss
 
     def validation_step(self, batch: Tuple[torch.Tensor, ...], *args, **kwargs) -> torch.Tensor:
-        bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, _ = batch
-        ts_all = torch.cat([ts_obs, ts_unobs], dim=0)
-        bboxes_all = torch.cat([bboxes_obs, bboxes_unobs], dim=0)
+        bboxes_obs, bboxes_unobs, bboxes_all, ts_obs, ts_unobs, _, _ = self.preprocess_batch(batch)
 
-        _, bboxes_hat, z0_mean, z0_log_var = self.forward(bboxes_obs, ts_obs, ts_all)
-        loss, kl_div_loss, likelihood_loss = self._loss_func(bboxes_hat, bboxes_all, z0_mean, z0_log_var)
+        bboxes_unobs_hat, bboxes_all_hat, z0_mean, z0_log_var = self.forward(bboxes_obs, ts_obs, ts_unobs)
+        all_loss, all_kl_div_loss, all_likelihood_loss = self._loss_func(bboxes_all_hat, bboxes_all, z0_mean, z0_log_var)
+        unobs_loss, unobs_kl_div_loss, unobs_likelihood_loss = self._loss_func(bboxes_unobs_hat, bboxes_unobs, z0_mean, z0_log_var)
 
-        self._meter.push('val/loss', loss)
-        self._meter.push('val/kl_div_loss', kl_div_loss)
-        self._meter.push('val/likelihood_loss', likelihood_loss)
+        self._meter.push('val/loss', all_loss)
+        self._meter.push('val/kl_div_loss', all_kl_div_loss)
+        self._meter.push('val/likelihood_loss', all_likelihood_loss)
 
-        return loss
+        self._meter.push('val-forecast/loss', unobs_loss)
+        self._meter.push('val-forecast/kl_div_loss', unobs_kl_div_loss)
+        self._meter.push('val-forecast/likelihood_loss', unobs_likelihood_loss)
+
+        return all_loss
 
     def on_validation_epoch_end(self) -> None:
         for name, value in self._meter.get_all():

@@ -1,5 +1,6 @@
-train_path: 'MOT20-Test/train'
-val_path: 'MOT20-Test/val'
-test_path: 'MOT20-Test/test'
+name: 'MOT20-Test'
+train_path: '${dataset.name}/train'
+val_path: '${dataset.name}/val'
+test_path: '${dataset.name}/test'
 history_len: 2
 future_len: 1

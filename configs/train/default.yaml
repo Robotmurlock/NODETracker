@@ -5,10 +5,9 @@ learning_rate: 1e-3
 
 logging_cfg:
   path: 'logs'
-  name: '${train.experiment}'
   log_every_n_steps: 1
 
 checkpoint_cfg:
-  path: '${train.experiment}/checkpoints'
+  path: 'checkpoints'
   metric_monitor: 'val/loss'
   resume_from: null
