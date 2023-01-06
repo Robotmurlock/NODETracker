@@ -1,4 +1,4 @@
-experiment: 'exp01_baseline'
+experiment: 'exp01-baseline'
 batch_size: 32
 max_epochs: 3
 learning_rate: 1e-3

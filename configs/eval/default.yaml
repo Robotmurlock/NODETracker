@@ -1,4 +1,5 @@
-experiment: 'exp01_baseline'
+experiment: 'exp01-baseline'
+split: 'test'
 batch_size: 32
 num_workers: 8
 

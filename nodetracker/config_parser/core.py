@@ -19,6 +19,28 @@ class DatasetConfig:
     history_len: int
     future_len: int
 
+    def get_split_path(self, split: str) -> str:
+        """
+        Gets split path
+
+        Args:
+            split: Split name (train, val, test)
+
+        Returns:
+            Path to split
+        """
+        valid_split_values = ['train', 'val', 'test']
+        if split not in valid_split_values:
+            raise ValueError(f'Invalid split "{split}". Available: {valid_split_values}')
+
+        if split == 'train':
+            return self.train_path
+        elif split == 'val':
+            return self.val_path
+        elif split == 'test':
+            return self.test_path
+        else:
+            raise AssertionError('Invalid Program State!')
 
 @dataclass
 class ModelConfig:
@@ -62,6 +84,7 @@ class EvalConfig:
     batch_size: int
     num_workers: int
     inference_name: str
+    split: str
     checkpoint: str
 
 
