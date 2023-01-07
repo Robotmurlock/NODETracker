@@ -11,19 +11,22 @@ from typing import Tuple, List, Dict, Any
 import hydra
 import numpy as np
 import torch
-from omegaconf import OmegaConf, DictConfig
+from omegaconf import DictConfig
 from torch import nn
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from nodetracker.common.project import CONFIGS_PATH, ASSETS_PATH, OUTPUTS_PATH
-from nodetracker.config_parser import GlobalConfig
+from nodetracker.common import conventions
+from nodetracker.common.project import CONFIGS_PATH
 from nodetracker.datasets.mot import TorchMOTTrajectoryDataset
 from nodetracker.datasets.utils import ode_dataloader_collate_func
 from nodetracker.node import load_or_create_model
-from nodetracker.utils.logging import save_config
+from nodetracker.utils import pipeline
 
-logger = logging.getLogger('TrainScript')
+logger = logging.getLogger('InferenceScript')
+
+
+_CONFIG_SAVE_FILENAME = 'config-eval.yaml'
 
 
 @torch.no_grad()
@@ -89,7 +92,7 @@ def save_inference(
     predictions: List[list],
     sample_metrics: List[list],
     dataset_metrics: Dict[str, Any],
-    logs_path: str,
+    experiment_path: str,
     model_type: str,
     dataset_name: str,
     split: str,
@@ -103,19 +106,15 @@ def save_inference(
         predictions: Inference predictions
         sample_metrics: Sample level metrics
         dataset_metrics: Dataset level metrics (aggregated)
-        logs_path: Logs path
+        experiment_path: Model experiment path
         model_type: Model type (architecture)
         dataset_name: Dataset name
         split: Split name
         experiment_name: Experiment (concrete model) name
         inference_name: Inference name (name of the inference run)
     """
-    for inf_name_component in [model_type, dataset_name, split, experiment_name, inference_name]:
-        if '_' in inf_name_component:
-            raise ValueError(f'Found "_" in {inf_name_component}. Please use some other character!')
-
-    inference_fullname = f'{model_type}_{dataset_name}_{split}_{experiment_name}_{inference_name}'
-    inference_dirpath = os.path.join(logs_path, 'inferences', inference_fullname)
+    inference_fullname = conventions.get_inference_fullname(model_type, dataset_name, split, experiment_name, inference_name)
+    inference_dirpath = os.path.join(experiment_path, conventions.INFERENCES_DIRNAME, inference_fullname)
     Path(inference_dirpath).mkdir(parents=True, exist_ok=True)
 
     # Save predictions
@@ -143,16 +142,9 @@ def save_inference(
 
 @hydra.main(config_path=CONFIGS_PATH, config_name='default', version_base='1.1')
 def main(cfg: DictConfig):
-    logger.info(f'Configuration:\n{OmegaConf.to_yaml(cfg)}')
-    raw_cfg = OmegaConf.to_object(cfg)
-    cfg = GlobalConfig.from_dict(raw_cfg)
+    cfg, experiment_path = pipeline.preprocess(cfg, name='inference')
 
-    logs_path = os.path.join(OUTPUTS_PATH, cfg.dataset.name, cfg.train.experiment)
-    logger.info(f'Logs output path: "{logs_path}"')
-    logs_config_path = os.path.join(logs_path, f'config-inference.yaml')
-    save_config(raw_cfg, logs_config_path)
-
-    dataset_path = os.path.join(ASSETS_PATH, cfg.dataset.get_split_path(cfg.eval.split))
+    dataset_path = os.path.join(cfg.path.assets, cfg.dataset.get_split_path(cfg.eval.split))
     logger.info(f'Dataset {cfg.eval.split} path: "{dataset_path}".')
 
     dataset = TorchMOTTrajectoryDataset(
@@ -169,7 +161,7 @@ def main(cfg: DictConfig):
         shuffle=True
     )
 
-    checkpoint_path = os.path.join(logs_path, 'checkpoints', cfg.eval.checkpoint)
+    checkpoint_path = conventions.get_checkpoint_path(experiment_path, cfg.eval.checkpoint)
     model = load_or_create_model(model_type=cfg.model.type, params=cfg.model.params, checkpoint_path=checkpoint_path)
     accelerator = cfg.resources.accelerator
 
@@ -182,7 +174,7 @@ def main(cfg: DictConfig):
         predictions=inf_predictions,
         sample_metrics=eval_sample_metrics,
         dataset_metrics=eval_dataset_metrics,
-        logs_path=logs_path,
+        experiment_path=experiment_path,
         dataset_name=cfg.dataset.name,
         split=cfg.eval.split,
         experiment_name=cfg.eval.experiment,

@@ -19,7 +19,7 @@ class TorchConstantVelocityODKalmanFilter(nn.Module):
         super().__init__()
         self._kf = ConstantVelocityODKalmanFilter(*args, **kwargs)
 
-    def forward(self, x: torch.Tensor, t_obs: torch.Tensor, t_unobs: Optional[torch.Tensor] = None, *args, **kwargs) \
+    def forward(self, x: torch.Tensor, t_obs: torch.Tensor, t_unobs: Optional[torch.Tensor] = None) \
             -> Tuple[torch.Tensor, ...]:
         assert x.shape[1] == 1, f'Kalman filter does not support batch size different than 1! Got shape: {x.shape}.'
         assert x.shape[2] == 4, f'Kalman filter expected 4 measurements! Got shape: {x.shape}.'

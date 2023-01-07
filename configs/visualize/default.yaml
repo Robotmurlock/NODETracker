@@ -1,0 +1,4 @@
+resolution: [600, 400]
+fps: 10
+
+predictions_path: '123'

@@ -148,7 +148,8 @@ disable=abstract-method,
         zip-builtin-not-iterating,
         W1203,
         import-outside-toplevel,
-        no-value-for-parameter  # Hydra conflict
+        no-value-for-parameter,  # Hydra conflict
+        keyword-arg-before-vararg
 
 
 [REPORTS]
@@ -196,22 +197,22 @@ property-classes=abc.abstractproperty,cached_property.cached_property,cached_pro
 function-rgx=^(?:(?P<exempt>setUp|tearDown|setUpModule|tearDownModule)|(?P<camel_case>_?[A-Z][a-zA-Z0-9]*)|(?P<snake_case>_?[a-z][a-z0-9_]*))$
 
 # Regular expression matching correct variable names
-variable-rgx=^[a-zA-Z_][a-zA-Z0-9_]*$
+variable-rgx=^[a-z][a-z0-9_]*$
 
 # Regular expression matching correct constant names
-const-rgx=^(_?[A-Z_][A-Z0-9_]*|__[a-z0-9_]+__|_?[a-z][a-z0-9_]*)$
+const-rgx=^(_?[A-Z][A-Z0-9_]*|__[a-z0-9_]+__|_?[a-z][a-z0-9_]*)$
 
 # Regular expression matching correct attribute names
-attr-rgx=^_{0,2}[a-z_][a-zA-Z0-9_]*$
+attr-rgx=^_{0,2}[a-z][a-z0-9_]*$
 
 # Regular expression matching correct argument names
-argument-rgx=^[a-z_][a-zA-Z0-9_]*$
+argument-rgx=^[a-z][a-z0-9_]*$
 
 # Regular expression matching correct class attribute names
-class-attribute-rgx=^(_?[A-Z_][A-Z0-9_]*|__[a-z0-9_]+__|_?[a-z][a-z0-9_]*)$
+class-attribute-rgx=^(_?[A-Z][A-Z0-9_]*|__[a-z0-9_]+__|_?[a-z][a-z0-9_]*)$
 
 # Regular expression matching correct inline iteration names
-inlinevar-rgx=^[a-z_][a-z0-9_]*$
+inlinevar-rgx=^[a-z][a-z0-9_]*$
 
 # Regular expression matching correct class names
 class-rgx=^_?[A-Z][a-zA-Z0-9]*$
@@ -220,7 +221,7 @@ class-rgx=^_?[A-Z][a-zA-Z0-9]*$
 module-rgx=^(_?[a-z][a-z0-9_]*|__init__)$
 
 # Regular expression matching correct method names
-method-rgx=(?x)^(?:(?P<exempt>_[a-zA-Z0-9_]+__|runTest|setUp|tearDown|setUpTestCase|tearDownTestCase|setupSelf|tearDownClass|setUpClass|(test|assert)_*[A-Z0-9_][a-zA-Z0-9_]*|next)|(?P<camel_case>_{0,2}[A-Z_][a-zA-Z0-9_]*)|(?P<snake_case>_{0,2}[a-z_][a-zA-Z0-9_]*))$
+method-rgx=(?x)^(?:(?P<exempt>_[a-z0-9_]+__|runTest|setUp|tearDown|setUpTestCase|tearDownTestCase|setupSelf|tearDownClass|setUpClass|(test|assert)_*[A-Z0-9][a-zA-Z0-9_]*|next)|(?P<camel_case>_{0,2}[A-Z][a-zA-Z0-9_]*)|(?P<snake_case>_{0,2}[a-z][a-z0-9_]*))$
 
 # Regular expression which should only match function or class names that do
 # not require a docstring.
@@ -430,4 +431,3 @@ valid-metaclass-classmethod-first-arg=mcs
 overgeneral-exceptions=StandardError,
                        Exception,
                        BaseException
-

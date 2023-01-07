@@ -11,25 +11,21 @@ from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.loggers import TensorBoardLogger
 from torch.utils.data import DataLoader
 
-from nodetracker.common.project import CONFIGS_PATH, ASSETS_PATH, OUTPUTS_PATH
+from nodetracker.common import conventions
+from nodetracker.common.project import CONFIGS_PATH
 from nodetracker.datasets.mot import TorchMOTTrajectoryDataset
 from nodetracker.datasets.utils import ode_dataloader_collate_func
 from nodetracker.node import load_or_create_model, ModelType
-from nodetracker.utils.logging import save_config, parse_config
+from nodetracker.utils import pipeline
 
 logger = logging.getLogger('TrainScript')
 
 
 @hydra.main(config_path=CONFIGS_PATH, config_name='default', version_base='1.1')
 def main(cfg: DictConfig):
-    cfg, raw_cfg = parse_config(cfg)
+    cfg, experiment_path = pipeline.preprocess(cfg, name='train')
 
-    logs_path = os.path.join(OUTPUTS_PATH, cfg.dataset.name, cfg.train.experiment)
-    logger.info(f'Logs output path: "{logs_path}"')
-    logs_config_path = os.path.join(logs_path, f'config-train.yaml')
-    save_config(raw_cfg, logs_config_path)
-
-    dataset_train_path = os.path.join(ASSETS_PATH, cfg.dataset.train_path)
+    dataset_train_path = os.path.join(cfg.path.assets, cfg.dataset.train_path)
     logger.info(f'Dataset train path: "{dataset_train_path}".')
 
     train_dataset = TorchMOTTrajectoryDataset(
@@ -45,7 +41,7 @@ def main(cfg: DictConfig):
         shuffle=True
     )
 
-    dataset_val_path = os.path.join(ASSETS_PATH, cfg.dataset.val_path)
+    dataset_val_path = os.path.join(cfg.path.assets, cfg.dataset.val_path)
     logger.info(f'Dataset val path: "{dataset_val_path}".')
     val_dataset = TorchMOTTrajectoryDataset(
         path=dataset_val_path,
@@ -63,8 +59,8 @@ def main(cfg: DictConfig):
     assert model_type.trainable, f'Chosen model type "{model_type}" is not trainable!'
     model = load_or_create_model(model_type=model_type, params=cfg.model.params)
 
-    tb_logger = TensorBoardLogger(save_dir=logs_path, name='tensorboard_logs')
-    checkpoint_path = os.path.join(logs_path, cfg.train.checkpoint_cfg.path)
+    tb_logger = TensorBoardLogger(save_dir=experiment_path, name=conventions.TENSORBOARD_DIRNAME)
+    checkpoint_path = conventions.get_checkpoints_dirpath(experiment_path)
     trainer = Trainer(
         gpus=cfg.resources.gpus,
         accelerator=cfg.resources.accelerator,
@@ -80,7 +76,7 @@ def main(cfg: DictConfig):
             )
         ],
         resume_from_checkpoint=cfg.train.checkpoint_cfg.resume_from if cfg.train.checkpoint_cfg.resume_from
-            and os.path.exists(cfg.train.checkpoint_cfg.path) else None
+            and os.path.exists(cfg.train.checkpoint_cfg.resume_from) else None
     )
 
     trainer.fit(

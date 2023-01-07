@@ -10,6 +10,9 @@ from nodetracker.node.trajectory_filter import TrajectoryFilter
 
 
 class ModelType(enum.Enum):
+    """
+    Enumerated implemented architectures
+    """
     ODEVAE = 'odevae'
     KALMAN_FILTER = 'kf'
 
@@ -19,7 +22,7 @@ class ModelType(enum.Enum):
             if v.value == value:
                 return v
 
-        raise ValueError(f'Can\'t create ModelType from "{value}". Possible values: {[v for v in cls]}')
+        raise ValueError(f'Can\'t create ModelType from "{value}". Possible values: {list(cls)}')
 
     @property
     def trainable(self) -> bool:

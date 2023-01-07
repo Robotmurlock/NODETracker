@@ -4,4 +4,5 @@ defaults:
   - model: default.yaml
   - train: default.yaml
   - eval: default.yaml
+  - visualize: default.yaml
   - _self_

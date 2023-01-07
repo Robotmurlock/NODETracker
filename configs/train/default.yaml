@@ -8,6 +8,5 @@ logging_cfg:
   log_every_n_steps: 1
 
 checkpoint_cfg:
-  path: 'checkpoints'
   metric_monitor: 'val/loss'
   resume_from: null
