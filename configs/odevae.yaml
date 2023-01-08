@@ -1,5 +1,5 @@
 defaults:
-  - resources: default.yaml
+  - resources: cuda.yaml
   - dataset: mot.yaml
   - model: odevae.yaml
   - train: odevae.yaml

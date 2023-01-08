@@ -1,5 +1,5 @@
 defaults:
-  - resources: default.yaml
+  - resources: cpu.yaml
   - dataset: mot.yaml
   - model: kf.yaml
   - train: kf.yaml
