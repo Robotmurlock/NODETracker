@@ -70,8 +70,8 @@ def run_inference(model: nn.Module, accelerator: str, data_loader: DataLoader) -
             for frame_relative_index in range(curr_unobs_time_len):
                 frame_id = middle_frame_id + frame_relative_index
                 prediction_id = sample_id + [frame_id]
-                bboxes_unobs_gt_list = bboxes_unobs[0, batch_index, :].detach().cpu().numpy().tolist()
-                bboxes_unobs_pred_list = bboxes_unobs_hat[0, batch_index, :].detach().cpu().numpy().tolist()
+                bboxes_unobs_gt_list = bboxes_unobs[frame_relative_index, batch_index, :].detach().cpu().numpy().tolist()
+                bboxes_unobs_pred_list = bboxes_unobs_hat[frame_relative_index, batch_index, :].detach().cpu().numpy().tolist()
                 pred = prediction_id + bboxes_unobs_pred_list + bboxes_unobs_gt_list
                 predictions.append(pred)
 
@@ -120,7 +120,7 @@ def save_inference(
     inf_predictions_filepath = os.path.join(inference_dirpath, 'inference.csv')
     with open(inf_predictions_filepath, 'w', encoding='utf-8') as f:
         f.write('scene_name,object_id,frame_range,frame_id,p_ymin,p_xmin,p_w,p_h,gt_ymin,gt_xmin,gt_w,gt_h')  # Header
-        for p in predictions:
+        for p in tqdm(predictions, desc='Saving predictions', unit='sample'):
             scene_name, object_id, frame_range, frame_id, *coords = p
             coords_str = ','.join([f'{c:.4f}' for c in coords])
             f.write(f'\n{scene_name},{object_id},{frame_range},{frame_id},{coords_str}')
@@ -129,7 +129,7 @@ def save_inference(
     inf_sample_metrics_filepath = os.path.join(inference_dirpath, 'sample_metrics.csv')
     with open(inf_sample_metrics_filepath, 'w', encoding='utf-8') as f:
         f.write('scene_name,object_id,frame_range,MSE')  # Header
-        for sm in sample_metrics:
+        for sm in tqdm(sample_metrics, desc='Saving evaluation metrics', unit='sample'):
             scene_name, object_id, frame_range, mse = sm
             f.write(f'\n{scene_name},{object_id},{frame_range},{mse:.4f}')
 

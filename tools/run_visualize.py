@@ -80,6 +80,7 @@ def main(cfg: DictConfig):
         mp4_writer.write(frame)  # write last frame
         logger.debug(f'Saving video ({scene_name}, {frame_range}) at "{mp4_path}"')
         mp4_writer.release()
+        break
 
 
 if __name__ == '__main__':
