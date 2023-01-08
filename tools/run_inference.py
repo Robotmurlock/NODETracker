@@ -113,8 +113,7 @@ def save_inference(
         experiment_name: Experiment (concrete model) name
         inference_name: Inference name (name of the inference run)
     """
-    inference_fullname = conventions.get_inference_fullname(model_type, dataset_name, split, experiment_name, inference_name)
-    inference_dirpath = os.path.join(experiment_path, conventions.INFERENCES_DIRNAME, inference_fullname)
+    inference_dirpath = conventions.get_inference_path(experiment_path, model_type, dataset_name, split, experiment_name, inference_name)
     Path(inference_dirpath).mkdir(parents=True, exist_ok=True)
 
     # Save predictions
@@ -161,7 +160,7 @@ def main(cfg: DictConfig):
         shuffle=True
     )
 
-    checkpoint_path = conventions.get_checkpoint_path(experiment_path, cfg.eval.checkpoint)
+    checkpoint_path = conventions.get_checkpoint_path(experiment_path, cfg.eval.checkpoint) if cfg.eval.checkpoint else None
     model = load_or_create_model(model_type=cfg.model.type, params=cfg.model.params, checkpoint_path=checkpoint_path)
     accelerator = cfg.resources.accelerator
 

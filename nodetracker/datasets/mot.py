@@ -31,7 +31,8 @@ class SceneInfo:
     MOT Scene metadata (name, frame shape, ...)
     """
     name: str
-    path: str
+    dirpath: str
+    gt_path: str
     seqlength: Union[str, int]
     framerate: Union[str, int]
     imdir: str
@@ -66,11 +67,12 @@ class MOTDataset:
             future_len: Number of unobserved data points
             label_type: Label Type
         """
+        self._path = path
         self._history_len = history_len
         self._future_len = future_len
+        self._label_type = label_type
 
         self._scene_info_index = self._index_dataset(path, label_type)
-        self._label_type = label_type
 
         self._data_labels, self._n_labels = self._parse_labels(self._scene_info_index)
         self._trajectory_index = self._create_trajectory_index(self._data_labels, self._history_len, self._future_len)
@@ -81,6 +83,18 @@ class MOTDataset:
         Returns: LabelType
         """
         return self._label_type
+
+    def get_scene_info(self, scene_name: str) -> SceneInfo:
+        """
+        Get scene metadata by name.
+
+        Args:
+            scene_name: Scene name
+
+        Returns:
+            Scene metadata
+        """
+        return self._scene_info_index[scene_name]
 
     @staticmethod
     def _get_image_path(scene_info: SceneInfo, frame_id: int) -> str:
@@ -94,7 +108,21 @@ class MOTDataset:
         Returns:
             Path to image (frame)
         """
-        return os.path.join(scene_info.path, scene_info.imdir, f'{frame_id:06d}.{scene_info.imext}')
+        return os.path.join(scene_info.dirpath, scene_info.imdir, f'{frame_id:06d}{scene_info.imext}')
+
+    def get_scene_image_path(self, scene_name: str, frame_id: int) -> str:
+        """
+        Get image (frame) path for given scene and frame id.
+
+        Args:
+            scene_name: scene name
+            frame_id: frame id
+
+        Returns:
+            Frame path
+        """
+        scene_info = self._scene_info_index[scene_name]
+        return self._get_image_path(scene_info, frame_id)
 
     @staticmethod
     def _index_dataset(path: str, label_type: LabelType) -> SceneInfoIndex:
@@ -124,7 +152,8 @@ class MOTDataset:
             raw_info = configparser.ConfigParser()
             raw_info.read(scene_info_path)
             raw_info = dict(raw_info['Sequence'])
-            raw_info['path'] = gt_path
+            raw_info['gt_path'] = gt_path
+            raw_info['dirpath'] = scene_directory
 
             scene_info = SceneInfo(**raw_info)
             scene_info_index[scene_name] = scene_info
@@ -152,7 +181,7 @@ class MOTDataset:
         n_labels = 0
 
         for scene_name, scene_info in scene_infos.items():
-            df = pd.read_csv(scene_info.path, header=None)
+            df = pd.read_csv(scene_info.gt_path, header=None)
             df = df[df[7] == 1]  # Ignoring non-pedestrian objects
 
             df = df.iloc[:, :6]
@@ -258,6 +287,13 @@ class TorchMOTTrajectoryDataset(Dataset):
             future_len=future_len,
             label_type=label_type
         )
+
+    @property
+    def dataset(self) -> MOTDataset:
+        """
+        Returns: MOT core dataset class object.
+        """
+        return self._dataset
 
     def __len__(self) -> int:
         return len(self._dataset)

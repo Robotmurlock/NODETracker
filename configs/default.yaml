@@ -1,8 +1,0 @@
-defaults:
-  - resources: default.yaml
-  - dataset: default.yaml
-  - model: default.yaml
-  - train: default.yaml
-  - eval: default.yaml
-  - visualize: default.yaml
-  - _self_

@@ -28,7 +28,7 @@ def preprocess(cfg: DictConfig, name: str) -> Tuple[GlobalConfig, str]:
     """
     raw_cfg = OmegaConf.to_object(cfg)
     cfg = GlobalConfig.from_dict(raw_cfg)
-    logger.info(f'\n{cfg.prettyprint}')
+    logger.info(f'Config:\n{cfg.prettyprint}')
 
     experiment_path = conventions.get_experiment_path(cfg.path.master, cfg.dataset.name, cfg.train.experiment)
     logger.info(f'Experiment output path: "{experiment_path}"')

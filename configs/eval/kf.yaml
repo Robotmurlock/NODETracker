@@ -1,0 +1,7 @@
+experiment: 'KalmanFilter-exp01'
+split: 'val'
+batch_size: 1
+num_workers: 8
+
+inference_name: 'initial'
+checkpoint: null

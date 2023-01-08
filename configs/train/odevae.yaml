@@ -1,0 +1,12 @@
+experiment: 'ODEVAE-exp01'
+batch_size: 32
+max_epochs: 10
+learning_rate: 1e-3
+
+logging_cfg:
+  path: 'logs'
+  log_every_n_steps: 1
+
+checkpoint_cfg:
+  metric_monitor: 'val/loss'
+  resume_from: null

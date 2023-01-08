@@ -1,0 +1,8 @@
+defaults:
+  - resources: default.yaml
+  - dataset: mot.yaml
+  - model: odevae.yaml
+  - train: odevae.yaml
+  - eval: odevae.yaml
+  - visualize: default.yaml
+  - _self_

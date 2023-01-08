@@ -46,6 +46,7 @@ class TorchConstantVelocityODKalmanFilter(nn.Module):
         for i in range(n_unobs):
             dt = t_unobs_relative[i, 0, 0].item()
             pred, _ = self._kf.predict(dt)
+            pred = pred.reshape(1, -1)
             preds.append(pred)
 
         batched_preds = np.stack(preds)
@@ -60,7 +61,7 @@ def main() -> None:
     t_unobs = torch.tensor([15, 17, 18], dtype=torch.float32).view(-1, 1, 1)
 
     output, *_ = tkf(x, t_obs, t_unobs)
-    expected_shape = (3, 4, 1)
+    expected_shape = (3, 1, 4)
     assert output.shape == expected_shape, f'Expected shape {expected_shape} but found {output.shape}!'
 
 

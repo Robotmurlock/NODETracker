@@ -1,0 +1,4 @@
+type: 'kf'
+params:
+  initial_position_uncertainty: 10
+  initial_velocity_uncertainty: 10000

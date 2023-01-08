@@ -24,6 +24,7 @@ import os.path
 
 CHECKPOINTS_DIRNAME = 'checkpoints'
 INFERENCES_DIRNAME = 'inferences'
+INFERENCE_VISUALIZATIONS_DIRNAME = 'visualizations'
 TENSORBOARD_DIRNAME = 'tensorboard_logs'
 CONFIGS_DIRNAME = 'configs'
 
@@ -105,7 +106,7 @@ def get_inference_fullname(model_type: str, dataset_name: str, split: str, exper
 
 def get_inference_path(experiment_path: str, model_type: str, dataset_name: str, split: str, experiment_name: str, inference_name: str) -> str:
     """
-    Inference name convention
+    Inference name convention.
 
     Args:
         experiment_path: Path to experiment
@@ -120,3 +121,18 @@ def get_inference_path(experiment_path: str, model_type: str, dataset_name: str,
     """
     inf_fullname = get_inference_fullname(model_type, dataset_name, split, experiment_name, inference_name)
     return os.path.join(experiment_path, INFERENCES_DIRNAME, inf_fullname)
+
+def get_inference_video_path(inference_dirpath: str, scene_name: str, frame_range: str) -> str:
+    """
+    Inference visualization video path.
+
+    Args:
+        inference_dirpath: Inference directory path is acquired using `get_inference_path` function
+        scene_name: Scene name
+        frame_range: Frame range
+
+    Returns:
+        Path to visualization video
+    """
+    video_name = f'{scene_name}_{frame_range}.mp4'
+    return os.path.join(inference_dirpath, INFERENCE_VISUALIZATIONS_DIRNAME, video_name)

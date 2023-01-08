@@ -88,7 +88,7 @@ class EvalConfig:
     num_workers: int
     inference_name: str
     split: str
-    checkpoint: str
+    checkpoint: Optional[str]
 
 
 @dataclass
@@ -101,7 +101,6 @@ class VisualizeConfig:
 
     Also uses model_type from model configs.
     """
-    predictions_path: str
     resolution: Union[List[int], Tuple[int]]
     fps: int
 

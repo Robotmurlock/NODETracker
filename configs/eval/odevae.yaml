@@ -1,4 +1,4 @@
-experiment: 'exp01-baseline'
+experiment: 'ODEVAE-exp01'
 split: 'test'
 batch_size: 32
 num_workers: 8
