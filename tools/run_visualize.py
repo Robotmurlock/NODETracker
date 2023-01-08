@@ -6,6 +6,7 @@ import os
 import cv2
 
 import hydra
+import numpy as np
 from omegaconf import DictConfig
 import pandas as pd
 from pathlib import Path
@@ -17,6 +18,35 @@ from nodetracker.utils import pipeline
 from nodetracker.datasets import MOTDataset
 
 logger = logging.getLogger('VizScript')
+
+
+def draw_bbox(
+    frame: np.ndarray,
+    bbox_ymin: float,
+    bbox_xmin: float,
+    bbox_w: float,
+    bbox_h: float,
+    color: tuple
+) -> np.ndarray:
+    """
+    Draw bbox on given image.
+
+    Args:
+        frame: Image
+        bbox_ymin: Left
+        bbox_xmin: Top
+        bbox_w: Width
+        bbox_h: Height
+        color: Bbox color
+
+    Returns:
+        Image with drawn bbox
+    """
+    h, w, _ = frame.shape
+    ymin, xmin = int(bbox_ymin * w), int(bbox_xmin * h)
+    ymax, xmax = int((bbox_ymin + bbox_w) * w), int((bbox_xmin + bbox_h) * h)
+    # noinspection PyUnresolvedReferences
+    return cv2.rectangle(frame, (ymin, xmin), (ymax, xmax), color=color, thickness=2)
 
 
 @hydra.main(config_path=CONFIGS_PATH, config_name='default', version_base='1.1')
@@ -65,15 +95,8 @@ def main(cfg: DictConfig):
                 # noinspection PyUnresolvedReferences
                 frame = cv2.imread(frame_path)
 
-            p_ymin, p_xmin, p_w, p_h = row[['p_ymin', 'p_xmin', 'p_w', 'p_h']]
-            p_yc, p_xc = int((p_ymin + p_w / 2) * w), int((p_xmin + p_h / 2) * h)
-            # noinspection PyUnresolvedReferences
-            frame = cv2.circle(frame, (p_yc, p_xc), radius=3, color=(255, 0, 0), thickness=3)
-
-            gt_ymin, gt_xmin, gt_w, gt_h = row[['gt_ymin', 'gt_xmin', 'gt_w', 'gt_h']]
-            gt_yc, gt_xc = int((gt_ymin + gt_w / 2) * w), int((gt_xmin + gt_h / 2) * h)
-            # noinspection PyUnresolvedReferences
-            frame = cv2.circle(frame, (gt_yc, gt_xc), radius=3, color=(0, 0, 255), thickness=3)
+            frame = draw_bbox(frame, *row[['p_ymin', 'p_xmin', 'p_w', 'p_h']], color=(255, 0, 0))
+            frame = draw_bbox(frame, *row[['gt_ymin', 'gt_xmin', 'gt_w', 'gt_h']], color=(0, 0, 255))
 
         # noinspection PyUnresolvedReferences
         frame = cv2.resize(frame, cfg.visualize.resolution)
