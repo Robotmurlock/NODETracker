@@ -6,7 +6,7 @@ import logging
 import os
 from collections import defaultdict
 from pathlib import Path
-from typing import Tuple, List, Dict, Any
+from typing import Tuple, List, Dict, Any, Iterator
 
 import hydra
 import numpy as np
@@ -30,7 +30,12 @@ _CONFIG_SAVE_FILENAME = 'config-eval.yaml'
 
 
 @torch.no_grad()
-def run_inference(model: nn.Module, accelerator: str, data_loader: DataLoader) -> Tuple[List[list], List[list], Dict[str, Any]]:
+def run_inference(
+    model: nn.Module,
+    accelerator: str,
+    data_loader: DataLoader,
+    chunk_size: int = 1000
+) -> Iterator[Tuple[bool, List[list], List[list], Dict[str, Any]]]:
     """
     Performs inference for given model and dataset
 
@@ -38,6 +43,7 @@ def run_inference(model: nn.Module, accelerator: str, data_loader: DataLoader) -
         model: Model which is used to perform inference
         accelerator: CPU/GPU
         data_loader: Dataset data loader
+        chunk_size: Important in case predictions for all samples can't fit in ram (chunking)
 
     Returns:
         - Predictions for each sample in dataset
@@ -45,11 +51,15 @@ def run_inference(model: nn.Module, accelerator: str, data_loader: DataLoader) -
         - Aggregated (averaged) dataset metrics
     """
     mse_func = nn.MSELoss()
+    model.eval()
+
+    n_batch_steps = max(1, chunk_size // data_loader.batch_size)
     predictions = []
     sample_metrics = []
     dataset_metrics = defaultdict(list)
+    batch_cnt = 0
+    first_chunk = True
 
-    model.eval()
     for bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, metadata in tqdm(data_loader, unit='sample', desc='Running inference'):
         bboxes_obs, bboxes_unobs, ts_obs, ts_unobs = [v.to(accelerator) for v in [bboxes_obs, bboxes_unobs, ts_obs, ts_unobs]]
         bboxes_unobs_hat, *_ = model(bboxes_obs, ts_obs, ts_unobs)
@@ -84,20 +94,51 @@ def run_inference(model: nn.Module, accelerator: str, data_loader: DataLoader) -
             # Save sample eval metrics for aggregation
             dataset_metrics['MSE'].append(mse_val)
 
-    dataset_metrics = {k: np.array(v).mean() for k, v in dataset_metrics.items()}
-    return predictions, sample_metrics, dataset_metrics
+        batch_cnt += 1
+        if batch_cnt >= n_batch_steps:
+            # Chunk is full -> yield it
+            dataset_metrics = {k: np.array(v).mean() for k, v in dataset_metrics.items()}
+            yield first_chunk, predictions, sample_metrics, dataset_metrics
+
+            first_chunk = False
+
+            # Empty memory
+            predictions = []
+            sample_metrics = []
+            dataset_metrics = defaultdict(list)
+            batch_cnt = 0
+
+    if batch_cnt >= 1:
+        # Yield only in case there are unsaved items
+        dataset_metrics = {k: np.array(v).mean() for k, v in dataset_metrics.items()}
+        yield first_chunk, predictions, sample_metrics, dataset_metrics
+
+
+def save_dataset_metrics(
+    dataset_chunked_metrics: dict[str, Any],
+    inference_dirpath: str
+) -> None:
+    """
+    Save global dataset metrics.
+    Note: Metrics should be "average friendly".
+
+    Args:
+        dataset_chunked_metrics: Dataset metrics for each inference chunk
+        inference_dirpath: Path where to store inference data
+    """
+    dataset_metrics = {k: sum(v) / len(v) for k, v in dataset_chunked_metrics.items()}
+
+    # Save dataset evaluation (aggregated) metrics
+    inf_dataset_metrics_filepath = os.path.join(inference_dirpath, 'dataset_metrics.json')
+    with open(inf_dataset_metrics_filepath, 'w', encoding='utf-8') as f:
+        json.dump(dataset_metrics, f, indent=2)
 
 
 def save_inference(
     predictions: List[list],
     sample_metrics: List[list],
-    dataset_metrics: Dict[str, Any],
-    experiment_path: str,
-    model_type: str,
-    dataset_name: str,
-    split: str,
-    experiment_name: str,
-    inference_name: str
+    inference_dirpath: str,
+    append: bool = False
 ) -> None:
     """
     Save inference results (dataset inference and evaluation metrics)
@@ -105,38 +146,35 @@ def save_inference(
     Args:
         predictions: Inference predictions
         sample_metrics: Sample level metrics
-        dataset_metrics: Dataset level metrics (aggregated)
-        experiment_path: Model experiment path
-        model_type: Model type (architecture)
-        dataset_name: Dataset name
-        split: Split name
-        experiment_name: Experiment (concrete model) name
-        inference_name: Inference name (name of the inference run)
+        inference_dirpath: Path where inference data is stored
+        append: Append to existing file
     """
-    inference_dirpath = conventions.get_inference_path(experiment_path, model_type, dataset_name, split, experiment_name, inference_name)
     Path(inference_dirpath).mkdir(parents=True, exist_ok=True)
+    write_mode = 'a' if append else 'w'
 
     # Save predictions
     inf_predictions_filepath = os.path.join(inference_dirpath, 'inference.csv')
-    with open(inf_predictions_filepath, 'w', encoding='utf-8') as f:
-        f.write('scene_name,object_id,frame_range,frame_id,p_ymin,p_xmin,p_w,p_h,gt_ymin,gt_xmin,gt_w,gt_h')  # Header
-        for p in tqdm(predictions, desc='Saving predictions', unit='sample'):
+    with open(inf_predictions_filepath, write_mode, encoding='utf-8') as f:
+        if not append:
+            # Header
+            f.write('scene_name,object_id,frame_range,frame_id,p_ymin,p_xmin,p_w,p_h,gt_ymin,gt_xmin,gt_w,gt_h')
+
+        # data
+        for p in predictions:
             scene_name, object_id, frame_range, frame_id, *coords = p
             coords_str = ','.join([f'{c:.4f}' for c in coords])
             f.write(f'\n{scene_name},{object_id},{frame_range},{frame_id},{coords_str}')
 
     # Save sample evaluation metrics
     inf_sample_metrics_filepath = os.path.join(inference_dirpath, 'sample_metrics.csv')
-    with open(inf_sample_metrics_filepath, 'w', encoding='utf-8') as f:
-        f.write('scene_name,object_id,frame_range,MSE')  # Header
-        for sm in tqdm(sample_metrics, desc='Saving evaluation metrics', unit='sample'):
+    with open(inf_sample_metrics_filepath, write_mode, encoding='utf-8') as f:
+        if not append:
+            # Header
+            f.write('scene_name,object_id,frame_range,MSE')
+
+        for sm in sample_metrics:
             scene_name, object_id, frame_range, mse = sm
             f.write(f'\n{scene_name},{object_id},{frame_range},{mse:.4f}')
-
-    # Save dataset evaluation (aggregated) metrics
-    inf_dataset_metrics_filepath = os.path.join(inference_dirpath, 'dataset_metrics.json')
-    with open(inf_dataset_metrics_filepath, 'w', encoding='utf-8') as f:
-        json.dump(dataset_metrics, f, indent=2)
 
 
 @hydra.main(config_path=CONFIGS_PATH, config_name='default', version_base='1.1')
@@ -165,21 +203,30 @@ def main(cfg: DictConfig):
     accelerator = cfg.resources.accelerator
     model.to(accelerator)
 
-    inf_predictions, eval_sample_metrics, eval_dataset_metrics = run_inference(
-        model=model,
-        accelerator=accelerator,
-        data_loader=data_loader
-    )
-    save_inference(
-        predictions=inf_predictions,
-        sample_metrics=eval_sample_metrics,
-        dataset_metrics=eval_dataset_metrics,
+    inference_dirpath = conventions.get_inference_path(
         experiment_path=experiment_path,
+        model_type=cfg.model.type,
         dataset_name=cfg.dataset.name,
         split=cfg.eval.split,
         experiment_name=cfg.eval.experiment,
-        model_type=cfg.model.type,
         inference_name=cfg.eval.inference_name
+    )
+
+    dataset_chunked_metrics = []
+    for first_chunk, inf_predictions, eval_sample_metrics, eval_dataset_metrics \
+            in run_inference(model, accelerator, data_loader):
+        save_inference(
+            predictions=inf_predictions,
+            sample_metrics=eval_sample_metrics,
+            inference_dirpath=inference_dirpath,
+            append=first_chunk
+        )
+
+        dataset_chunked_metrics.append(eval_dataset_metrics)
+
+    save_dataset_metrics(
+        dataset_chunked_metrics,
+        inference_dirpath
     )
 
 
