@@ -1,0 +1,332 @@
+"""
+BBox implementation
+"""
+import enum
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Optional, List, Tuple
+
+import cv2
+import numpy as np
+
+
+class BoxCoordSystem(enum.Enum):
+    XYXY = 0
+    XYHW = 1
+    CXYHW = 2
+
+    def __str__(self):
+        if self.value == BoxCoordSystem.XYXY.value:
+            return 'xyxy'
+        elif self.value == BoxCoordSystem.XYHW.value:
+            return 'xyhw'
+        elif self.value == BoxCoordSystem.CXYHW.value:
+            return 'cxyhw'
+        else:
+            assert False, 'Invalid Program State!'
+
+
+@dataclass
+class Point:
+    x: float
+    y: float
+
+    def __post_init__(self):
+        """
+        Validation
+        """
+        assert 0 <= self.x <= 1 and 0 <= self.y <= 1, f'Invalid point values: {self}!'
+
+    def copy(self) -> 'Point':
+        """
+        Returns: Copies object
+        """
+        return Point(x=self.x, y=self.y)
+
+    def __lt__(self, other: 'Point') -> bool:
+        return self.x < other.x and self.y < other.y
+
+    def __le__(self, other: 'Point') -> bool:
+        return self.x <= other.x and self.y <= other.y
+
+    def __eq__(self, other: 'Point') -> bool:
+        return all([np.isclose(self.x, other.x), np.isclose(self.y, other.y)])
+
+
+@dataclass
+class BBox:
+    upper_left: Point
+    bottom_right: Point
+
+    def __post_init__(self):
+        """
+        Validation
+        """
+        return self.upper_left <= self.bottom_right
+
+    def copy(self) -> 'BBox':
+        """
+        Returns: Deepcopy of object
+        """
+        return BBox(
+            upper_left=self.upper_left.copy(),
+            bottom_right=self.bottom_right.copy()
+        )
+
+    @property
+    def width(self) -> float:
+        """
+        Returns: Width
+        """
+        return self.bottom_right.y - self.upper_left.y
+
+    @property
+    def height(self) -> float:
+        """
+        Returns: Height
+        """
+        return self.bottom_right.x - self.upper_left.x
+
+    @property
+    def area(self) -> float:
+        """
+        Returns: Area
+        """
+        return self.height * self.width
+
+    @property
+    def center(self) -> Point:
+        """
+        Returns: Center
+        """
+        return Point(x=(self.bottom_right.x + self.upper_left.x) / 2, y=(self.bottom_right.y + self.upper_left.y) / 2)
+
+    @property
+    def xyxy(self) -> np.ndarray:
+        """
+        Returns:
+            Numpy array in xyxy format
+        """
+        return np.array([self.upper_left.x, self.upper_left.y, self.bottom_right.x, self.bottom_right.y], dtype=np.float32)
+
+    @property
+    def yxyx(self) -> np.ndarray:
+        """
+        Returns:
+            Numpy array in yxyx format
+        """
+        return np.array([self.upper_left.y, self.upper_left.x, self.bottom_right.y, self.bottom_right.x], dtype=np.float32)
+
+    def __eq__(self, other: 'BBox') -> bool:
+        return self.upper_left == other.upper_left and self.bottom_right == other.bottom_right
+
+    def intersection(self, other: 'BBox') -> Optional['BBox']:
+        """
+        Returns BBox if intersection exists else returns None
+
+        Args:
+            other: Other BBox
+
+        Returns:
+            Intersection of two bboxes
+        """
+        upper = max(self.upper_left.x, other.upper_left.x)
+        bottom = min(self.bottom_right.x, other.bottom_right.x)
+        left = max(self.upper_left.y, other.upper_left.y)
+        right = min(self.bottom_right.y, other.bottom_right.y)
+
+        if upper > bottom or left > right:
+            return None
+
+        return BBox(
+            upper_left=Point(x=upper, y=left),
+            bottom_right=Point(x=bottom, y=right)
+        )
+
+
+    def iou(self, other: 'BBox') -> float:
+        """
+        Intersection Over Union / Jaccard Index
+
+        Args:
+            other: Other BBox
+
+        Returns: IOU
+        """
+        intersection = self.intersection(other)
+        if intersection is None:
+            return 0.0
+
+        return intersection.area / (self.area + other.area - intersection.area)
+
+    def max_iou(self, others: List['BBox']) -> Tuple[float, int]:
+        """
+        Max iou over all other bboxes
+
+        Args:
+            others: List of BBoxes
+
+        Returns: Value, index
+        """
+        ious = [self.iou(other) for other in others]
+        index = int(np.argmax(ious))
+        return ious[index], index
+
+    @classmethod
+    def from_xyxy(cls, x1: float, y1: float, x2: float, y2: float) -> 'BBox':
+        """
+        Creates BBox from xyxy format
+
+        Args:
+            x1: x1
+            y1: y1
+            x2: x2
+            y2: y2
+
+        Returns: Bbox
+        """
+        return cls(
+            upper_left=Point(x=x1, y=y1),
+            bottom_right=Point(x=x2, y=y2),
+        )
+
+    @classmethod
+    def from_xyhw(cls, x: float, y: float, h: float, w: float) -> 'BBox':
+        """
+        Creates BBox from xywh format
+
+        Args:
+            x: left
+            y: up
+            h: height
+            w: width
+
+        Returns: Bbox
+        """
+        return cls(
+            upper_left=Point(x=x, y=y),
+            bottom_right=Point(x=x+h, y=y+w),
+        )
+
+    @classmethod
+    def from_cxyhw(cls, x: float, y: float, h: float, w: float) -> 'BBox':
+        """
+        Creates BBox from cxywh format
+
+        Args:
+            x: center x
+            y: center y
+            h: height
+            w: width
+
+        Returns: Bbox
+        """
+        return cls(
+            upper_left=Point(x=x-h/2, y=y-w/2),
+            bottom_right=Point(x=x+h/2, y=y+w/2),
+        )
+
+    @classmethod
+    def from_coords(cls, coord_system: BoxCoordSystem, *args, **kwargs) -> 'BBox':
+        """
+        Creates bbox with custom coord system
+
+        Args:
+            coord_system: coord system
+
+        Returns: BBox
+        """
+        if coord_system == BoxCoordSystem.XYXY:
+            return cls(*args, **kwargs)
+        elif coord_system == BoxCoordSystem.XYHW:
+            return cls.from_xyhw(*args, **kwargs)
+        elif coord_system == BoxCoordSystem.CXYHW:
+            return cls.from_cxyhw(*args, **kwargs)
+        else:
+            assert False, 'Invalid Program State!'
+
+    def crop(self, image: np.ndarray) -> np.ndarray:
+        """
+        Crops image
+
+        Args:
+            image: Raw image
+
+        Returns: Crop
+        """
+        y1, x1, y2, x2 = self.scaled_yxyx_from_image(image)
+        return image[x1:x2, y1:y2, :].copy()
+
+    def scaled_yxyx_from_image(self, image: np.ndarray) -> Tuple[int, int, int, int]:
+        """
+        Scales coordinates to given image
+
+        Args:
+            image: Image
+
+        Returns: coord in xyxy format (scaled)
+        """
+        h, w = image.shape[:2]
+        return round(self.upper_left.y * w), round(self.upper_left.x * h), \
+               round(self.bottom_right.y * w), round(self.bottom_right.x * h)
+
+
+    def draw(self, image: np.ndarray, color: Tuple[int, int, int] = (0, 0, 255), thickness: int = 2) -> np.ndarray:
+        """
+        Draws bbox on image
+
+        Args:
+            image: Image
+            color: BBox color
+            thickness: BBox thickness
+
+        Returns: Image with drawn bbox
+        """
+        y1, x1, y2, x2 = self.scaled_yxyx_from_image(image)
+        # noinspection PyUnresolvedReferences
+        return cv2.rectangle(image, (y1, x1), (y2, x2), color, thickness)
+
+
+
+@dataclass
+class PredBBox(BBox):
+    label: int
+    conf: Optional[float] = field(default=None)
+
+    @classmethod
+    def create(cls, bbox: BBox, label: int, conf: Optional[float] = None):
+        """
+        Creates PredBbox from regular BBox
+
+        Args:
+            bbox: BBox
+            label: Label
+            conf: Confidence
+
+        Returns: Prediction BBox
+        """
+        return cls(
+            upper_left=bbox.upper_left.copy(),
+            bottom_right=bbox.bottom_right.copy(),
+            label=label,
+            conf=conf
+        )
+
+
+# noinspection PyUnresolvedReferences
+def main():
+    import os
+    from nodetracker.common.project import ASSETS_PATH, PLAYGROUND_PATH
+    image = cv2.imread(os.path.join(ASSETS_PATH, 'image.jpg'))
+
+    bbox = BBox.from_xyxy(0.1, 0.1, 0.4, 0.9)
+    image = bbox.draw(image)
+    crop = bbox.crop(image)
+
+    Path(PLAYGROUND_PATH).mkdir(parents=True, exist_ok=True)
+    cv2.imwrite(os.path.join(PLAYGROUND_PATH, 'test.jpg'), image)
+    cv2.imwrite(os.path.join(PLAYGROUND_PATH, 'test_crop.jpg'), crop)
+
+
+if __name__ == '__main__':
+    main()
