@@ -1,5 +1,5 @@
-experiment: 'ODEVAE-exp01'
-split: 'test'
+experiment: 'ODEVAE-exp01-one-epoch'
+split: 'val'
 batch_size: 32
 num_workers: 8
 
