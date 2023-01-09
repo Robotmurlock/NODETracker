@@ -74,6 +74,7 @@ class TrainCheckpointConfig:
 @dataclass
 class TrainConfig:
     experiment: str
+    description: str
     batch_size: int
     max_epochs: int
     learning_rate: float
