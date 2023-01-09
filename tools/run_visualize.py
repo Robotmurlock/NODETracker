@@ -3,19 +3,19 @@ Training script
 """
 import logging
 import os
-import cv2
+from pathlib import Path
 
+import cv2
 import hydra
 import numpy as np
-from omegaconf import DictConfig
 import pandas as pd
-from pathlib import Path
+from omegaconf import DictConfig
 from tqdm import tqdm
 
 from nodetracker.common import conventions
 from nodetracker.common.project import CONFIGS_PATH
-from nodetracker.utils import pipeline
 from nodetracker.datasets import MOTDataset
+from nodetracker.utils import pipeline
 
 logger = logging.getLogger('VizScript')
 
@@ -30,6 +30,7 @@ def draw_bbox(
 ) -> np.ndarray:
     """
     Draw bbox on given image.
+    TODO: Add BBox implementation
 
     Args:
         frame: Image
@@ -71,8 +72,6 @@ def main(cfg: DictConfig):
     trajectory_groups = df.groupby(['scene_name', 'frame_range'])
     for (scene_name, frame_range), df_traj in tqdm(trajectory_groups, desc='Creating videos', unit='video'):
         df_traj = df_traj.sort_values(by='frame_id')
-        scene_info = dataset.get_scene_info(scene_name)
-        h, w = scene_info.imheight, scene_info.imwidth
 
         mp4_path = conventions.get_inference_video_path(inference_dirpath, scene_name, frame_range)
         Path(mp4_path).parent.mkdir(parents=True, exist_ok=True)
@@ -103,7 +102,6 @@ def main(cfg: DictConfig):
         mp4_writer.write(frame)  # write last frame
         logger.debug(f'Saving video ({scene_name}, {frame_range}) at "{mp4_path}"')
         mp4_writer.release()
-        break
 
 
 if __name__ == '__main__':
