@@ -126,7 +126,15 @@ def save_dataset_metrics(
         dataset_chunked_metrics: Dataset metrics for each inference chunk
         inference_dirpath: Path where to store inference data
     """
-    dataset_metrics = {k: sum(v) / len(v) for k, v in dataset_chunked_metrics.items()}
+    # Transform: List[Dict[str, float]] -> Dict[str, List[float]]
+    metric_names = list(dataset_chunked_metrics[0].keys())
+    dataset_metrics = {mn: [] for mn in metric_names}
+    for chunk in dataset_chunked_metrics:
+        for mn in metric_names:
+            dataset_metrics[mn].append(chunk[mn])
+
+    # Aggregate
+    dataset_metrics = {k: sum(v) / len(v) for k, v in dataset_metrics.items()}
 
     # Save dataset evaluation (aggregated) metrics
     inf_dataset_metrics_filepath = os.path.join(inference_dirpath, 'dataset_metrics.json')
@@ -219,7 +227,7 @@ def main(cfg: DictConfig):
             predictions=inf_predictions,
             sample_metrics=eval_sample_metrics,
             inference_dirpath=inference_dirpath,
-            append=first_chunk
+            append=not first_chunk
         )
 
         dataset_chunked_metrics.append(eval_dataset_metrics)
