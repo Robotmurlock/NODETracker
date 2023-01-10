@@ -7,7 +7,6 @@ from pathlib import Path
 
 import cv2
 import hydra
-import numpy as np
 import pandas as pd
 from omegaconf import DictConfig
 from tqdm import tqdm
@@ -15,39 +14,10 @@ from tqdm import tqdm
 from nodetracker.common import conventions
 from nodetracker.common.project import CONFIGS_PATH
 from nodetracker.datasets import MOTDataset
+from nodetracker.library.cv import BBox
 from nodetracker.utils import pipeline
 
 logger = logging.getLogger('VizScript')
-
-
-def draw_bbox(
-    frame: np.ndarray,
-    bbox_ymin: float,
-    bbox_xmin: float,
-    bbox_w: float,
-    bbox_h: float,
-    color: tuple
-) -> np.ndarray:
-    """
-    Draw bbox on given image.
-    TODO: Add BBox implementation
-
-    Args:
-        frame: Image
-        bbox_ymin: Left
-        bbox_xmin: Top
-        bbox_w: Width
-        bbox_h: Height
-        color: Bbox color
-
-    Returns:
-        Image with drawn bbox
-    """
-    h, w, _ = frame.shape
-    ymin, xmin = int(bbox_ymin * w), int(bbox_xmin * h)
-    ymax, xmax = int((bbox_ymin + bbox_w) * w), int((bbox_xmin + bbox_h) * h)
-    # noinspection PyUnresolvedReferences
-    return cv2.rectangle(frame, (ymin, xmin), (ymax, xmax), color=color, thickness=2)
 
 
 @hydra.main(config_path=CONFIGS_PATH, config_name='default', version_base='1.1')
@@ -70,6 +40,7 @@ def main(cfg: DictConfig):
 
     df = pd.read_csv(predictions_path)
     trajectory_groups = df.groupby(['scene_name', 'frame_range'])
+
     for (scene_name, frame_range), df_traj in tqdm(trajectory_groups, desc='Creating videos', unit='video'):
         df_traj = df_traj.sort_values(by='frame_id')
 
@@ -78,7 +49,7 @@ def main(cfg: DictConfig):
         # noinspection PyUnresolvedReferences
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
         # noinspection PyUnresolvedReferences
-        mp4_writer = cv2.VideoWriter(mp4_path, fourcc, cfg.visualize.fps, (600, 400))
+        mp4_writer = cv2.VideoWriter(mp4_path, fourcc, cfg.visualize.fps, cfg.visualize.resolution)
 
         frame_id, frame_path, frame = None, None, None
         for _, row in df_traj.iterrows():
@@ -94,8 +65,11 @@ def main(cfg: DictConfig):
                 # noinspection PyUnresolvedReferences
                 frame = cv2.imread(frame_path)
 
-            frame = draw_bbox(frame, *row[['p_ymin', 'p_xmin', 'p_w', 'p_h']], color=(255, 0, 0))
-            frame = draw_bbox(frame, *row[['gt_ymin', 'gt_xmin', 'gt_w', 'gt_h']], color=(0, 0, 255))
+            pred_bbox = BBox.from_xyhw(*row[['p_xmin', 'p_ymin', 'p_h', 'p_w']], clip=True)
+            frame = pred_bbox.draw(frame, color=(255, 0, 0))
+
+            gt_bbox = BBox.from_xyhw(*row[['gt_xmin', 'gt_ymin', 'gt_h', 'gt_w']], clip=True)
+            frame = gt_bbox.draw(frame, color=(0, 0, 255))
 
         # noinspection PyUnresolvedReferences
         frame = cv2.resize(frame, cfg.visualize.resolution)

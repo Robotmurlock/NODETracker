@@ -11,23 +11,29 @@ import numpy as np
 
 
 class BoxCoordSystem(enum.Enum):
+    """
+    Supported Box coordination systems
+    """
     XYXY = 0
     XYHW = 1
     CXYHW = 2
 
     def __str__(self):
-        if self.value == BoxCoordSystem.XYXY.value:
+        if self == BoxCoordSystem.XYXY:
             return 'xyxy'
-        elif self.value == BoxCoordSystem.XYHW.value:
+        elif self == BoxCoordSystem.XYHW:
             return 'xyhw'
-        elif self.value == BoxCoordSystem.CXYHW.value:
+        elif self == BoxCoordSystem.CXYHW:
             return 'cxyhw'
         else:
-            assert False, 'Invalid Program State!'
+            raise AssertionError('Invalid Program State!')
 
 
 @dataclass
 class Point:
+    """
+    Point in 2D (x, y).
+    """
     x: float
     y: float
 
@@ -55,6 +61,9 @@ class Point:
 
 @dataclass
 class BBox:
+    """
+    BBox (rectangle) defined by two upper left and bottom right corners.
+    """
     upper_left: Point
     bottom_right: Point
 
@@ -173,7 +182,7 @@ class BBox:
         return ious[index], index
 
     @classmethod
-    def from_xyxy(cls, x1: float, y1: float, x2: float, y2: float) -> 'BBox':
+    def from_xyxy(cls, x1: float, y1: float, x2: float, y2: float, clip: bool = False) -> 'BBox':
         """
         Creates BBox from xyxy format
 
@@ -182,16 +191,20 @@ class BBox:
             y1: y1
             x2: x2
             y2: y2
+            clip: Clip bbox coordinates to [0, 1] range
 
         Returns: Bbox
         """
+        if clip:
+            x1, y1, x2, y2 = BBox.clip_coords(x1, y1, x2, y2)
+
         return cls(
             upper_left=Point(x=x1, y=y1),
             bottom_right=Point(x=x2, y=y2),
         )
 
     @classmethod
-    def from_xyhw(cls, x: float, y: float, h: float, w: float) -> 'BBox':
+    def from_xyhw(cls, x: float, y: float, h: float, w: float, clip: bool = False) -> 'BBox':
         """
         Creates BBox from xywh format
 
@@ -200,16 +213,15 @@ class BBox:
             y: up
             h: height
             w: width
+            clip: Clip bbox coordinates to [0, 1] range
 
         Returns: Bbox
         """
-        return cls(
-            upper_left=Point(x=x, y=y),
-            bottom_right=Point(x=x+h, y=y+w),
-        )
+        x1, y1, x2, y2 = x, y, x + h, y + w
+        return cls.from_xyxy(x1, y1, x2, y2, clip=clip)
 
     @classmethod
-    def from_cxyhw(cls, x: float, y: float, h: float, w: float) -> 'BBox':
+    def from_cxyhw(cls, x: float, y: float, h: float, w: float, clip: bool = False) -> 'BBox':
         """
         Creates BBox from cxywh format
 
@@ -218,13 +230,12 @@ class BBox:
             y: center y
             h: height
             w: width
+            clip: Clip bbox coordinates to [0, 1] range
 
         Returns: Bbox
         """
-        return cls(
-            upper_left=Point(x=x-h/2, y=y-w/2),
-            bottom_right=Point(x=x+h/2, y=y+w/2),
-        )
+        x1, y1, x2, y2 = x - h / 2, y - w / 2, x + h / 2, y + w / 2
+        return cls.from_xyxy(x1, y1, x2, y2, clip=clip)
 
     @classmethod
     def from_coords(cls, coord_system: BoxCoordSystem, *args, **kwargs) -> 'BBox':
@@ -244,6 +255,28 @@ class BBox:
             return cls.from_cxyhw(*args, **kwargs)
         else:
             assert False, 'Invalid Program State!'
+
+    @staticmethod
+    def clip_coords(x1: float, y1: float, x2: float, y2: float) -> Tuple[float, float, float, float]:
+        """
+        Clip coordinates to [0, 1] range such that x1 <= x2 and y1 <= y2.
+
+        Args:
+            x1: x1
+            y1: y1
+            x2: x2
+            y2: y2
+
+        Returns:
+            Clipped coordinates
+        """
+        x1, y1, x2, y2 = [min(1.0, max(v, 0.0)) for v in [x1, y1, x2, y2]]
+        if x2 < x1:
+            x2 = x1
+        if y2 < y1:
+            y2 = y1
+
+        return x1, y1, x2, y2
 
     def crop(self, image: np.ndarray) -> np.ndarray:
         """
@@ -290,6 +323,11 @@ class BBox:
 
 @dataclass
 class PredBBox(BBox):
+    """
+    BBox with class label and detection confidence (optional).
+
+    TODO: Implement PredBBox draw
+    """
     label: int
     conf: Optional[float] = field(default=None)
 
@@ -303,7 +341,8 @@ class PredBBox(BBox):
             label: Label
             conf: Confidence
 
-        Returns: Prediction BBox
+        Returns:
+            Prediction BBox
         """
         return cls(
             upper_left=bbox.upper_left.copy(),
