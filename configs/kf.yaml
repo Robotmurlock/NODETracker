@@ -1,6 +1,7 @@
 defaults:
   - resources: cpu.yaml
   - dataset: mot.yaml
+  - transform: identity.yaml
   - model: kf.yaml
   - train: kf.yaml
   - eval: kf.yaml

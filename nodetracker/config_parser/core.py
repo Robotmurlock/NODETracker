@@ -46,6 +46,13 @@ class DatasetConfig:
         else:
             raise AssertionError('Invalid Program State!')
 
+
+@dataclass
+class TransformConfig:
+    name: str
+    params: dict
+
+
 @dataclass
 class ModelConfig:
     type: str
@@ -139,6 +146,7 @@ class GlobalConfig:
     """
     resources: ResourcesConfig
     dataset: DatasetConfig
+    transform: TransformConfig
     train: TrainConfig
     eval: EvalConfig
     model: ModelConfig

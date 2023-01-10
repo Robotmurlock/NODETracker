@@ -13,6 +13,7 @@ from torch.utils.data import DataLoader
 
 from nodetracker.common import conventions
 from nodetracker.common.project import CONFIGS_PATH
+from nodetracker.datasets import transforms
 from nodetracker.datasets.mot import TorchMOTTrajectoryDataset
 from nodetracker.datasets.utils import ode_dataloader_collate_func
 from nodetracker.node import load_or_create_model, ModelType
@@ -28,10 +29,12 @@ def main(cfg: DictConfig):
     dataset_train_path = os.path.join(cfg.path.assets, cfg.dataset.train_path)
     logger.info(f'Dataset train path: "{dataset_train_path}".')
 
+    postprocess_transform = transforms.transform_factory(cfg.transform.name, cfg.transform.params)
     train_dataset = TorchMOTTrajectoryDataset(
         path=dataset_train_path,
         history_len=cfg.dataset.history_len,
-        future_len=cfg.dataset.future_len
+        future_len=cfg.dataset.future_len,
+        postprocess=postprocess_transform
     )
     train_loader = DataLoader(
         dataset=train_dataset,
@@ -46,7 +49,8 @@ def main(cfg: DictConfig):
     val_dataset = TorchMOTTrajectoryDataset(
         path=dataset_val_path,
         history_len=cfg.dataset.history_len,
-        future_len=cfg.dataset.future_len
+        future_len=cfg.dataset.future_len,
+        postprocess=postprocess_transform
     )
     val_loader = DataLoader(
         dataset=val_dataset,

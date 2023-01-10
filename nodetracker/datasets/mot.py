@@ -16,6 +16,7 @@ from torch.utils.data import DataLoader
 from torch.utils.data import Dataset
 from tqdm import tqdm
 
+from nodetracker.datasets import transforms
 from nodetracker.datasets.utils import ode_dataloader_collate_func
 from nodetracker.utils.logging import configure_logging
 
@@ -59,7 +60,13 @@ class MOTDataset:
     """
     Parses MOT dataset in given format
     """
-    def __init__(self, path: str, history_len: int, future_len: int, label_type: LabelType = LabelType.GROUND_TRUTH) -> None:
+    def __init__(
+        self,
+        path: str,
+        history_len: int,
+        future_len: int,
+        label_type: LabelType = LabelType.GROUND_TRUTH,
+    ) -> None:
         """
         Args:
             path: Path to dataset
@@ -272,13 +279,21 @@ class TorchMOTTrajectoryDataset(Dataset):
     """
     PyTorch wrapper for MOT dataset
     """
-    def __init__(self, path: str, history_len: int, future_len: int, label_type: LabelType = LabelType.GROUND_TRUTH) -> None:
+    def __init__(
+        self,
+        path: str,
+        history_len: int,
+        future_len: int,
+        label_type: LabelType = LabelType.GROUND_TRUTH,
+        postprocess: transforms.InvertibleTransform = None
+    ) -> None:
         """
         Args:
             path: Path to dataset
             history_len: Number of observed data points
             future_len: Number of unobserved data points
             label_type: Label Type
+            postprocess: Item postprocess
         """
         super().__init__()
         self._dataset = MOTDataset(
@@ -287,6 +302,10 @@ class TorchMOTTrajectoryDataset(Dataset):
             future_len=future_len,
             label_type=label_type
         )
+
+        self._transform = postprocess
+        if self._transform is None:
+            self._transform = transforms.IdentityTransform()
 
     @property
     def dataset(self) -> MOTDataset:
@@ -305,6 +324,8 @@ class TorchMOTTrajectoryDataset(Dataset):
         ts_obs = torch.from_numpy(ts_obs)
         ts_unobs = torch.from_numpy(ts_unobs)
 
+        bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, metadata = self._transform([bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, metadata])
+
         return bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, metadata
 
 def run_test() -> None:
@@ -317,7 +338,8 @@ def run_test() -> None:
     print(f'Dataset size: {len(dataset)}')
     print(f'Sample example: {dataset[5]}')
 
-    torch_dataset = TorchMOTTrajectoryDataset(dataset_path, history_len=4, future_len=4)
+    torch_dataset = TorchMOTTrajectoryDataset(dataset_path, history_len=4, future_len=4,
+                                              postprocess=transforms.BboxFirstDifferenceTransform())
 
     print(f'Torch Dataset size: {len(torch_dataset)}')
     print(f'Torch sample example shapes: {[x.shape for x in torch_dataset[5][:-1]]}')
