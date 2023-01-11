@@ -19,6 +19,7 @@ Pipeline data structure:
                 {inference_name_2}/*
                 ...
             tensorboard_logs/*
+    analysis/*
 """
 import os.path
 
@@ -27,11 +28,12 @@ INFERENCES_DIRNAME = 'inferences'
 INFERENCE_VISUALIZATIONS_DIRNAME = 'visualizations'
 TENSORBOARD_DIRNAME = 'tensorboard_logs'
 CONFIGS_DIRNAME = 'configs'
+ANALYSIS_DIRNAME = 'analysis'
 
 
 def get_experiment_path(master_path: str, dataset_name: str, experiment_name: str) -> str:
     """
-    Get experiment location given 'master_path'
+    Gets experiment location given 'master_path'
 
     Args:
         master_path: Global path (master path)
@@ -46,7 +48,7 @@ def get_experiment_path(master_path: str, dataset_name: str, experiment_name: st
 
 def get_checkpoints_dirpath(experiment_path: str) -> str:
     """
-    Get path to all checkpoints for given experiment
+    Gets path to all checkpoints for given experiment
 
     Args:
         experiment_path: Path to experiment
@@ -59,7 +61,7 @@ def get_checkpoints_dirpath(experiment_path: str) -> str:
 
 def get_checkpoint_path(experiment_path: str, checkpoint_filename: str) -> str:
     """
-    Get checkpoint full path.
+    Gets checkpoint full path.
 
     Args:
         experiment_path: Path to experiment
@@ -73,7 +75,7 @@ def get_checkpoint_path(experiment_path: str, checkpoint_filename: str) -> str:
 
 def get_config_path(experiment_path: str, config_name: str) -> str:
     """
-    Get configs full path.
+    Gets configs full path.
 
     Args:
         experiment_path: Path to experiment
@@ -86,7 +88,7 @@ def get_config_path(experiment_path: str, config_name: str) -> str:
 
 def get_inference_fullname(model_type: str, dataset_name: str, split: str, experiment_name: str, inference_name: str) -> str:
     """
-    Git inference name by convention.
+    Gets inference name by convention.
 
     Args:
         model_type: Model type (architecture)
@@ -106,7 +108,7 @@ def get_inference_fullname(model_type: str, dataset_name: str, split: str, exper
 
 def get_inference_path(experiment_path: str, model_type: str, dataset_name: str, split: str, experiment_name: str, inference_name: str) -> str:
     """
-    Inference name convention.
+    Gets inference name convention.
 
     Args:
         experiment_path: Path to experiment
@@ -124,7 +126,7 @@ def get_inference_path(experiment_path: str, model_type: str, dataset_name: str,
 
 def get_inference_video_path(inference_dirpath: str, scene_name: str, frame_range: str) -> str:
     """
-    Inference visualization video path.
+    Gets inference visualization video path.
 
     Args:
         inference_dirpath: Inference directory path is acquired using `get_inference_path` function
@@ -136,3 +138,16 @@ def get_inference_video_path(inference_dirpath: str, scene_name: str, frame_rang
     """
     video_name = f'{scene_name}_{frame_range}.mp4'
     return os.path.join(inference_dirpath, INFERENCE_VISUALIZATIONS_DIRNAME, video_name)
+
+def get_analysis_filepath(master_path: str, filename: str) -> str:
+    """
+    Gets analysis absolute filepath.
+
+    Args:
+        master_path: Global path (master path)
+        filename: Filename
+
+    Returns:
+        Absolute path to filename
+    """
+    return os.path.join(master_path, ANALYSIS_DIRNAME, filename)
