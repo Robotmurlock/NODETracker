@@ -119,7 +119,7 @@ def run_inference(
 
 
 def save_dataset_metrics(
-    dataset_chunked_metrics: List[dict[str, Any]],
+    dataset_chunked_metrics: List[Dict[str, Any]],
     inference_dirpath: str
 ) -> None:
     """

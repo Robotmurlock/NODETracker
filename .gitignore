@@ -2,9 +2,13 @@
 playground/
 assets/
 outputs/
-.gitignore
 .idea/
 **/.DS_store
+
+# Logs
+out.txt
+warn.txt
+nohup.out
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
