@@ -68,7 +68,8 @@ def run_inference(
         t_bboxes_obs, _, t_ts_obs, t_ts_unobs = transform.apply([bboxes_obs, bboxes_unobs, ts_obs, ts_unobs], shallow=False) # preprocess
         t_bboxes_obs, t_ts_obs, t_ts_unobs = [v.to(accelerator) for v in [t_bboxes_obs, t_ts_obs, t_ts_unobs]]
         t_bboxes_unobs_hat, *_ = model(t_bboxes_obs, t_ts_obs, t_ts_unobs) # inference
-        _, bboxes_unobs_hat, *_ = transform.inverse([t_bboxes_obs, t_bboxes_unobs_hat]) # postprocess
+        t_bboxes_unobs_hat = t_bboxes_unobs_hat.detach().cpu()
+        _, bboxes_unobs_hat, *_ = transform.inverse([bboxes_obs, t_bboxes_unobs_hat]) # postprocess
 
         curr_obs_time_len = bboxes_obs.shape[0]
         curr_unobs_time_len, curr_batch_size = bboxes_unobs.shape[:2]
@@ -86,8 +87,8 @@ def run_inference(
             for frame_relative_index in range(curr_unobs_time_len):
                 frame_id = middle_frame_id + frame_relative_index
                 prediction_id = sample_id + [frame_id]
-                bboxes_unobs_gt_list = bboxes_unobs[frame_relative_index, batch_index, :].detach().cpu().numpy().tolist()
-                bboxes_unobs_pred_list = bboxes_unobs_hat[frame_relative_index, batch_index, :].detach().cpu().numpy().tolist()
+                bboxes_unobs_gt_list = bboxes_unobs[frame_relative_index, batch_index, :].numpy().tolist()
+                bboxes_unobs_pred_list = bboxes_unobs_hat[frame_relative_index, batch_index, :].numpy().tolist()
                 pred = prediction_id + bboxes_unobs_pred_list + bboxes_unobs_gt_list
                 predictions.append(pred)
 
@@ -176,7 +177,7 @@ def save_inference(
         # data
         for p in predictions:
             scene_name, object_id, frame_range, frame_id, *coords = p
-            coords_str = ','.join([f'{c:.4f}' for c in coords])
+            coords_str = ','.join([str(c) for c in coords])
             f.write(f'\n{scene_name},{object_id},{frame_range},{frame_id},{coords_str}')
 
     # Save sample evaluation metrics
@@ -247,3 +248,4 @@ def main(cfg: DictConfig):
 
 if __name__ == '__main__':
     main()
+
