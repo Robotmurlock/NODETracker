@@ -339,7 +339,7 @@ def run_test() -> None:
     print(f'Sample example: {dataset[5]}')
 
     torch_dataset = TorchMOTTrajectoryDataset(dataset_path, history_len=4, future_len=4,
-                                              postprocess=transforms.BboxFirstDifferenceTransform())
+                                              postprocess=transforms.BboxFirstOrderDifferenceTransform())
 
     print(f'Torch Dataset size: {len(torch_dataset)}')
     print(f'Torch sample example shapes: {[x.shape for x in torch_dataset[5][:-1]]}')

@@ -31,7 +31,7 @@ def main(cfg: DictConfig):
         path=dataset_train_path,
         history_len=cfg.dataset.history_len,
         future_len=cfg.dataset.future_len,
-        postprocess=transforms.BboxFirstDifferenceTransform()
+        postprocess=transforms.BboxFirstOrderDifferenceTransform()
     )
 
     sum_x = 0

@@ -1,7 +1,7 @@
 defaults:
   - resources: cuda.yaml
   - dataset: mot.yaml
-  - transform: first_difference.yaml
+  - transform: standardized_first_difference.yaml
   - model: odevae.yaml
   - train: odevae.yaml
   - eval: odevae.yaml
