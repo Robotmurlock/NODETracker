@@ -35,7 +35,7 @@ def run_inference(
     model: nn.Module,
     accelerator: str,
     data_loader: DataLoader,
-    postprocess_transform: transforms.InvertibleTransform,
+    transform: transforms.InvertibleTransform,
     chunk_size: int = 1000
 ) -> Iterator[Tuple[bool, List[list], List[list], Dict[str, Any]]]:
     """
@@ -45,7 +45,7 @@ def run_inference(
         model: Model which is used to perform inference
         accelerator: CPU/GPU
         data_loader: Dataset data loader
-        postprocess_transform: Invert (training) transformations
+        transform: Invert (training) transformations
         chunk_size: Important in case predictions for all samples can't fit in ram (chunking)
 
     Returns:
@@ -64,9 +64,11 @@ def run_inference(
     first_chunk = True
 
     for bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, metadata in tqdm(data_loader, unit='sample', desc='Running inference'):
-        bboxes_obs, bboxes_unobs, ts_obs, ts_unobs = [v.to(accelerator) for v in [bboxes_obs, bboxes_unobs, ts_obs, ts_unobs]]
-        bboxes_unobs_hat, *_ = model(bboxes_obs, ts_obs, ts_unobs)
-        _, bboxes_unobs_hat, *_ = postprocess_transform.inverse([bboxes_obs, bboxes_unobs_hat])
+        # `t` prefix means that tensor is mapped to transformed space
+        t_bboxes_obs, _, t_ts_obs, t_ts_unobs = transform.apply([bboxes_obs, bboxes_unobs, ts_obs, ts_unobs], shallow=False) # preprocess
+        t_bboxes_obs, t_ts_obs, t_ts_unobs = [v.to(accelerator) for v in [t_bboxes_obs, t_ts_obs, t_ts_unobs]]
+        t_bboxes_unobs_hat, *_ = model(t_bboxes_obs, t_ts_obs, t_ts_unobs) # inference
+        _, bboxes_unobs_hat, *_ = transform.inverse([t_bboxes_obs, t_bboxes_unobs_hat]) # postprocess
 
         curr_obs_time_len = bboxes_obs.shape[0]
         curr_unobs_time_len, curr_batch_size = bboxes_unobs.shape[:2]
@@ -200,8 +202,7 @@ def main(cfg: DictConfig):
     dataset = TorchMOTTrajectoryDataset(
         path=dataset_path,
         history_len=cfg.dataset.history_len,
-        future_len=cfg.dataset.future_len,
-        postprocess=postprocess_transform
+        future_len=cfg.dataset.future_len
     )
 
     data_loader = DataLoader(
@@ -228,7 +229,7 @@ def main(cfg: DictConfig):
 
     dataset_chunked_metrics = []
     for first_chunk, inf_predictions, eval_sample_metrics, eval_dataset_metrics \
-            in run_inference(model, accelerator, data_loader, postprocess_transform=postprocess_transform):
+            in run_inference(model, accelerator, data_loader, transform=postprocess_transform):
         save_inference(
             predictions=inf_predictions,
             sample_metrics=eval_sample_metrics,
