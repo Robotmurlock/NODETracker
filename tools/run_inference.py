@@ -28,6 +28,7 @@ logger = logging.getLogger('InferenceScript')
 
 
 _CONFIG_SAVE_FILENAME = 'config-eval.yaml'
+_METRIC_NAMES = ['MSE', 'MSE-First', 'MSE-Last']
 
 
 @torch.no_grad()
@@ -95,11 +96,18 @@ def run_inference(
             # Save sample eval metrics
             # format: mse
             mse_val = mse_func(bboxes_unobs, bboxes_unobs_hat).detach().item()
-            s_metrics = sample_id + [mse_val]
+            mse_first_val = mse_func(bboxes_unobs[0, ...], bboxes_unobs_hat[0, ...])
+            mse_last_val = mse_func(bboxes_unobs[-1, ...], bboxes_unobs_hat[-1, ...])
+            s_metrics = sample_id + [mse_val, mse_first_val, mse_last_val]
             sample_metrics.append(s_metrics)
 
             # Save sample eval metrics for aggregation
             dataset_metrics['MSE'].append(mse_val)
+            dataset_metrics['MSE-First'].append(mse_first_val)
+            dataset_metrics['MSE-Last'].append(mse_last_val)
+
+            saved_metric_names = list(dataset_metrics.keys())
+            assert saved_metric_names == _METRIC_NAMES, f'Unexpected metric list. Found {saved_metric_names} but expected {_METRIC_NAMES}.'
 
         batch_cnt += 1
         if batch_cnt >= n_batch_steps:
@@ -185,11 +193,15 @@ def save_inference(
     with open(inf_sample_metrics_filepath, write_mode, encoding='utf-8') as f:
         if not append:
             # Header
-            f.write('scene_name,object_id,frame_range,MSE')
+            metric_names_header = ','.join(_METRIC_NAMES)
+            f.write(f'scene_name,object_id,frame_range,{metric_names_header}')
 
         for sm in sample_metrics:
-            scene_name, object_id, frame_range, mse = sm
-            f.write(f'\n{scene_name},{object_id},{frame_range},{mse:.4f}')
+            scene_name, object_id, frame_range, *metric_values = sm
+            assert len(metric_values) == len(_METRIC_NAMES), \
+                f'Missing some metric. Got {len(metric_values)} values but expected {len(_METRIC_NAMES)}'
+            metric_values_str = ','.join([f'{val:.6f}' for val in metric_values])
+            f.write(f'\n{scene_name},{object_id},{frame_range},{metric_values_str}')
 
 
 @hydra.main(config_path=CONFIGS_PATH, config_name='default', version_base='1.1')
