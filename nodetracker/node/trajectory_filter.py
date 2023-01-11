@@ -1,13 +1,13 @@
 """
-Trajectory filter interface definition
+Trajectory forecaster interface definition
 """
 import torch
 from typing import Optional, Tuple, Protocol
 
 
-class TrajectoryFilter(Protocol):
+class BBoxTrajectoryForecaster(Protocol):
     """
-    Defines interface for bbox trajectory filter (forecasting)
+    Defines interface for bbox trajectory forecasting
     """
     def forward(self, x: torch.Tensor, t_obs: torch.Tensor, t_unobs: Optional[torch.Tensor] = None, *args, **kwargs) -> Tuple[torch.Tensor, ...]:
         raise NotImplementedError('Forward method not implemented!')

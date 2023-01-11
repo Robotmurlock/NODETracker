@@ -7,7 +7,7 @@ from typing import Union, Optional
 from nodetracker.node.generative_latent_time_series_model import LightningODEVAE
 from nodetracker.node.ode_rnn import LightningODERNNVAE
 from nodetracker.node.kalman_filter import TorchConstantVelocityODKalmanFilter
-from nodetracker.node.trajectory_filter import TrajectoryFilter
+from nodetracker.node.trajectory_filter import BBoxTrajectoryForecaster
 
 
 class ModelType(enum.Enum):
@@ -34,7 +34,7 @@ class ModelType(enum.Enum):
         return self.value not in [ModelType.KALMAN_FILTER.value]
 
 def load_or_create_model(model_type: Union[ModelType, str], params: dict, checkpoint_path: Optional[str] = None) \
-        -> 'TrajectoryFilter':
+        -> BBoxTrajectoryForecaster:
     """
     Loads trained (if given checkpoint path) or creates new model given name and parameters
 
