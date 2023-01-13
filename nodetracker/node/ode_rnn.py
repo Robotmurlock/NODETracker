@@ -4,12 +4,14 @@ https://arxiv.org/pdf/1907.03907.pdf
 """
 from typing import Tuple, Optional
 
+import pytorch_lightning as pl
 import torch
 from torch import nn
 
 from nodetracker.node.building_blocks import MLP
 from nodetracker.node.core.original import NeuralODE
-from nodetracker.node.generative_latent_time_series_model import MLPODEF, NODEDecoder
+from nodetracker.node.generative_latent_time_series_model import MLPODEF, NODEDecoder, ELBO
+from nodetracker.utils.meter import MetricMeter
 
 
 class ODERNNEncoder(nn.Module):
@@ -49,7 +51,7 @@ class ODERNNEncoder(nn.Module):
 
         hs = self._obs2hidden(xs)
         zs = self._hidden2latent(hs)
-        prev_h0 = torch.zeros(1, batch_size, 2*self._latent_dim)
+        prev_h0 = torch.zeros(1, batch_size, 2*self._latent_dim).to(zs)
 
         z0 = None
         for i in range(time_len):
@@ -91,6 +93,58 @@ class ODERNNVAE(nn.Module):
         z0 = z0_mean if not generate else z0_mean + torch.randn_like(z0_mean) * torch.exp(0.5 * z0_log_var)
         x_hat = self._decoder(z0, t_unobs)
         return x_hat, z0_mean, z0_log_var
+
+
+class LightningODERNNVAE(pl.LightningModule):
+    """
+    PytorchLightning wrapper for ODERNNVAE model
+    """
+    def __init__(self, observable_dim: int, hidden_dim: int, latent_dim: int, noise_std: float = 0.1, learning_rate: float = 1e-3):
+        super().__init__()
+        self._model = ODERNNVAE(observable_dim, hidden_dim, latent_dim)
+        self._loss_func = ELBO(noise_std)
+        self._learning_rate = learning_rate
+
+        self._meter = MetricMeter()
+
+    def forward(self, x: torch.Tensor, t_obs: torch.Tensor, t_unobs: Optional[torch.Tensor] = None, generate: bool = False) \
+            -> Tuple[torch.Tensor, ...]:
+        return self._model(x, t_obs, t_unobs, generate)
+
+    def training_step(self, batch: Tuple[torch.Tensor, ...], *args, **kwargs) -> torch.Tensor:
+        bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, _ = batch
+        bboxes_unobs_hat, z0_mean, z0_log_var = self.forward(bboxes_obs, ts_obs, ts_unobs)
+        loss, kl_div_loss, likelihood_loss = self._loss_func(bboxes_unobs_hat, bboxes_unobs, z0_mean, z0_log_var)
+
+        self._meter.push('training/loss', loss)
+        self._meter.push('training/kl_div_loss', kl_div_loss)
+        self._meter.push('training/likelihood_loss', likelihood_loss)
+
+        return loss
+
+    def validation_step(self, batch: Tuple[torch.Tensor, ...], *args, **kwargs) -> torch.Tensor:
+        bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, _ = batch
+        bboxes_unobs_hat, z0_mean, z0_log_var = self.forward(bboxes_obs, ts_obs, ts_unobs)
+        loss, kl_div_loss, likelihood_loss = self._loss_func(bboxes_unobs_hat, bboxes_unobs, z0_mean, z0_log_var)
+
+        self._meter.push('val/loss', loss)
+        self._meter.push('val/kl_div_loss', kl_div_loss)
+        self._meter.push('val/likelihood_loss', likelihood_loss)
+
+        # Repeated for compatibility with ODEVAE model
+        self._meter.push('val-forecast/loss', loss)
+        self._meter.push('val-forecast/kl_div_loss', kl_div_loss)
+        self._meter.push('val-forecast/likelihood_loss', likelihood_loss)
+
+        return loss
+
+    def on_validation_epoch_end(self) -> None:
+        for name, value in self._meter.get_all():
+            self.log(name, value, prog_bar=True)
+
+    def configure_optimizers(self):
+        optimizer = torch.optim.Adam(params=self._model.parameters(), lr=self._learning_rate)
+        return [optimizer]
 
 
 def main():

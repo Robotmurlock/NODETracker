@@ -4,7 +4,8 @@ Model factory method
 import enum
 from typing import Union, Optional
 
-from nodetracker.node.node_trainer import LightningODEVAE
+from nodetracker.node.generative_latent_time_series_model import LightningODEVAE
+from nodetracker.node.ode_rnn import LightningODERNNVAE
 from nodetracker.node.kalman_filter import TorchConstantVelocityODKalmanFilter
 from nodetracker.node.trajectory_filter import TrajectoryFilter
 
@@ -33,7 +34,7 @@ class ModelType(enum.Enum):
         return self.value not in [ModelType.KALMAN_FILTER.value]
 
 def load_or_create_model(model_type: Union[ModelType, str], params: dict, checkpoint_path: Optional[str] = None) \
-        -> Union['TrajectoryFilter', LightningODEVAE]:
+        -> 'TrajectoryFilter':
     """
     Loads trained (if given checkpoint path) or creates new model given name and parameters
 
@@ -50,15 +51,9 @@ def load_or_create_model(model_type: Union[ModelType, str], params: dict, checkp
 
     catalog = {
         ModelType.ODEVAE: LightningODEVAE,
-        ModelType.ODERNNVAE: LightningODEVAE,
+        ModelType.ODERNNVAE: LightningODERNNVAE,
         ModelType.KALMAN_FILTER: TorchConstantVelocityODKalmanFilter
     }
-
-    if model_type in [ModelType.ODEVAE, ModelType.ODERNNVAE]:
-        # Not the cleanest code but necesary in order for ODEVAE and ODERNNVAE to use same PL trainer
-        if 'model_name' in params:
-            raise KeyError('Unexpected "model_name" found in model parameters!')
-        params['model_name'] = model_type.value
 
     if checkpoint_path is None:
         if not model_type.trainable:

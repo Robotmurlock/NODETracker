@@ -25,3 +25,20 @@ def ode_dataloader_collate_func(items: List[torch.Tensor]) \
     x, t_x, y, t_y = [torch.stack(v, dim=1) for v in [xs, x_ts, ys, y_ts]]
     metadata = default_collate(metadata)
     return x, t_x, y, t_y, metadata
+
+
+def preprocess_batch(batch: tuple) -> tuple:
+    """
+    Unpacks batch and creates full trajectory tensors
+
+    Args:
+        batch: Raw batch
+
+    Returns:
+        Preprocessing batch
+    """
+    bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, metadata = batch
+    ts_all = torch.cat([ts_obs, ts_unobs], dim=0)
+    bboxes_all = torch.cat([bboxes_obs, bboxes_unobs], dim=0)
+    return bboxes_obs, bboxes_unobs, bboxes_all, ts_obs, ts_unobs, ts_all, metadata
+
