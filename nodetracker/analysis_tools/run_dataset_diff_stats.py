@@ -22,7 +22,7 @@ logger = logging.getLogger('DatasetDiffStats')
 
 @hydra.main(config_path=CONFIGS_PATH, config_name='default', version_base='1.1')
 def main(cfg: DictConfig):
-    cfg, experiment_path = pipeline.preprocess(cfg, name='visualize')
+    cfg, _ = pipeline.preprocess(cfg, name='dataset_diff_stats')
 
     dataset_train_path = os.path.join(cfg.path.assets, cfg.dataset.train_path)
     logger.info(f'Dataset train path: "{dataset_train_path}".')

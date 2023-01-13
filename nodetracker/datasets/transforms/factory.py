@@ -1,3 +1,6 @@
+"""
+Transform factory method
+"""
 from nodetracker.datasets.transforms import (
     InvertibleTransform,
     IdentityTransform,
@@ -8,6 +11,16 @@ from nodetracker.datasets.transforms import (
 
 
 def transform_factory(name: str, params: dict) -> InvertibleTransform:
+    """
+    Create transform object based on given name and constructor parameters.
+
+    Args:
+        name: Transform name
+        params: Transform parameters
+
+    Returns:
+        Transform object
+    """
     catalog = {
         'identity': IdentityTransform,
         'first_difference': BboxFirstOrderDifferenceTransform,

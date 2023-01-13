@@ -18,7 +18,6 @@ class ODERNNEncoder(nn.Module):
     """
     def __init__(self, observable_dim: int, latent_dim: int, hidden_dim: int, n_node_mlp_layers: int = 2):
         """
-
         Args:
             observable_dim: Data dimension
             latent_dim: Latent dimension (dimension at which NODE performs extrapolation)
@@ -85,16 +84,12 @@ class ODERNNVAE(nn.Module):
             output_dim=observable_dim
         )
 
-    def forward(self, x: torch.Tensor, t_obs: torch.Tensor, t_all: Optional[torch.Tensor] = None, generate: bool = False) \
-            -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        t_all = t_all if t_all is not None else t_obs
-        assert t_all.shape[0] >= t_obs.shape[
-            0], f'All time points must contain at lease observable time points. Shapes (all, obs): {t_all.shape[0]}, {t_obs.shape[0]}'
-
+    def forward(self, x: torch.Tensor, t_obs: torch.Tensor, t_unobs: Optional[torch.Tensor] = None, generate: bool = False) \
+            -> Tuple[torch.Tensor, ...]:
         xt = torch.cat([x, t_obs], dim=-1)
         z0_mean, z0_log_var = self._encoder(xt)
         z0 = z0_mean if not generate else z0_mean + torch.randn_like(z0_mean) * torch.exp(0.5 * z0_log_var)
-        x_hat = self._decoder(z0, t_all)
+        x_hat = self._decoder(z0, t_unobs)
         return x_hat, z0_mean, z0_log_var
 
 
@@ -107,8 +102,8 @@ def main():
 
     xs = torch.randn(4, 3, 7)
     ts_obs = torch.randn(4, 3, 1)
-    ts_all = torch.randn(6, 3, 1)
-    expected_shapes = [(6, 3, 7), (3, 3), (3,3)]
+    ts_all = torch.randn(2, 3, 1)
+    expected_shapes = [(2, 3, 7), (3, 3), (3,3)]
 
     output = odernnvae(xs, ts_obs, ts_all)
     shapes = [v.shape for v in output]

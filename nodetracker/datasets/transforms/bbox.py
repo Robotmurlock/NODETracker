@@ -1,3 +1,9 @@
+"""
+BBox transformations. Contains
+- BBox trajectory first order difference transformation
+- BBox coordination standardization to N(0, 1)
+- BBox trajectory standardized first order difference transformation
+"""
 from typing import Collection
 
 import torch
@@ -97,7 +103,7 @@ def run_test_first_difference() -> None:
     ts_unobs = torch.randn(3, 2, 1)
     first_diff = BboxFirstOrderDifferenceTransform()
 
-    transformed_bbox_obs, transformed_bbox_unobs, transformed_ts_obs, transformed_ts_unobs = \
+    transformed_bbox_obs, transformed_bbox_unobs, _, _ = \
         first_diff.apply([bbox_obs, bbox_unobs, ts_obs, ts_unobs], shallow=False)
     assert transformed_bbox_obs.shape == (1, 2, 4)
     assert transformed_bbox_unobs.shape == (3, 2, 4)
@@ -113,7 +119,7 @@ def run_standardization() -> None:
     ts_unobs = torch.randn(3, 2, 1)
     first_diff = BBoxStandardizationTransform(1, 2.0)
 
-    transformed_bbox_obs, transformed_bbox_unobs, transformed_ts_obs, transformed_ts_unobs = \
+    _, transformed_bbox_unobs, _, _ = \
         first_diff.apply([bbox_obs, bbox_unobs, ts_obs, ts_unobs], shallow=False)
 
     _, inv_transformed_bbox_unobs = first_diff.inverse([bbox_obs, transformed_bbox_unobs])
@@ -128,7 +134,7 @@ def run_test_standardized_first_difference() -> None:
     ts_unobs = torch.randn(3, 2, 1)
     first_diff = BBoxStandardizedFirstOrderDifferenceTransform(1, 2.0)
 
-    transformed_bbox_obs, transformed_bbox_unobs, transformed_ts_obs, transformed_ts_unobs = \
+    transformed_bbox_obs, transformed_bbox_unobs, _, _ = \
         first_diff.apply([bbox_obs, bbox_unobs, ts_obs, ts_unobs], shallow=False)
     assert transformed_bbox_obs.shape == (1, 2, 4)
     assert transformed_bbox_unobs.shape == (3, 2, 4)

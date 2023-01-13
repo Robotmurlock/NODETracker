@@ -149,7 +149,9 @@ disable=abstract-method,
         W1203,
         import-outside-toplevel,
         no-value-for-parameter,  # Hydra conflict
-        keyword-arg-before-vararg
+        keyword-arg-before-vararg,
+        invalid-name,
+        trailing-comma-tuple
 
 
 [REPORTS]

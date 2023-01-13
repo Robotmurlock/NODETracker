@@ -271,10 +271,8 @@ class BBox:
             Clipped coordinates
         """
         x1, y1, x2, y2 = [min(1.0, max(v, 0.0)) for v in [x1, y1, x2, y2]]
-        if x2 < x1:
-            x2 = x1
-        if y2 < y1:
-            y2 = y1
+        x2 = max(x1, x2)  # assumption: x1 <= x2
+        y2 = max(y1, y2)  # assumption: y1 <= y2
 
         return x1, y1, x2, y2
 

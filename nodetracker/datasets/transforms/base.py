@@ -28,7 +28,7 @@ class Transform(ABC):
     def apply(self, data: Collection[torch.Tensor], shallow: bool = True) -> Collection[torch.Tensor]:
         """
         Perform transformation on given raw data.
-        
+
         Args:
             data: Raw data
             shallow: Take shallow copy of data (may cause side effects but faster in general)
@@ -42,13 +42,16 @@ class Transform(ABC):
         return self.apply(data)
 
 class InvertibleTransform(Transform, ABC):
+    """
+    Transform that also implements `inverse` method.
+    """
     def __init__(self, name: str):
         super().__init__(name=name)
     @abstractmethod
     def inverse(self, data: Collection[torch.Tensor], shallow: bool = True) -> Collection[torch.Tensor]:
         """
         Performs inverse transformation on given transformed data.
-        
+
         Args:
             data: Transformed data
             shallow: Take shallow copy of data (may cause side effects)
