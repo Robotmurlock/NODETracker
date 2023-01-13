@@ -1,6 +1,12 @@
+"""
+Implementation of SORT algorithm
+https://arxiv.org/pdf/1602.00763.pdf
+"""
+import torch
+
 from nodetracker.node import BBoxTrajectoryForecaster
 from nodetracker.sort.matching import AssociationAlgorithm
-import torch
+
 
 class SortTracker:
     """
@@ -36,4 +42,4 @@ class SortTracker:
         self._object_persist_frames = object_persist_frames
 
     def track(self):
-        pass # TODO
+        pass
