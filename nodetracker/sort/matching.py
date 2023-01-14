@@ -27,6 +27,10 @@ class AssociationAlgorithm(ABC):
         """
         pass
 
+    def __call__(self, tracklets: List[PredBBox], detections: List[PredBBox]) -> Tuple[List[Tuple[int]], List[int], List[int]]:
+        return self.match(tracklets, detections)
+
+
 class HungarianAlgorithmIOU(AssociationAlgorithm):
     """
     Solves the linear sum assignment problem from given cost matrix based on IOU scores.

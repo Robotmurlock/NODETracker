@@ -237,6 +237,42 @@ class BBox:
         x1, y1, x2, y2 = x - h / 2, y - w / 2, x + h / 2, y + w / 2
         return cls.from_xyxy(x1, y1, x2, y2, clip=clip)
 
+    def as_numpy_xyxy(self, dtype: np.dtype = np.float32) -> np.ndarray:
+        """
+        Converts Bbox to xyxy numpy array.
+
+        Args:
+            dtype: Numpy array dtype (default: np.float32)
+
+        Returns:
+            BBox xyxy coords as a numpy array.
+        """
+        return np.array([self.upper_left.x, self.upper_left.y, self.bottom_right.x, self.bottom_right.y], dtype=dtype)
+
+    def as_numpy_xyhw(self, dtype: np.dtype = np.float32) -> np.ndarray:
+        """
+        Converts Bbox to xyhw numpy array.
+
+        Args:
+            dtype: Numpy array dtype (default: np.float32)
+
+        Returns:
+            BBox xyhw coords as a numpy array.
+        """
+        return np.array([self.upper_left.x, self.upper_left.y, self.height, self.width], dtype=dtype)
+
+    def as_numpy_cxyhw(self, dtype: np.dtype = np.float32) -> np.ndarray:
+        """
+        Converts Bbox to cxyhw numpy array.
+
+        Args:
+            dtype: Numpy array dtype (default: np.float32)
+
+        Returns:
+            BBox cxyhw coords as a numpy array.
+        """
+        return np.array([*self.center, self.height, self.width], dtype=dtype)
+
     @classmethod
     def from_coords(cls, coord_system: BoxCoordSystem, *args, **kwargs) -> 'BBox':
         """
