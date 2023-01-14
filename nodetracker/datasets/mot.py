@@ -7,7 +7,7 @@ import logging
 import os
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import Dict, Tuple, List, Any, Union
+from typing import Dict, Tuple, List, Any, Union, Optional
 
 import numpy as np
 import pandas as pd
@@ -66,6 +66,7 @@ class MOTDataset:
         history_len: int,
         future_len: int,
         label_type: LabelType = LabelType.GROUND_TRUTH,
+        scene_filter: Optional[List[str]] = None
     ) -> None:
         """
         Args:
@@ -78,11 +79,82 @@ class MOTDataset:
         self._history_len = history_len
         self._future_len = future_len
         self._label_type = label_type
+        self._scene_filter = scene_filter
 
-        self._scene_info_index = self._index_dataset(path, label_type)
-
+        self._scene_info_index = self._index_dataset(path, label_type, scene_filter)
         self._data_labels, self._n_labels = self._parse_labels(self._scene_info_index)
         self._trajectory_index = self._create_trajectory_index(self._data_labels, self._history_len, self._future_len)
+
+    @property
+    def scenes(self) -> List[str]:
+        """
+        Returns:
+            List of scenes in dataset.
+        """
+        return list(self._scene_info_index.keys())
+
+    def parse_object_id(self, object_id: str) -> Tuple[str, str]:
+        """
+        Parses and validates object id.
+
+        Object id convention is `{scene_name}_{scene_object_id}` and is unique over all scene.
+
+        Args:
+            object_id: Object id
+
+        Returns:
+            scene name, scene object id
+        """
+        assert object_id in self._data_labels, f'Unknown object id "{object_id}".'
+        scene_name, scene_object_id = object_id.split('_')
+        return scene_name, scene_object_id
+
+    def get_scene_object_ids(self, scene_name: str) -> List[str]:
+        """
+        Gets object ids for given scene name
+
+        Args:
+            scene_name: Scene name
+
+        Returns:
+            Scene objects
+        """
+        assert scene_name in self.scenes, f'Unknown scene "{scene_name}". Dataset scenes: {self.scenes}.'
+        return [d for d in self._data_labels if d.startswith(scene_name)]
+
+    def get_object_data_length(self, object_id: str) -> int:
+        """
+        Gets total number of data points for given `object_id` for .
+
+        Args:
+            object_id: Object id
+
+        Returns:
+            Number of data points
+        """
+        return len(self._data_labels[object_id])
+
+    def get_object_data_label(self, object_id: str, index: int, relative_bbox_coords: bool = True) -> dict:
+        """
+        Get object data point index.
+
+        Args:
+            object_id: Object id
+            index: Index
+            relative_bbox_coords: Scale bbox coords to [0, 1]
+
+        Returns:
+            Data point.
+        """
+        data = self._data_labels[object_id][index]
+        if relative_bbox_coords:
+            scene_name, _ = self.parse_object_id(object_id)
+            scene_info = self._scene_info_index[scene_name]
+            bbox = data['bbox']
+            bbox = [bbox[0] / scene_info.imheight, bbox[1] / scene_info.imheight, bbox[2] / scene_info.imwidth, bbox[3] / scene_info.imheight]
+            data['bbox'] = bbox
+
+        return data
 
     @property
     def label_type(self) -> LabelType:
@@ -132,7 +204,7 @@ class MOTDataset:
         return self._get_image_path(scene_info, frame_id)
 
     @staticmethod
-    def _index_dataset(path: str, label_type: LabelType) -> SceneInfoIndex:
+    def _index_dataset(path: str, label_type: LabelType, scene_filter: Optional[List[str]]) -> SceneInfoIndex:
         """
         Index dataset content. Format: { {scene_name}: {scene_labels_path} }
 
@@ -149,6 +221,10 @@ class MOTDataset:
         scene_info_index: SceneInfoIndex = {}
 
         for scene_name in scene_names:
+            if scene_filter is not None and scene_name not in scene_filter:
+                logger.debug(f'Skipping {scene_name} using scene filter.')
+                continue
+
             scene_directory = os.path.join(path, scene_name)
             scene_files = os.listdir(scene_directory)
             assert label_type.value in scene_files, f'Ground truth file "{label_type.value}" not found. Contents: {scene_files}'
@@ -211,6 +287,7 @@ class MOTDataset:
                     })
 
         logger.debug(f'Parsed labels. Dataset size is {n_labels}.')
+        data = dict(data)  # Disposing unwanted defaultdict side-effects
         return data, n_labels
 
     @staticmethod
@@ -230,7 +307,7 @@ class MOTDataset:
         trajectory_len = history_len + future_len
         traj_index = []
 
-        for object_id, data in tqdm(labels.items(), desc='Creating trajectories!', unit='object'):
+        for object_id, data in tqdm(labels.items(), desc='Creating trajectories', unit='object'):
             object_trajectory_len = len(data)
             for i in range(object_trajectory_len - trajectory_len + 1):
                 traj_index.append((object_id, i, i+trajectory_len))

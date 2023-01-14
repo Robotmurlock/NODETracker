@@ -7,7 +7,7 @@ from typing import List
 import torch
 from copy import deepcopy
 
-from nodetracker.library.cv import PredBBox, BBox
+from nodetracker.library.cv import PredBBox, BBox, Point
 from nodetracker.node import BBoxTrajectoryForecaster
 from nodetracker.sort.matching import AssociationAlgorithm
 
@@ -30,7 +30,7 @@ def forecast_to_bboxes(forecast: torch.Tensor) -> List[PredBBox]:
     bboxes: List[PredBBox] = []
     for f_i in range(forecast.shape[0]):
         raw_bbox = forecast[f_i].numpy()
-        bbox = PredBBox.create(BBox.from_xyhw(*raw_bbox), label=0)
+        bbox = PredBBox.create(BBox.from_xyhw(*raw_bbox, clip=True), label=0)
         bboxes.append(bbox)
 
     return bboxes
@@ -51,7 +51,7 @@ class SortTracker:
         self,
         forecaster: BBoxTrajectoryForecaster,
         matcher: AssociationAlgorithm,
-        object_persist_frames: int
+        object_persist_frames: int = 5
     ):
         """
         Args:
@@ -90,8 +90,8 @@ class SortTracker:
         estimated_tracklet_coords: List[PredBBox] = []
 
         for tracklet_index, feats in enumerate(features):
-            t_obs = 1 + torch.tensor(list(range(feats.shape[0])), dtype=torch.float32)  # TODO: t_obs should be saved with features as pair
-            t_unobs = t_obs.shape[0] + 1 + torch.tensor(list(range(self._object_persist_frames)), dtype=torch.float32)
+            t_obs = 1 + torch.tensor(list(range(feats.shape[0])), dtype=torch.float32).view(-1, 1, 1)
+            t_unobs = (t_obs.shape[0] + 1) + torch.tensor(list(range(self._object_persist_frames)), dtype=torch.float32).view(-1, 1, 1)
             forecast, *_ = self._forecaster(feats, t_obs, t_unobs)
             forecast_bboxes = forecast_to_bboxes(forecast)
             forecasts[tracklet_index] = forecast_bboxes
@@ -144,7 +144,10 @@ class SortTracker:
             d.label = self._create_next_object_index()
             self._active_tracklets.append(d)
             self._active_tracklets_forecasts.append([d])
-            self._active_tracklets_features.append(torch.from_numpy(d.as_numpy_xyhw()))
+
+            bbox_array = d.as_numpy_xyhw()
+            initial_features = torch.from_numpy(bbox_array).view(1, 1, 4)
+            self._active_tracklets_features.append(initial_features)
 
     def track(self, detections: List[PredBBox]) -> List[PredBBox]:
         """
@@ -160,11 +163,13 @@ class SortTracker:
         estimated_active_tracklets_bboxes = self._predict_active(self._active_tracklets_features, self._active_tracklets_forecasts)
         active_matches, unmatched_tracklets_indices, unmatched_detections_indices = self._matcher(estimated_active_tracklets_bboxes, detections)
         # TODO: Update features for active matches
+        # TODO: Update coords for active matches
 
         # Match remaining detections with missing tracklets
         remaining_detections = [detections[ud_index] for ud_index in unmatched_detections_indices]
         estimated_missing_tracklets_bboxes = self._predict_missing(self._missing_tracklets_forecasts, self._missing_tracklets_counter)
         missing_matches, _, unmatched_detections_indices = self._matcher(estimated_missing_tracklets_bboxes, remaining_detections)
+        # TODO: Update coords for missing matches (features should not be updated)
 
         # Move matched missing tracklets to active tracklets
         matched_missing_tracklets = [t_i for t_i, d_i in missing_matches]
@@ -180,3 +185,49 @@ class SortTracker:
         self._create_new_tracklets(unmatched_detections)
 
         return deepcopy(self._active_tracklets)
+
+
+def run_test() -> None:
+    from nodetracker.node.kalman_filter import TorchConstantVelocityODKalmanFilter
+    from nodetracker.sort.matching import HungarianAlgorithmIOU
+
+    forecaster = TorchConstantVelocityODKalmanFilter()
+    matcher = HungarianAlgorithmIOU(match_threshold=0.2)
+    tracker = SortTracker(forecaster, matcher)
+
+    fst_iter_detections = [
+        PredBBox(
+            label=0,
+            conf=0.9,
+            upper_left=Point(x=0.1, y=0.1),
+            bottom_right=Point(x=0.2, y=0.2)
+        ),
+        PredBBox(
+            label=0,
+            conf=0.9,
+            upper_left=Point(x=0.5, y=0.5),
+            bottom_right=Point(x=0.7, y=0.7)
+        )
+    ]
+
+    snd_iter_detections = [
+        PredBBox(
+            label=0,
+            conf=0.9,
+            upper_left=Point(x=0.11, y=0.11),
+            bottom_right=Point(x=0.21, y=0.21)
+        ),
+        PredBBox(
+            label=0,
+            conf=0.9,
+            upper_left=Point(x=0.51, y=0.51),
+            bottom_right=Point(x=0.71, y=0.71)
+        )
+    ]
+
+    print(tracker.track(fst_iter_detections))
+    print(tracker.track(snd_iter_detections))
+
+
+if __name__ == '__main__':
+    run_test()
