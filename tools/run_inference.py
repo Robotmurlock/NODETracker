@@ -18,8 +18,7 @@ from tqdm import tqdm
 
 from nodetracker.common import conventions
 from nodetracker.common.project import CONFIGS_PATH
-from nodetracker.datasets import transforms
-from nodetracker.datasets.mot import TorchMOTTrajectoryDataset
+from nodetracker.datasets import TorchMOTTrajectoryDataset, transforms
 from nodetracker.datasets.utils import ode_dataloader_collate_func
 from nodetracker.node import load_or_create_model
 from nodetracker.utils import pipeline

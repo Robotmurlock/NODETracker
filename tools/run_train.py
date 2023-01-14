@@ -11,10 +11,10 @@ from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.loggers import TensorBoardLogger
 from torch.utils.data import DataLoader
 
+from datasets.mot.core import TorchMOTTrajectoryDataset
 from nodetracker.common import conventions
 from nodetracker.common.project import CONFIGS_PATH
 from nodetracker.datasets import transforms
-from nodetracker.datasets.mot import TorchMOTTrajectoryDataset
 from nodetracker.datasets.utils import ode_dataloader_collate_func
 from nodetracker.node import load_or_create_model, ModelType
 from nodetracker.utils import pipeline

@@ -1,5 +1,5 @@
 """
-Mot dataset utils.
+Mot dataset
 """
 import argparse
 import logging
@@ -10,7 +10,7 @@ import numpy as np
 from tqdm import tqdm
 from pathlib import Path
 
-from nodetracker.datasets.mot import MOTDataset
+from datasets.mot.core import MOTDataset
 from nodetracker.utils.logging import configure_logging
 
 logger = logging.getLogger('MotTools')
