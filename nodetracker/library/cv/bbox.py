@@ -359,8 +359,6 @@ class BBox:
 class PredBBox(BBox):
     """
     BBox with class label and detection confidence (optional).
-
-    TODO: Implement PredBBox draw
     """
     label: int
     conf: Optional[float] = field(default=None)
@@ -384,6 +382,22 @@ class PredBBox(BBox):
             label=label,
             conf=conf
         )
+
+    def draw(self, image: np.ndarray, color: Tuple[int, int, int] = (0, 0, 255), thickness: int = 2) -> np.ndarray:
+        # Draw bbox
+        super().draw(image, color=color, thickness=thickness)
+
+        # Draw bbox annotation
+        y1, x1, y2, x2 = self.scaled_yxyx_from_image(image)
+        conf_annot = f'{100*self.conf:.1f}%' if self.conf is not None else 'GT'
+        annot = f'[{self.label}] {conf_annot}'
+        # noinspection PyUnresolvedReferences
+        image = cv2.putText(image, annot, (y1 + 2, x1 - 4),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2)
+        # noinspection PyUnresolvedReferences
+        image = cv2.putText(image, annot, (y1 + 2, x1 - 4),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
+        return image
 
 
 # noinspection PyUnresolvedReferences

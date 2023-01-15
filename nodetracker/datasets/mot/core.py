@@ -147,11 +147,12 @@ class MOTDataset:
             Data point.
         """
         data = self._data_labels[object_id][index]
+
         if relative_bbox_coords:
             scene_name, _ = self.parse_object_id(object_id)
             scene_info = self._scene_info_index[scene_name]
             bbox = data['bbox']
-            bbox = [bbox[0] / scene_info.imheight, bbox[1] / scene_info.imheight, bbox[2] / scene_info.imwidth, bbox[3] / scene_info.imheight]
+            bbox = [bbox[0] / scene_info.imwidth, bbox[1] / scene_info.imheight, bbox[2] / scene_info.imwidth, bbox[3] / scene_info.imheight]
             data['bbox'] = bbox
 
         return data
