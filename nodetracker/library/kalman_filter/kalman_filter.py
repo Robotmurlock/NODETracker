@@ -56,7 +56,7 @@ Update (a posteriori) Step:
 
 
 """
-from typing import Tuple
+from typing import Tuple, Optional
 
 import numpy as np
 import numpy.linalg as LA
@@ -70,16 +70,24 @@ class ConstantVelocityODKalmanFilter:
     def __init__(
         self,
         initial_position_uncertainty: float = 10,
-        initial_velocity_uncertainty: float = 10000
+        initial_velocity_uncertainty: float = 1000,
+        process_noise_multiplier: float = 1.0,
+        measurement_noise_multiplier: float = 1.0,
+        z_initial: Optional[np.ndarray] = None
     ):
         """
         Args:
             initial_position_uncertainty: Initial uncertainty for object position (x, y, w, h)
             initial_velocity_uncertainty: Initial uncertainty for object velocities (x', y', w', h')
+            process_noise_multiplier: Q multiplier
+            measurement_noise_multiplier: R multiplier
         """
+        self._initial_position_uncertainty = initial_position_uncertainty
+        self._initial_velocity_uncertainty = initial_velocity_uncertainty
+
+        # z ~ x, y, w, h
         self._x_hat = np.zeros(shape=(8, 1))  # x, y, w, h, x', y', w', h'
-        self._x = self._x_hat.copy()
-        # z - x, y, w, h
+        self._x = np.zeros(shape=(8, 1))
 
         self._H = np.array([
             [1, 0, 0, 0, 0, 0, 0, 0],
@@ -89,16 +97,51 @@ class ConstantVelocityODKalmanFilter:
         ])
 
         self._P_hat = np.eye(8, dtype=np.float32)
+        self._P_hat[:4, :4] *= self._initial_position_uncertainty
+        self._P_hat[4:, 4:] *= self._initial_velocity_uncertainty
         self._P = self._P_hat.copy()
-        self._P_hat[:4, :4] *= initial_position_uncertainty
-        self._P_hat[4:, 4:] *= initial_velocity_uncertainty
 
-        self._Q = np.eye(8, dtype=np.float32)  # TODO: hyperparameter
-        self._R = np.eye(4, dtype=np.float32)  # TODO: hyperparameter
+        self._Q = np.eye(8, dtype=np.float32) * process_noise_multiplier
+        self._R = np.eye(4, dtype=np.float32) * measurement_noise_multiplier
 
         self._I = np.eye(8)
 
         self._predict_performed = False
+
+        if z_initial is not None:
+            self.set_z(z_initial)
+
+    def set_z(self, z: np.ndarray) -> None:
+        """
+        Sets state to some value. Used for initial KF step (first bbox).
+        Note: This resets KF state.
+
+        Args:
+            z: Measurement
+        """
+        self.reset_state()
+        self._x[:4] = z.reshape(-1, 1)
+
+    def get_z(self) -> np.ndarray:
+        """
+        Gets current state observable values.
+
+        Returns:
+            Observable values state
+        """
+        return self._H @ self._x
+
+    def reset_state(self) -> None:
+        """
+        Resets KalmanFilter state.
+        """
+        self._P_hat = np.eye(8, dtype=np.float32)
+        self._P_hat[:4, :4] *= self._initial_position_uncertainty
+        self._P_hat[4:, 4:] *= self._initial_velocity_uncertainty
+        self._P = self._P_hat.copy()
+
+        self._x_hat = np.zeros(shape=(8, 1))
+        self._x = np.zeros(shape=(8, 1))
 
     # noinspection PyMethodMayBeStatic
     def _get_A(self, dt: float) -> np.ndarray:
@@ -196,19 +239,27 @@ def run_kf_test():
     kf_ests = []
     ground_truth = []
     ts = []
+
+    # KF prediction: A -> B
+    first_iteration = True
     for i in range(time_len):
         t = dt*i
         gt = (1 - t/time_len) * state_A + t/time_len * state_B
         measurement = gt + np.random.randn(*gt.shape) * noise_std
-
-        pred, _ = kf.predict(dt)
-        est, _ = kf.update(measurement)
+        if first_iteration:
+            kf.set_z(measurement)
+            first_iteration = False
+            pred = est = kf.get_z()
+        else:
+            pred, _ = kf.predict(dt)
+            est, _ = kf.update(measurement)
 
         ts.append(dt*i)
         ground_truth.append(gt)
         kf_preds.append(pred)
         kf_ests.append(est)
 
+    # KF prediction: B -> C
     for i in range(time_len):
         t = dt*i
         gt = (1 - t/time_len) * state_B + t/time_len * state_C
