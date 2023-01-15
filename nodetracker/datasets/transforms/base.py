@@ -2,8 +2,13 @@
 Data transformations
 """
 from abc import ABC, abstractmethod
-from typing import Collection
+from typing import Collection, Union
+
 import torch
+
+
+TensorCollection = Union[torch.Tensor, Collection[torch.Tensor]]
+
 
 class Transform(ABC):
     """
@@ -25,7 +30,7 @@ class Transform(ABC):
         return self._name
 
     @abstractmethod
-    def apply(self, data: Collection[torch.Tensor], shallow: bool = True) -> Collection[torch.Tensor]:
+    def apply(self, data: TensorCollection, shallow: bool = True) -> TensorCollection:
         """
         Perform transformation on given raw data.
 
@@ -38,7 +43,7 @@ class Transform(ABC):
         """
         pass
 
-    def __call__(self, data: Collection[torch.Tensor], shallow: bool = True) -> Collection[torch.Tensor]:
+    def __call__(self, data: TensorCollection, shallow: bool = True) -> TensorCollection:
         return self.apply(data)
 
 class InvertibleTransform(Transform, ABC):
@@ -48,7 +53,7 @@ class InvertibleTransform(Transform, ABC):
     def __init__(self, name: str):
         super().__init__(name=name)
     @abstractmethod
-    def inverse(self, data: Collection[torch.Tensor], shallow: bool = True) -> Collection[torch.Tensor]:
+    def inverse(self, data: TensorCollection, shallow: bool = True) -> TensorCollection:
         """
         Performs inverse transformation on given transformed data.
 
@@ -68,7 +73,7 @@ class IdentityTransform(InvertibleTransform):
     """
     def __init__(self):
         super().__init__(name='identity')
-    def apply(self, data: Collection[torch.Tensor], shallow: bool = True) -> Collection[torch.Tensor]:
+    def apply(self, data: TensorCollection, shallow: bool = True) -> TensorCollection:
         return data
-    def inverse(self, data: Collection[torch.Tensor], shallow: bool = True) -> Collection[torch.Tensor]:
+    def inverse(self, data: TensorCollection, shallow: bool = True) -> TensorCollection:
         return data

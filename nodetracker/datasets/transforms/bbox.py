@@ -4,11 +4,10 @@ BBox transformations. Contains
 - BBox coordination standardization to N(0, 1)
 - BBox trajectory standardized first order difference transformation
 """
-from typing import Collection
 
 import torch
 
-from nodetracker.datasets.transforms.base import InvertibleTransform
+from nodetracker.datasets.transforms.base import InvertibleTransform, TensorCollection
 
 
 class BboxFirstOrderDifferenceTransform(InvertibleTransform):
@@ -20,22 +19,24 @@ class BboxFirstOrderDifferenceTransform(InvertibleTransform):
     def __init__(self):
         super().__init__(name='first_difference')
 
-    def apply(self, data: Collection[torch.Tensor], shallow: bool = True) -> Collection[torch.Tensor]:
+    def apply(self, data: TensorCollection, shallow: bool = True) -> TensorCollection:
         bbox_obs, bbox_unobs, ts_obs, *other = data
         assert bbox_obs.shape[0] >= 0, f'{self.__name__} requires at least 2 observable points. Found {bbox_obs.shape[0]}'
         if not shallow:
             bbox_obs = bbox_obs.clone()
-            bbox_unobs = bbox_unobs.clone()
+            bbox_unobs = bbox_unobs.clone() if bbox_unobs is not None else None
             ts_obs = ts_obs.clone()
 
-        bbox_unobs[1:, ...] = bbox_unobs[1:, ...] - bbox_unobs[:-1, ...]
-        bbox_unobs[0, ...] = bbox_unobs[0, ...] - bbox_obs[-1, ...]
+        if bbox_unobs is not None:
+            # During live inference, bbox_unobs are not known (this is for training only)
+            bbox_unobs[1:, ...] = bbox_unobs[1:, ...] - bbox_unobs[:-1, ...]
+            bbox_unobs[0, ...] = bbox_unobs[0, ...] - bbox_obs[-1, ...]
         bbox_obs[1:, ...] = bbox_obs[1:, ...] - bbox_obs[:-1, ...]
         bbox_obs, ts_obs = bbox_obs[1:, ...], ts_obs[1:, ...]  # Dump first
 
         return bbox_obs, bbox_unobs, ts_obs, *other
 
-    def inverse(self, data: Collection[torch.Tensor], shallow: bool = True) -> Collection[torch.Tensor]:
+    def inverse(self, data: TensorCollection, shallow: bool = True) -> TensorCollection:
         orig_bbox_obs, bbox_hat, *other = data
         if not shallow:
             bbox_hat = bbox_hat.clone()
@@ -55,17 +56,19 @@ class BBoxStandardizationTransform(InvertibleTransform):
         self._mean = mean
         self._std = std
 
-    def apply(self, data: Collection[torch.Tensor], shallow: bool = True) -> Collection[torch.Tensor]:
+    def apply(self, data: TensorCollection, shallow: bool = True) -> TensorCollection:
         bbox_obs, bbox_unobs, *other = data
 
         bbox_obs = (bbox_obs - self._mean) / self._std
-        bbox_unobs = (bbox_unobs - self._mean) / self._std
+        # During live inference, bbox_unobs are not known (this is for training only)
+        bbox_unobs = (bbox_unobs - self._mean) / self._std if bbox_unobs is not None else None
 
         return bbox_obs, bbox_unobs, *other
 
-    def inverse(self, data: Collection[torch.Tensor], shallow: bool = True) -> Collection[torch.Tensor]:
+    def inverse(self, data: TensorCollection, shallow: bool = True) -> TensorCollection:
         bbox_obs, bbox_unobs, *other = data
 
+        # Note: inverse transform is not applied to `bbox_obs`
         bbox_unobs = bbox_unobs * self._std + self._mean
 
         return [bbox_obs, bbox_unobs, *other]
@@ -84,12 +87,12 @@ class BBoxStandardizedFirstOrderDifferenceTransform(InvertibleTransform):
         self._first_difference = BboxFirstOrderDifferenceTransform()
         self._standardization = BBoxStandardizationTransform(mean=mean, std=std)
 
-    def apply(self, data: Collection[torch.Tensor], shallow: bool = True) -> Collection[torch.Tensor]:
+    def apply(self, data: TensorCollection, shallow: bool = True) -> TensorCollection:
         data = self._first_difference.apply(data, shallow=shallow)
         data = self._standardization.apply(data, shallow=False)
         return data
 
-    def inverse(self, data: Collection[torch.Tensor], shallow: bool = True) -> Collection[torch.Tensor]:
+    def inverse(self, data: TensorCollection, shallow: bool = True) -> TensorCollection:
         data = self._standardization.inverse(data, shallow=shallow)
         data = self._first_difference.inverse(data, shallow=False)
         return data

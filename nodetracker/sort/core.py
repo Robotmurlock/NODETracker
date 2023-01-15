@@ -2,43 +2,20 @@
 Implementation of SORT algorithm variation
 https://arxiv.org/pdf/1602.00763.pdf
 
-TODO: Refactor: Too many states (self...)
+TODO: Refactor: Too many states (self...) :'(
 """
 import logging
 from copy import deepcopy
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 
 import torch
 
+from nodetracker.datasets import transforms
 from nodetracker.library.cv import PredBBox, BBox
 from nodetracker.node import BBoxTrajectoryForecaster
 from nodetracker.sort.matching import AssociationAlgorithm
 
 logger = logging.getLogger('SortTracker')
-
-
-def forecast_to_bboxes(forecast: torch.Tensor) -> List[PredBBox]:
-    """
-    Converts raw forecast output to list of PredBBox items.
-
-    Args:
-        forecast: Forecasts
-
-    Returns:
-        Pred bboxes.
-    """
-    shape = forecast.shape
-    assert len(shape) == 3, f'Expected shape length to be 3. Found {shape}.'
-    assert shape[1] == 1, f'Currently supporting only batch size 1. Found {shape}.'
-    forecast = forecast[:, 0, :]
-
-    bboxes: List[PredBBox] = []
-    for f_i in range(forecast.shape[0]):
-        raw_bbox = forecast[f_i].numpy()
-        bbox = PredBBox.create(BBox.from_xyhw(*raw_bbox, clip=True), label=0)
-        bboxes.append(bbox)
-
-    return bboxes
 
 class SortTracker:
     """
@@ -56,17 +33,29 @@ class SortTracker:
         self,
         forecaster: BBoxTrajectoryForecaster,
         matcher: AssociationAlgorithm,
-        object_persist_frames: int = 5
+        tensor_transform: Optional[transforms.InvertibleTransform] = None,
+        accelerator: str = 'cpu',
+        object_persist_frames: int = 5,
+        max_feature_length: int = 15
     ):
         """
         Args:
             forecaster: Forecasts bbox coords of tracked object in next frame
             matcher: Tracklet-detection matching
+            tensor_transform: Forecaster data preprocess and postprocess
+            accelerator: Forecaster accelerator (gpu/cpu)
             object_persist_frames: Number of frames to track lost objects before removing them
+            max_feature_length: Max feature length before popping history
         """
         # Algorithms
-        self._forecaster = forecaster
+        self._forecaster= forecaster
         self._matcher = matcher
+        self._tensor_transform = tensor_transform
+        if self._tensor_transform is None:
+            self._tensor_transform = transforms.IdentityTransform()
+        self._accelerator = accelerator
+        # noinspection PyUnresolvedReferences
+        self._forecaster.to(self._accelerator)
 
         # Active tracklets state (matched with some detections in last step)
         self._active_tracklets: List[PredBBox] = []
@@ -81,10 +70,35 @@ class SortTracker:
 
         # Hyperparameters
         self._object_persist_frames = object_persist_frames
+        self._max_feature_length = max_feature_length
 
         # State
         self._next_object_index = 0
         self._iter_index = 1
+
+    @staticmethod
+    def forecast_to_bboxes(forecast: torch.Tensor) -> List[PredBBox]:
+        """
+        Converts raw forecast output to list of PredBBox items.
+
+        Args:
+            forecast: Forecasts
+
+        Returns:
+            Pred bboxes.
+        """
+        shape = forecast.shape
+        assert len(shape) == 3, f'Expected shape length to be 3. Found {shape}.'
+        assert shape[1] == 1, f'Currently supporting only batch size 1. Found {shape}.'
+        forecast = forecast[:, 0, :]
+
+        bboxes: List[PredBBox] = []
+        for f_i in range(forecast.shape[0]):
+            raw_bbox = forecast[f_i].numpy()
+            bbox = PredBBox.create(BBox.from_xyhw(*raw_bbox, clip=True), label=0)
+            bboxes.append(bbox)
+
+        return bboxes
 
     def _create_next_object_index(self) -> int:
         """
@@ -116,11 +130,17 @@ class SortTracker:
             t_obs = torch.linspace(1, n_obs, steps=n_obs, dtype=torch.float32).view(-1, 1, 1)
             t_unobs = torch.linspace(n_obs+1, n_obs+n_unobs, steps=n_unobs, dtype=torch.float32).view(-1, 1, 1)
 
-            # TODO: Missing feature preprocessing (not needed for KF)
-            forecast, *_ = self._forecaster(feats, t_obs, t_unobs)
-            # TODO: Missing forecast postprocessing (not needed for KF)
+            if feats.shape[0] > 1:
+                f_feats, _, f_t_obs, f_t_unobs = self._tensor_transform.apply([feats, None, t_obs, t_unobs], shallow=False)
+                f_feats, f_t_obs, f_t_unobs = [val.to(self._accelerator) for val in [f_feats, f_t_obs, f_t_unobs]]
+                forecast, *_ = self._forecaster(f_feats, f_t_obs, f_t_unobs)
+                _, forecast, *_ = self._tensor_transform.inverse([feats, forecast, f_t_obs, f_t_unobs])
+                forecast = forecast.detach().cpu()
+                forecast_bboxes = self.forecast_to_bboxes(forecast)
+            else:
+                # Not enough data for forecast (replicating same bbox)
+                forecast_bboxes = [self._active_tracklets[tracklet_index]]
 
-            forecast_bboxes = forecast_to_bboxes(forecast)
             estimated_tracklet_coords.append(forecast_bboxes[0])  # only next step forecast estimation is required for matching
             self._active_tracklets_forecasts[tracklet_index] = forecast_bboxes  # save forecasts
 
@@ -139,7 +159,7 @@ class SortTracker:
         for t_i, bbox in zip(matched_active_tracklet_indices, matched_active_detections):
             # TODO: Currently using naive update approach - take detection bbox - instead of combining it like in KF
             self._active_tracklets[t_i] = PredBBox.create(bbox, label=self._active_tracklets[t_i].label, conf=self._active_tracklets[t_i].conf)
-            features = self._active_tracklets_features[t_i]
+            features = self._active_tracklets_features[t_i][:self._max_feature_length]
             bbox_features = torch.from_numpy(bbox.as_numpy_xyhw()).view(1, 1, 4)  # TODO: batch size is fixed to 1
             features = torch.cat([features, bbox_features], dim=0)  # TODO: Might not be most efficient way...
             self._active_tracklets_features[t_i] = features
@@ -216,7 +236,7 @@ class SortTracker:
     def _update_missing_tracklets(self) -> None:
         """
         For each tracklet:
-        - if tracklet is missing more than `object_persist_frames` then it is remove from missing tracklets list
+        - if tracklet is missing more than `object_persist_frames` then it is removed from missing tracklets list
         - otherwise:
             - missing frames counter is increased (this value is also used to choose forecast bbox)
         """
