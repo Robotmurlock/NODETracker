@@ -2,17 +2,20 @@
 Implementation of tracklets-detections association matching algorithms.
 """
 from abc import ABC, abstractmethod
-import numpy as np
-from library.cv.bbox import PredBBox, Point
 from typing import List, Tuple
+
+import numpy as np
 import scipy
+
+from nodetracker.library.cv.bbox import PredBBox, Point
+
 
 class AssociationAlgorithm(ABC):
     """
     Defines interface to tracklets-detections association matching.
     """
     @abstractmethod
-    def match(self, tracklets: List[PredBBox], detections: List[PredBBox]) -> Tuple[List[Tuple[int]], List[int], List[int]]:
+    def match(self, tracklets: List[PredBBox], detections: List[PredBBox]) -> Tuple[List[Tuple[int, int]], List[int], List[int]]:
         """
         Performs matching between tracklets and detections (interface).
 
@@ -27,7 +30,7 @@ class AssociationAlgorithm(ABC):
         """
         pass
 
-    def __call__(self, tracklets: List[PredBBox], detections: List[PredBBox]) -> Tuple[List[Tuple[int]], List[int], List[int]]:
+    def __call__(self, tracklets: List[PredBBox], detections: List[PredBBox]) -> Tuple[List[Tuple[int, int]], List[int], List[int]]:
         return self.match(tracklets, detections)
 
 
@@ -43,6 +46,7 @@ class HungarianAlgorithmIOU(AssociationAlgorithm):
         """
         self._match_threshold = match_threshold
         self._INF = 999
+
     def match(self, tracklets: List[PredBBox], detections: List[PredBBox]) -> Tuple[List[Tuple[int, int]], List[int], List[int]]:
         n_tracklets, n_detections = len(tracklets), len(detections)
         cost_matrix = np.zeros(shape=(n_tracklets, n_detections), dtype=np.float32)

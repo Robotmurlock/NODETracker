@@ -26,7 +26,14 @@ class TorchConstantVelocityODKalmanFilter(nn.Module):
         """
         Args:
             time_step_multiplier: Time point values multiplier
-                - hyperparamater dependant on frequency
+                - hyperparamater is dependent on fps
+            initial_position_uncertainty: Initial position uncertainty
+                - higher values -> Kalman gain is more biased towards measurement
+            initial_velocity_uncertainty: Similar to `initial_position_uncertainty` but for velocity (recommended high values)
+            process_noise_multiplier: Increase/decrease process noise
+                - higher values -> more KF prediction uncertainty
+            measurement_noise_multiplier: Increase/decrease measurement noise
+                - higher values -> Kalman gain is less biased towards measurement
         """
         super().__init__()
         self._kf = ConstantVelocityODKalmanFilter(

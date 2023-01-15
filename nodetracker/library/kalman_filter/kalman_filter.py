@@ -81,6 +81,7 @@ class ConstantVelocityODKalmanFilter:
             initial_velocity_uncertainty: Initial uncertainty for object velocities (x', y', w', h')
             process_noise_multiplier: Q multiplier
             measurement_noise_multiplier: R multiplier
+            z_initial: Initial state position (optional)
         """
         self._initial_position_uncertainty = initial_position_uncertainty
         self._initial_velocity_uncertainty = initial_velocity_uncertainty

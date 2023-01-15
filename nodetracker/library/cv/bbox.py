@@ -206,7 +206,7 @@ class BBox:
     @classmethod
     def from_xyhw(cls, x: float, y: float, h: float, w: float, clip: bool = False) -> 'BBox':
         """
-        Creates BBox from xywh format
+        Creates BBox from xyhw format
 
         Args:
             x: left
@@ -360,8 +360,24 @@ class PredBBox(BBox):
     """
     BBox with class label and detection confidence (optional).
     """
-    label: int
+    label: int = -1
     conf: Optional[float] = field(default=None)
+
+    @property
+    def conf_annot(self) -> str:
+        """
+        Returns:
+            Confidence annotation (as string).
+        """
+        return f'{100*self.conf:.1f}%' if self.conf is not None else 'GT'
+
+    @property
+    def compact_repr(self) -> str:
+        """
+        Returns: Compact PredBBox repr
+        """
+        coords_str = f'[{self.upper_left.x}, {self.upper_left.y}, {self.bottom_right.x}, {self.bottom_right.y}]'
+        return f'PredBBox({coords_str} {self.label} ({self.conf_annot}))'
 
     @classmethod
     def create(cls, bbox: BBox, label: int, conf: Optional[float] = None):
@@ -388,9 +404,8 @@ class PredBBox(BBox):
         super().draw(image, color=color, thickness=thickness)
 
         # Draw bbox annotation
-        y1, x1, y2, x2 = self.scaled_yxyx_from_image(image)
-        conf_annot = f'{100*self.conf:.1f}%' if self.conf is not None else 'GT'
-        annot = f'[{self.label}] {conf_annot}'
+        y1, x1, _, _ = self.scaled_yxyx_from_image(image)
+        annot = f'[{self.label}] {self.conf_annot}'
         # noinspection PyUnresolvedReferences
         image = cv2.putText(image, annot, (y1 + 2, x1 - 4),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2)
