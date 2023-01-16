@@ -12,6 +12,7 @@ from nodetracker.node.building_blocks import MLP
 from nodetracker.node.core.original import NeuralODE
 from nodetracker.node.generative_latent_time_series_model import MLPODEF, NODEDecoder, ELBO
 from nodetracker.utils.meter import MetricMeter
+from nodetracker.utils import torch_helper
 
 
 class ODERNNEncoder(nn.Module):
@@ -99,11 +100,23 @@ class LightningODERNNVAE(pl.LightningModule):
     """
     PytorchLightning wrapper for ODERNNVAE model
     """
-    def __init__(self, observable_dim: int, hidden_dim: int, latent_dim: int, noise_std: float = 0.1, learning_rate: float = 1e-3):
+    def __init__(
+        self,
+        observable_dim: int,
+        hidden_dim: int,
+        latent_dim: int,
+        noise_std: float = 0.1,
+        learning_rate: float = 1e-3,
+        sched_lr_gamma: float = 1.0,
+        sched_lr_step: int = 10
+    ):
         super().__init__()
         self._model = ODERNNVAE(observable_dim, hidden_dim, latent_dim)
         self._loss_func = ELBO(noise_std)
+
         self._learning_rate = learning_rate
+        self._sched_lr_gamma = sched_lr_gamma
+        self._sched_lr_step = sched_lr_step
 
         self._meter = MetricMeter()
 
@@ -142,9 +155,25 @@ class LightningODERNNVAE(pl.LightningModule):
         for name, value in self._meter.get_all():
             self.log(name, value, prog_bar=True)
 
+        # noinspection PyTypeChecker
+        optimizer: torch.optim.Optimizer = self.optimizers()[0]
+        lr = torch_helper.get_optim_lr(optimizer)
+        self.log('train/lr', lr)
+
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(params=self._model.parameters(), lr=self._learning_rate)
-        return [optimizer]
+
+        scheduler = {
+            'scheduler': torch.optim.lr_scheduler.StepLR(
+                optimizer=optimizer,
+                step_size=self._sched_lr_step,
+                gamma=self._sched_lr_gamma
+            ),
+            'interval': 'epoch',
+            'frequency': 1
+        }
+
+        return [optimizer], [scheduler]
 
 
 def main():
