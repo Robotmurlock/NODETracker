@@ -4,3 +4,7 @@ params:
   hidden_dim: 32
   latent_dim: 32
   noise_std: 0.1
+
+solver_name: 'rk4'
+solver_params:
+  max_step_size: 0.05

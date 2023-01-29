@@ -9,6 +9,7 @@ from pytorch_lightning import LightningModule
 from nodetracker.node.generative_latent_time_series_model import LightningODEVAE
 from nodetracker.node.kalman_filter import TorchConstantVelocityODKalmanFilter
 from nodetracker.node.ode_rnn import LightningODERNNVAE
+from nodetracker.node.train_config import LightningTrainConfig
 from nodetracker.node.trajectory_filter import BBoxTrajectoryForecaster
 
 
@@ -35,16 +36,24 @@ class ModelType(enum.Enum):
         """
         return self.value not in [ModelType.KALMAN_FILTER.value]
 
-def load_or_create_model(model_type: Union[ModelType, str], params: dict, checkpoint_path: Optional[str] = None) \
-        -> Union[BBoxTrajectoryForecaster, LightningModule]:
+def load_or_create_model(
+    model_type: Union[ModelType, str],
+    params: dict,
+    checkpoint_path: Optional[str] = None,
+    train_params: Optional[dict] = None
+) -> Union[BBoxTrajectoryForecaster, LightningModule]:
     """
-    Loads trained (if given checkpoint path) or creates new model given name and parameters
-
+    Loads trained (if given checkpoint path) or creates new model given name and parameters.
+    If model is trainable (check ModelType) then it can use train config or it can be loaded from checkpoint. In case of trainable model and:
+    - checkpoint_path is None and train_params is None - not allowed
+    - checkpoint_path is None and train_params is not None - model is used for training from scratch
+    - checkpoint_path is not None and train_params is None - model is used for inference
+    - checkpoint_path is None and train_params is None - model is used for training from checkpoint (continue training)
     Args:
         model_type: Model type
         params: Model parameters
         checkpoint_path: Load pretrained model
-
+        train_params: Parameters for model training
     Returns:
         Model
     """
@@ -57,9 +66,21 @@ def load_or_create_model(model_type: Union[ModelType, str], params: dict, checkp
         ModelType.KALMAN_FILTER: TorchConstantVelocityODKalmanFilter
     }
 
-    if checkpoint_path is None:
+    model_cls = catalog[model_type]
+
+    train_config = None
+    if train_params is not None:
+        if not model_type.trainable:
+            # Models like KF do not need training parameters
+            raise ValueError('Models that are not trainable do not use training parameters!')
+        train_config = LightningTrainConfig(**train_params)
+    elif checkpoint_path is None and model_type.trainable:
+        # It does not make sense to use trainable model with no train parameters and no checkpoint path
+        raise ValueError('Train and checkpoint path can\'t be both None for trainable models!')
+
+    if checkpoint_path is not None:
         if not model_type.trainable:
             raise ValueError('Models that are not trainable can\'t be loaded from checkpoint!')
-        return catalog[model_type](**params)
+        return model_cls.load_from_checkpoint(checkpoint_path=checkpoint_path, **params, train_config=train_config)
 
-    return catalog[model_type].load_from_checkpoint(checkpoint_path, **params)
+    return model_cls(**params, train_config=train_config)
