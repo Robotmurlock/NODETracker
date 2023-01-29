@@ -84,10 +84,12 @@ class TrainConfig:
     description: str
     batch_size: int
     max_epochs: int
-    learning_rate: float
 
     logging_cfg: TrainLoggingConfig
     checkpoint_cfg: TrainCheckpointConfig
+
+    train_params: Optional[dict] = field(default_factory=dict)  # default: empty dict
+    resume_from_checkpoint: Optional[str] = field(default=None)
 
 @dataclass
 class EvalConfig:

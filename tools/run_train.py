@@ -11,10 +11,10 @@ from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.loggers import TensorBoardLogger
 from torch.utils.data import DataLoader
 
-from datasets.mot.core import TorchMOTTrajectoryDataset
 from nodetracker.common import conventions
 from nodetracker.common.project import CONFIGS_PATH
 from nodetracker.datasets import transforms
+from nodetracker.datasets.mot.core import TorchMOTTrajectoryDataset
 from nodetracker.datasets.utils import ode_dataloader_collate_func
 from nodetracker.node import load_or_create_model, ModelType
 from nodetracker.utils import pipeline
@@ -60,8 +60,15 @@ def main(cfg: DictConfig):
     )
 
     model_type = ModelType.from_str(cfg.model.type)
+    resume_from_checkpoint_path = os.path.join(cfg.path.master, cfg.train.resume_from_checkpoint) \
+        if cfg.train.resume_from_checkpoint is not None else None
     assert model_type.trainable, f'Chosen model type "{model_type}" is not trainable!'
-    model = load_or_create_model(model_type=model_type, params=cfg.model.params)
+    model = load_or_create_model(
+        model_type=model_type,
+        params=cfg.model.params,
+        train_params=cfg.train.train_params,
+        checkpoint_path=resume_from_checkpoint_path
+    )
 
     tb_logger = TensorBoardLogger(save_dir=experiment_path, name=conventions.TENSORBOARD_DIRNAME)
     checkpoint_path = conventions.get_checkpoints_dirpath(experiment_path)

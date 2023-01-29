@@ -226,7 +226,11 @@ def main(cfg: DictConfig):
     )
 
     checkpoint_path = conventions.get_checkpoint_path(experiment_path, cfg.eval.checkpoint) if cfg.eval.checkpoint else None
-    model = load_or_create_model(model_type=cfg.model.type, params=cfg.model.params, checkpoint_path=checkpoint_path)
+    model = load_or_create_model(
+        model_type=cfg.model.type,
+        params=cfg.model.params,
+        checkpoint_path=checkpoint_path
+    )
     accelerator = cfg.resources.accelerator
     model.to(accelerator)
 

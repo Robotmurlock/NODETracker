@@ -1,13 +1,12 @@
-experiment: 'ODERNNVAE-exp01-baseline'
-description: 'ODERNNVAE baseline (based on odevae sfod experiment)'
+experiment: 'ODERNNVAE-exp03-scheduler'
+description: 'ODERNNVAE like exp02 but with lr scheduler.'
 batch_size: 32
-max_epochs: 3
 learning_rate: 1e-3
+max_epochs: 10
 
-logging_cfg:
-  path: 'logs'
-  log_every_n_steps: 1
+train_params:
+  learning_rate: 1e-3
+  sched_lr_gamma: 0.1
+  sched_lr_step: 3
 
-checkpoint_cfg:
-  metric_monitor: 'val/loss'
-  resume_from: null
+resume_from_checkpoint: null
