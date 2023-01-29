@@ -9,8 +9,9 @@ from torch import nn
 
 from nodetracker.datasets.utils import preprocess_batch
 from nodetracker.library import time_series
-from nodetracker.node.core import ODEF, NeuralODE
+from nodetracker.node.core import ODEF, NeuralODE, ode_solver_factory
 from nodetracker.utils.meter import MetricMeter
+from nodetracker.node.train_config import LightningTrainConfig
 
 
 class RNNEncoder(nn.Module):
@@ -76,10 +77,21 @@ class NODEDecoder(nn.Module):
     """
     NODE decoder performs extrapolation at latent space which can be then used to reconstruct/forecast time-series.
     """
-    def __init__(self, latent_dim: int, hidden_dim: int, output_dim: int):
+    def __init__(
+        self,
+        latent_dim: int,
+        hidden_dim: int,
+        output_dim: int,
+
+        solver_name: Optional[str] = None,
+        solver_params: Optional[dict] = None
+    ):
         super().__init__()
 
-        self._ode = NeuralODE(MLPODEF(latent_dim, hidden_dim, n_layers=2))
+        func = MLPODEF(latent_dim, hidden_dim, n_layers=2)
+        solver = ode_solver_factory(solver_name, solver_params)
+
+        self._ode = NeuralODE(func=func, solver=solver)
         self._latent2hidden = nn.Linear(latent_dim, hidden_dim)
         self._lrelu = nn.LeakyReLU(0.1)
         self._hidden2output = nn.Linear(hidden_dim, output_dim)
@@ -96,11 +108,19 @@ class ODEVAE(nn.Module):
     """
     ODEVAE - A generative latent function time-series model
     """
-    def __init__(self, observable_dim: int, hidden_dim: int, latent_dim: int):
+    def __init__(
+        self,
+        observable_dim: int,
+        hidden_dim: int,
+        latent_dim: int,
+
+        solver_name: Optional[str] = None,
+        solver_params: Optional[dict] = None
+    ):
         super().__init__()
 
         self._encoder = RNNEncoder(observable_dim, hidden_dim, latent_dim)
-        self._decoder = NODEDecoder(latent_dim, hidden_dim, observable_dim)
+        self._decoder = NODEDecoder(latent_dim, hidden_dim, observable_dim, solver_name=solver_name, solver_params=solver_params)
 
     def forward(self, x: torch.Tensor, t_obs: torch.Tensor, t_unobs: Optional[torch.Tensor] = None, generate: bool = False) \
             -> Tuple[torch.Tensor, ...]:
@@ -136,12 +156,24 @@ class LightningODEVAE(pl.LightningModule):
     """
     PytorchLightning wrapper for ODEVAE model
     """
-    def __init__(self, observable_dim: int, hidden_dim: int, latent_dim: int, noise_std: float = 0.1, learning_rate: float = 1e-3):
-        super().__init__()
-        self._model = ODEVAE(observable_dim, hidden_dim, latent_dim)
-        self._loss_func = ELBO(noise_std)
-        self._learning_rate = learning_rate
+    def __init__(
+        self,
+        observable_dim: int,
+        hidden_dim: int,
+        latent_dim: int,
 
+        noise_std: float = 0.1,
+
+        solver_name: Optional[str] = None,
+        solver_params: Optional[dict] = None,
+
+        train_config: Optional[LightningTrainConfig] = None
+    ):
+        super().__init__()
+        self._model = ODEVAE(observable_dim, hidden_dim, latent_dim, solver_name=solver_name, solver_params=solver_params)
+        self._loss_func = ELBO(noise_std)
+
+        self._train_config = train_config
         self._meter = MetricMeter()
 
     def forward(self, x: torch.Tensor, t_obs: torch.Tensor, t_unobs: Optional[torch.Tensor] = None, generate: bool = False) \
@@ -182,8 +214,19 @@ class LightningODEVAE(pl.LightningModule):
             self.log(name, value, prog_bar=True)
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(params=self._model.parameters(), lr=self._learning_rate)
-        return [optimizer]
+        optimizer = torch.optim.Adam(params=self._model.parameters(), lr=self._train_config.learning_rate)
+
+        scheduler = {
+            'scheduler': torch.optim.lr_scheduler.StepLR(
+                optimizer=optimizer,
+                step_size=self._train_config.sched_lr_step,
+                gamma=self._train_config.sched_lr_gamma
+            ),
+            'interval': 'epoch',
+            'frequency': 1
+        }
+
+        return [optimizer], [scheduler]
 
 
 

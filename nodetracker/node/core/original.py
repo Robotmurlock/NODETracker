@@ -2,13 +2,13 @@
 Original NeuralODE implementation
 https://arxiv.org/pdf/1806.07366.pdf
 """
-from typing import Tuple, Any, Callable
+from typing import Tuple, Any, Callable, Optional
 
 import numpy as np
 import torch
 from torch import nn
 
-from nodetracker.node.core.solver import DefaultODESolver
+from nodetracker.node.core.solver import ode_solver_factory, ODESolver
 
 
 class ODEF(nn.Module):
@@ -80,171 +80,206 @@ class ODEF(nn.Module):
         return torch.cat([p.flatten() for p in self.parameters()])
 
 
-class ODEAdjoint(torch.autograd.Function):
+def create_ode_adjoint_func(solver: ODESolver) -> torch.autograd.Function:
     """
-    Implementation of Pontryagin Adjoint method
+    Creates ODEAdjoint function with chose ODE Solver
+    Args:
+        solver: ODESolver
+    Returns:
+        ODEAdjoint method.
     """
-    @staticmethod
-    def create_aug_dynamics(batch_size, shape, func) -> Callable:
+    class ODEAdjoint(torch.autograd.Function):
         """
-        Creates augmented dynamics function
-
-        Args:
-            batch_size: Batch size
-            shape: Shape of z tensor
-            func: State change function
-
-        Returns:
-            augmented dynamics functions
+        Implementation of Pontryagin Adjoint method
         """
-        # noinspection PyTypeChecker
-        n_dim = round(np.prod(shape))
-
-        def aug_dynamics(aug_z: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
+        @staticmethod
+        def create_aug_dynamics(batch_size, shape, func) -> Callable:
             """
-            Augmented state change function
+            Creates augmented dynamics function
 
             Args:
-                aug_z: flat tensor (z, a, a_t, a_theta) with shape (batch_size, n_dim+ndim+1+n_params)
-                    where n_dim is z flat tensor dimension and n_params is theta (params) flat tensor dimensions
-                t: Time
+                batch_size: Batch size
+                shape: Shape of z tensor
+                func: State change function
 
             Returns:
-                Augmented (z_end, -a_dfdz, -a_dfdt, -a_dfdtheta) as flat tensor
+                augmented dynamics functions
             """
-            # Input is flat (z, a, a_t, a_theta) - ignore a_t and a_theta
-            z, a = aug_z[:, :n_dim], aug_z[:, n_dim:2*n_dim]
+            # noinspection PyTypeChecker
+            n_dim = round(np.prod(shape))
 
-            z = z.view(batch_size, *shape)
-            a = a.view(batch_size, *shape)
-            with torch.set_grad_enabled(True):
-                z = z.requires_grad_()
-                t = t.requires_grad_()
-                z_end, a_dfdz, a_dfdt, a_dfdtheta = func.forward_with_grad(z, t, grad_outputs=a)
+            def aug_dynamics(aug_z: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
+                """
+                Augmented state change function
 
-            # Output has to be single tensor
-            # In adjoint a(t) formula we use negative value of integral
-            z_end = z_end.view(batch_size, n_dim) # flatten for concat
-            a_dfdz = a_dfdz.view(batch_size, n_dim)  # flatten for concat
-            return torch.cat([z_end, -a_dfdz, -a_dfdtheta, -a_dfdt], dim=-1)  # TODO: Reorder dfdt and dfdtheta
+                Args:
+                    aug_z: flat tensor (z, a, a_t, a_theta) with shape (batch_size, n_dim+ndim+1+n_params)
+                        where n_dim is z flat tensor dimension and n_params is theta (params) flat tensor dimensions
+                    t: Time
 
-        return aug_dynamics
+                Returns:
+                    Augmented (z_end, -a_dfdz, -a_dfdt, -a_dfdtheta) as flat tensor
+                """
+                # Input is flat (z, a, a_t, a_theta) - ignore a_t and a_theta
+                z, a = aug_z[:, :n_dim], aug_z[:, n_dim:2*n_dim]
 
-    # noinspection PyMethodOverriding
-    @staticmethod
-    def forward(ctx: Any, z0: torch.Tensor, t: torch.Tensor, flat_theta: torch.Tensor, func: ODEF) -> torch.Tensor:
-        # z.shape == (time_len, batch_size, *vector_shape)
-        # z0.shape == (batch_size, *vector_shape)
-        # t.shape == (time_len, 1, 1)
-        assert len(t.shape) == 3, f'Expected shape is (time_len, 1, 1) but found {t.shape}'
-        n_steps = t.shape[0]
+                z = z.view(batch_size, *shape)
+                a = a.view(batch_size, *shape)
+                with torch.set_grad_enabled(True):
+                    z = z.requires_grad_()
+                    t = t.requires_grad_()
+                    z_end, a_dfdz, a_dfdt, a_dfdtheta = func.forward_with_grad(z, t, grad_outputs=a)
 
-        zs = [z0]
-        with torch.no_grad():
-            # ODESolver is used a blackbox (disable autograd)
-            for i in range(n_steps - 1):
-                z0, _ = DefaultODESolver.solve(z0, t[i], t[i+1], func)
-                zs.append(z0)
+                # Output has to be single tensor
+                # In adjoint a(t) formula we use negative value of integral
+                z_end = z_end.view(batch_size, n_dim) # flatten for concat
+                a_dfdz = a_dfdz.view(batch_size, n_dim)  # flatten for concat
+                return torch.cat([z_end, -a_dfdz, -a_dfdtheta, -a_dfdt], dim=-1)  # TODO: Reorder dfdt and dfdtheta
 
-        zs = torch.stack(zs)  # Stack all states into a single vector
-        ctx.func = func
-        ctx.save_for_backward(zs, t, flat_theta)
-        return zs
+            return aug_dynamics
 
-    # noinspection PyMethodOverriding
-    @staticmethod
-    def jvp(ctx: Any, dLdz: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, None]:
-        """
-        dLdz shape: time_len, batch_size, *z_shape
-        """
-        func = ctx.func
-        z, t, flat_parameters = ctx.saved_tensors
-        time_len, batch_size, *z_shape = z.size()
-        # noinspection PyTypeChecker
-        n_dim = round(np.prod(z_shape))
-        n_params = flat_parameters.shape[0]
+        # noinspection PyMethodOverriding
+        @staticmethod
+        def forward(ctx: Any, z0: torch.Tensor, t: torch.Tensor, flat_theta: torch.Tensor, func: ODEF) -> torch.Tensor:
+            # z.shape == (time_len, batch_size, *vector_shape)
+            # z0.shape == (batch_size, *vector_shape)
+            # t.shape == (time_len, 1, 1)
+            assert len(t.shape) == 3, f'Expected shape is (time_len, 1, 1) but found {t.shape}'
+            n_steps = t.shape[0]
 
-        augmented_dynamics = ODEAdjoint.create_aug_dynamics(batch_size, z_shape, func)
+            zs = [z0]
+            with torch.no_grad():
+                # ODESolver is used a blackbox (disable autograd)
+                for i in range(n_steps - 1):
+                    z0, _ = solver.solve(z0, t[i], t[i+1], func)
+                    zs.append(z0)
 
-        dLdz = dLdz.view(time_len, batch_size, n_dim)  # flatten dLdz for convenience
-        with torch.no_grad():
-            # Variables to store adjoint states
-            a = torch.zeros(batch_size, n_dim).to(dLdz)
-            a_theta = torch.zeros(batch_size, n_params).to(dLdz)
-            a_t = torch.zeros(time_len, batch_size, 1).to(dLdz)  # adjoint t needs to be stored for all timestamps
+            zs = torch.stack(zs)  # Stack all states into a single vector
+            ctx.func = func
+            ctx.save_for_backward(zs, t, flat_theta)
+            return zs
 
-            for i_t in range(time_len-1, 0, -1):
-                # Iteration steps:
-                # 1. Form augmented state
-                # 2. Use ODESolve with augmented dynamics
-                # Calculate z backward in time (required for a(t) evaluation and augmented state)
-                z_i = z[i_t]
-                t_i = t[i_t]
-                dzdt_i = func(z_i, t_i).view(batch_size, n_dim)
+        # noinspection PyMethodOverriding
+        @staticmethod
+        def jvp(ctx: Any, dLdz: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, None]:
+            """
+            dLdz shape: time_len, batch_size, *z_shape
+            """
+            func = ctx.func
+            z, t, flat_parameters = ctx.saved_tensors
+            time_len, batch_size, *z_shape = z.size()
+            # noinspection PyTypeChecker
+            n_dim = round(np.prod(z_shape))
+            n_params = flat_parameters.shape[0]
 
-                # Math details: For augmented state we need (z, a, a_t, a_theta)
-                # a_t = dL/dt
-                # dL/dt = dL/dz(t) @ dz(t)/dt
-                #       = a(t) * func(z, i, theta)
-                # Note: we don't need theta in implementation since it is part of func (Module object)
-                # Implementation details: L is scalar, t is scalar, z is vector of dimension n
-                # hence dLdz shape is (1, n) and dzdt shape is (1, n) and dLdt shape is (1, 1) - vector scalar product
-                dLdz_i = dLdz[i_t]
-                # bmm is batch matrix multiplication (in parallel)
-                dLdt_i = torch.bmm(torch.transpose(dLdz_i.unsqueeze(-1), 1, 2), dzdt_i.unsqueeze(-1))[:, 0]
+            augmented_dynamics = ODEAdjoint.create_aug_dynamics(batch_size, z_shape, func)
 
-                # Form augmented state z0_aug = (z, a, a_t, a_theta) = (z, dL/dz, dL/dt, dL/dtheta)
-                # We need to sum up gradients of loss function for all timestamps backward in time
-                # a_theta is set to 0
-                a = a + dLdz_i
-                a_t[i_t] = a_t[i_t] - dLdt_i
-                a_theta_i = torch.zeros(batch_size, n_params).to(z_i)  # We defined dL/dtheta as 0
-                z_i = z_i.view(batch_size, n_dim) # flatten for concat
-                z0_aug = torch.cat([z_i, a, a_t[i_t], a_theta_i], dim=-1)
+            dLdz = dLdz.view(time_len, batch_size, n_dim)  # flatten dLdz for convenience
+            with torch.no_grad():
+                # Variables to store adjoint states
+                a = torch.zeros(batch_size, n_dim).to(dLdz)
+                a_theta = torch.zeros(batch_size, n_params).to(dLdz)
+                a_t = torch.zeros(time_len, batch_size, 1).to(dLdz)  # adjoint t needs to be stored for all timestamps
 
-                # Solve augmented system backwards
-                dzdt_aug, _ = DefaultODESolver.solve(z0_aug, t_i, t[i_t-1], augmented_dynamics)
+                for i_t in range(time_len-1, 0, -1):
+                    # Iteration steps:
+                    # 1. Form augmented state
+                    # 2. Use ODESolve with augmented dynamics
+                    # Calculate z backward in time (required for a(t) evaluation and augmented state)
+                    z_i = z[i_t]
+                    t_i = t[i_t]
+                    dzdt_i = func(z_i, t_i).view(batch_size, n_dim)
 
-                # Unpack solved backwards augmented system
-                a[:] = dzdt_aug[:, n_dim:2*n_dim]
-                a_theta[:] += dzdt_aug[:, 2*n_dim:2*n_dim + n_params]
-                a_t[i_t-1] = dzdt_aug[:, 2*n_dim + n_params:]
+                    # Math details: For augmented state we need (z, a, a_t, a_theta)
+                    # a_t = dL/dt
+                    # dL/dt = dL/dz(t) @ dz(t)/dt
+                    #       = a(t) * func(z, i, theta)
+                    # Note: we don't need theta in implementation since it is part of func (Module object)
+                    # Implementation details: L is scalar, t is scalar, z is vector of dimension n
+                    # hence dLdz shape is (1, n) and dzdt shape is (1, n) and dLdt shape is (1, 1) - vector scalar product
+                    dLdz_i = dLdz[i_t]
+                    # bmm is batch matrix multiplication (in parallel)
+                    dLdt_i = torch.bmm(torch.transpose(dLdz_i.unsqueeze(-1), 1, 2), dzdt_i.unsqueeze(-1))[:, 0]
 
-            ## Adjust 0 time adjoint with direct gradients
-            # Compute direct gradients
-            dzdt_0 = func(z[0], t[0])
-            dLdz_0 = dLdz[0]
-            dLdt_0 = torch.bmm(torch.transpose(dLdz_0.unsqueeze(-1), 1, 2), dzdt_0.view(batch_size, -1).unsqueeze(-1))[:, 0]
+                    # Form augmented state z0_aug = (z, a, a_t, a_theta) = (z, dL/dz, dL/dt, dL/dtheta)
+                    # We need to sum up gradients of loss function for all timestamps backward in time
+                    # a_theta is set to 0
+                    a = a + dLdz_i
+                    a_t[i_t] = a_t[i_t] - dLdt_i
+                    a_theta_i = torch.zeros(batch_size, n_params).to(z_i)  # We defined dL/dtheta as 0
+                    z_i = z_i.view(batch_size, n_dim) # flatten for concat
+                    z0_aug = torch.cat([z_i, a, a_t[i_t], a_theta_i], dim=-1)
 
-            # Adjust adjoint states
-            a += dLdz_0
-            a_t[0] = a_t[0] - dLdt_0
-        return a.view(batch_size, *z_shape), a_t, a_theta, None
+                    # Solve augmented system backwards
+                    dzdt_aug, _ = solver.solve(z0_aug, t_i, t[i_t-1], augmented_dynamics)
 
-    # noinspection PyMethodOverriding
-    @staticmethod
-    def backward(ctx: Any, dLdz: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, None]:
-        # Alias for jvp
-        return ODEAdjoint.jvp(ctx, dLdz)
+                    # Unpack solved backwards augmented system
+                    a[:] = dzdt_aug[:, n_dim:2*n_dim]
+                    a_theta[:] += dzdt_aug[:, 2*n_dim:2*n_dim + n_params]
+                    a_t[i_t-1] = dzdt_aug[:, 2*n_dim + n_params:]
+
+                ## Adjust 0 time adjoint with direct gradients
+                # Compute direct gradients
+                dzdt_0 = func(z[0], t[0])
+                dLdz_0 = dLdz[0]
+                dLdt_0 = torch.bmm(torch.transpose(dLdz_0.unsqueeze(-1), 1, 2), dzdt_0.view(batch_size, -1).unsqueeze(-1))[:, 0]
+
+                # Adjust adjoint states
+                a += dLdz_0
+                a_t[0] = a_t[0] - dLdt_0
+            return a.view(batch_size, *z_shape), a_t, a_theta, None
+
+        # noinspection PyMethodOverriding
+        @staticmethod
+        def backward(ctx: Any, dLdz: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, None]:
+            # Alias for jvp
+            return ODEAdjoint.jvp(ctx, dLdz)
+
+    # noinspection PyTypeChecker
+    return ODEAdjoint
 
 
 class NeuralODE(nn.Module):
     """
-    Wrapper for ADJoint function
+    Wrapper for Adjoint function
     """
-    def __init__(self, func: ODEF):
+    def __init__(self, func: ODEF, solver: Optional[ODESolver] = None):
+        """
+        Args:
+            func: Change state function
+            solver: ODESolver
+        """
         super().__init__()
         self.func = func
 
+        solver = ode_solver_factory() if solver is None else solver
+        self._ode_adjoint = create_ode_adjoint_func(solver)
+
     def forward(self, z0: torch.Tensor, t: torch.Tensor, full_sequence: bool = False) -> torch.Tensor:
-        z = ODEAdjoint.apply(z0, t, self.func.flat_parameters, self.func)
+        z = self._ode_adjoint.apply(z0, t, self.func.flat_parameters, self.func)
 
         if full_sequence:
             return z
         return z[-1]
 
 
-def main() -> None:
+def run_test_ode_with_solver(odef: ODEF, solver_name: Optional[str] = None, solver_params: Optional[dict] = None) -> None:
+    solver = ode_solver_factory(name=solver_name, params=solver_params)
+    node = NeuralODE(func=odef, solver=solver)
+    optim = torch.optim.Adam(params=node.parameters(), lr=0.1)
+
+    z0 = torch.randn(4, 2)
+    ts = torch.tensor([0] * 4 + [1] * 4, dtype=torch.float32).view(2, 4, 1)
+    solver_class_name = solver.__class__.__name__
+
+    out = node(z0, ts, full_sequence=False)
+    out.sum().backward()  # Testing adjoint
+    optim.step()
+    print(f'[{solver_class_name}] Last state output shape:', out.shape)
+    print(f'[{solver_class_name}] Full state sequence output shape:', node(z0, ts, full_sequence=True).shape, end='\n\n')
+
+
+def run_tests() -> None:
     class Linear2dTimeInvariantODEF(ODEF):
         """
         Simple ODEF for testing
@@ -257,12 +292,16 @@ def main() -> None:
             _ = t
             return self._linear(z)
 
-    node = NeuralODE(Linear2dTimeInvariantODEF())
-    z0 = torch.randn(2).view(1, 2)
-    ts = torch.randn(3).view(-1, 1, 1)
-    print('Last state output shape:', node(z0, ts, full_sequence=False).shape)
-    print('Full state sequence output shape:', node(z0, ts, full_sequence=True).shape)
+    odef = Linear2dTimeInvariantODEF()
+    run_test_ode_with_solver(odef=odef)  # Default solver
+    run_test_ode_with_solver(
+        odef=odef,
+        solver_name='euler',
+        solver_params={
+            'max_step_size': 0.05
+        }
+    )
 
 
 if __name__ == '__main__':
-    main()
+    run_tests()
