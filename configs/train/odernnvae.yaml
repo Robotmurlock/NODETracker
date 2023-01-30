@@ -1,5 +1,5 @@
-experiment: 'ODERNNVAE-exp03-scheduler'
-description: 'ODERNNVAE like exp02 but with lr scheduler.'
+experiment: 'ODERNNVAE-iter02-exp01-1h-1f'
+description: 'ODERNNVAE-one-step'
 batch_size: 32
 learning_rate: 1e-3
 max_epochs: 10
@@ -10,3 +10,11 @@ train_params:
   sched_lr_step: 3
 
 resume_from_checkpoint: null
+
+logging_cfg:
+  path: 'logs'
+  log_every_n_steps: 1
+
+checkpoint_cfg:
+  metric_monitor: 'val/loss'
+  resume_from: null
