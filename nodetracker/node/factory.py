@@ -6,7 +6,7 @@ from typing import Union, Optional
 
 from pytorch_lightning import LightningModule
 
-from nodetracker.node.generative_latent_time_series_model import LightningODEVAE
+from nodetracker.node.core.odevae import LightningODEVAE
 from nodetracker.node.kalman_filter import TorchConstantVelocityODKalmanFilter
 from nodetracker.node.odernn import LightningODERNN, LightningODERNNVAE
 from nodetracker.node.trajectory_filter import BBoxTrajectoryForecaster

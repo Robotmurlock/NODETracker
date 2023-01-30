@@ -10,7 +10,7 @@ from torch import nn
 from nodetracker.node.building_blocks import MLP
 from nodetracker.node.core.original import NeuralODE
 from nodetracker.node.core.solver import ode_solver_factory
-from nodetracker.node.generative_latent_time_series_model import MLPODEF, NODEDecoder, ELBO
+from nodetracker.node.core.odevae import MLPODEF, NODEDecoder, ELBO
 from nodetracker.node.utils import LightningTrainConfig, LightningModuleBase
 
 

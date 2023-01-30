@@ -8,9 +8,9 @@ import torch
 from torch import nn
 
 from nodetracker.node.building_blocks import MLP
+from nodetracker.node.core.odevae import MLPODEF, NODEDecoder
 from nodetracker.node.core.original import NeuralODE
 from nodetracker.node.core.solver import ode_solver_factory
-from nodetracker.node.generative_latent_time_series_model import MLPODEF, NODEDecoder
 from nodetracker.node.utils import LightningTrainConfig, LightningModuleBase
 
 
@@ -147,7 +147,7 @@ class LightningODERNN(LightningModuleBase):
     def validation_step(self, batch: Tuple[torch.Tensor, ...], *args, **kwargs) -> torch.Tensor:
         bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, _ = batch
         bboxes_unobs_hat = self.forward(bboxes_obs, ts_obs, ts_unobs)
-        loss, kl_div_loss, likelihood_loss = self._loss_func(bboxes_unobs_hat, bboxes_unobs)
+        loss = self._loss_func(bboxes_unobs_hat, bboxes_unobs)
 
         self._meter.push('val/loss', loss)
 
