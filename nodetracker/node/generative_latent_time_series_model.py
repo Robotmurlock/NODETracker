@@ -3,15 +3,13 @@ Generative latent functions time-series model
 """
 from typing import Tuple, Optional
 
-import pytorch_lightning as pl
 import torch
 from torch import nn
 
 from nodetracker.datasets.utils import preprocess_batch
 from nodetracker.library import time_series
 from nodetracker.node.core import ODEF, NeuralODE, ode_solver_factory
-from nodetracker.utils.meter import MetricMeter
-from nodetracker.node.train_config import LightningTrainConfig
+from nodetracker.node.utils import LightningModuleBase, LightningTrainConfig
 
 
 class RNNEncoder(nn.Module):
@@ -152,7 +150,7 @@ class ELBO(nn.Module):
         return torch.mean(batch_loss), torch.mean(kl_div_loss), torch.mean(likelihood_loss)
 
 
-class LightningODEVAE(pl.LightningModule):
+class LightningODEVAE(LightningModuleBase):
     """
     PytorchLightning wrapper for ODEVAE model
     """
@@ -169,12 +167,9 @@ class LightningODEVAE(pl.LightningModule):
 
         train_config: Optional[LightningTrainConfig] = None
     ):
-        super().__init__()
+        super().__init__(train_config=train_config)
         self._model = ODEVAE(observable_dim, hidden_dim, latent_dim, solver_name=solver_name, solver_params=solver_params)
         self._loss_func = ELBO(noise_std)
-
-        self._train_config = train_config
-        self._meter = MetricMeter()
 
     def forward(self, x: torch.Tensor, t_obs: torch.Tensor, t_unobs: Optional[torch.Tensor] = None, generate: bool = False) \
             -> Tuple[torch.Tensor, ...]:
@@ -208,25 +203,6 @@ class LightningODEVAE(pl.LightningModule):
         self._meter.push('val-forecast/likelihood_loss', unobs_likelihood_loss)
 
         return all_loss
-
-    def on_validation_epoch_end(self) -> None:
-        for name, value in self._meter.get_all():
-            self.log(name, value, prog_bar=True)
-
-    def configure_optimizers(self):
-        optimizer = torch.optim.Adam(params=self._model.parameters(), lr=self._train_config.learning_rate)
-
-        scheduler = {
-            'scheduler': torch.optim.lr_scheduler.StepLR(
-                optimizer=optimizer,
-                step_size=self._train_config.sched_lr_step,
-                gamma=self._train_config.sched_lr_gamma
-            ),
-            'interval': 'epoch',
-            'frequency': 1
-        }
-
-        return [optimizer], [scheduler]
 
 
 

@@ -8,9 +8,9 @@ from pytorch_lightning import LightningModule
 
 from nodetracker.node.generative_latent_time_series_model import LightningODEVAE
 from nodetracker.node.kalman_filter import TorchConstantVelocityODKalmanFilter
-from nodetracker.node.ode_rnn import LightningODERNNVAE
-from nodetracker.node.train_config import LightningTrainConfig
+from nodetracker.node.odernn import LightningODERNN, LightningODERNNVAE
 from nodetracker.node.trajectory_filter import BBoxTrajectoryForecaster
+from nodetracker.node.utils import LightningTrainConfig
 
 
 class ModelType(enum.Enum):
@@ -18,6 +18,7 @@ class ModelType(enum.Enum):
     Enumerated implemented architectures
     """
     ODEVAE = 'odevae'
+    ODERNN = 'odernn'
     ODERNNVAE = 'odernnvae'
     KALMAN_FILTER = 'kf'
 
@@ -62,6 +63,7 @@ def load_or_create_model(
 
     catalog = {
         ModelType.ODEVAE: LightningODEVAE,
+        ModelType.ODERNN: LightningODERNN,
         ModelType.ODERNNVAE: LightningODERNNVAE,
         ModelType.KALMAN_FILTER: TorchConstantVelocityODKalmanFilter
     }

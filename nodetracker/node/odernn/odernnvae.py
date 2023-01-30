@@ -1,10 +1,9 @@
 """
-ODE-RNN implementation
+ODE-RNN-VAE implementation
 https://arxiv.org/pdf/1907.03907.pdf
 """
 from typing import Tuple, Optional
 
-import pytorch_lightning as pl
 import torch
 from torch import nn
 
@@ -12,12 +11,10 @@ from nodetracker.node.building_blocks import MLP
 from nodetracker.node.core.original import NeuralODE
 from nodetracker.node.core.solver import ode_solver_factory
 from nodetracker.node.generative_latent_time_series_model import MLPODEF, NODEDecoder, ELBO
-from nodetracker.node.train_config import LightningTrainConfig
-from nodetracker.utils import torch_helper
-from nodetracker.utils.meter import MetricMeter
+from nodetracker.node.utils import LightningTrainConfig, LightningModuleBase
 
 
-class ODERNNEncoder(nn.Module):
+class ODERNNVAEEncoder(nn.Module):
     """
     ODE-RNN Encoder. Encoder uses combination of NODE and RNN (NODE -> RNN).
     """
@@ -35,7 +32,7 @@ class ODERNNEncoder(nn.Module):
         Args:
             observable_dim: Data dimension
             latent_dim: Latent dimension (dimension at which NODE performs extrapolation)
-            hidden_dim: Hidden dimension (additional dimension between observable and hidden)
+            hidden_dim: Hidden dimension (additional dimension between observable and latent)
             n_node_mlp_layers: Number NODE MLP layers
         """
         super().__init__()
@@ -82,6 +79,7 @@ class ODERNNEncoder(nn.Module):
         z0_mean, z0_log_var = z0[:, :self._latent_dim], z0[:, self._latent_dim:]
         return z0_mean, z0_log_var
 
+
 class ODERNNVAE(nn.Module):
     """
     ODE-RNN-VAE
@@ -97,7 +95,7 @@ class ODERNNVAE(nn.Module):
     ):
         super().__init__()
 
-        self._encoder = ODERNNEncoder(
+        self._encoder = ODERNNVAEEncoder(
             observable_dim=observable_dim+1, # time is additional obs dimension
             hidden_dim=hidden_dim,
             latent_dim=latent_dim,
@@ -121,7 +119,7 @@ class ODERNNVAE(nn.Module):
         return x_hat, z0_mean, z0_log_var
 
 
-class LightningODERNNVAE(pl.LightningModule):
+class LightningODERNNVAE(LightningModuleBase):
     """
     PytorchLightning wrapper for ODERNNVAE model
     """
@@ -138,12 +136,9 @@ class LightningODERNNVAE(pl.LightningModule):
 
         train_config: Optional[LightningTrainConfig] = None
     ):
-        super().__init__()
+        super().__init__(train_config=train_config)
         self._model = ODERNNVAE(observable_dim, hidden_dim, latent_dim, solver_name=solver_name, solver_params=solver_params)
         self._loss_func = ELBO(noise_std)
-
-        self._train_config = train_config
-        self._meter = MetricMeter()
 
     def forward(self, x: torch.Tensor, t_obs: torch.Tensor, t_unobs: Optional[torch.Tensor] = None, generate: bool = False) \
             -> Tuple[torch.Tensor, ...]:
@@ -176,47 +171,24 @@ class LightningODERNNVAE(pl.LightningModule):
 
         return loss
 
-    def on_validation_epoch_end(self) -> None:
-        for name, value in self._meter.get_all():
-            self.log(name, value, prog_bar=True)
 
-        # noinspection PyTypeChecker
-        optimizer: torch.optim.Optimizer = self.optimizers()[0]
-        lr = torch_helper.get_optim_lr(optimizer)
-        self.log('train/lr', lr)
-
-    def configure_optimizers(self):
-        optimizer = torch.optim.Adam(params=self._model.parameters(), lr=self._learning_rate)
-
-        scheduler = {
-            'scheduler': torch.optim.lr_scheduler.StepLR(
-                optimizer=optimizer,
-                step_size=self._train_config.sched_lr_step,
-                gamma=self._train_config.sched_lr_gamma
-            ),
-            'interval': 'epoch',
-            'frequency': 1
-        }
-
-        return [optimizer], [scheduler]
-
-
-def main():
+def run_test():
     odernnvae = ODERNNVAE(
         observable_dim=7,
         hidden_dim=5,
         latent_dim=3
     )
 
+    # Test ODERNNVAE
     xs = torch.randn(4, 3, 7)
     ts_obs = torch.randn(4, 3, 1)
-    ts_all = torch.randn(2, 3, 1)
+    ts_unobs = torch.randn(2, 3, 1)
     expected_shapes = [(2, 3, 7), (3, 3), (3,3)]
 
-    output = odernnvae(xs, ts_obs, ts_all)
+    output = odernnvae(xs, ts_obs, ts_unobs)
     shapes = [v.shape for v in output]
     assert shapes == expected_shapes, f'Expected shapes {expected_shapes} but found {shapes}!'
 
 
 if __name__ == '__main__':
-    main()
+    run_test()
