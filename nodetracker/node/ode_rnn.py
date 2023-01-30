@@ -10,16 +10,27 @@ from torch import nn
 
 from nodetracker.node.building_blocks import MLP
 from nodetracker.node.core.original import NeuralODE
+from nodetracker.node.core.solver import ode_solver_factory
 from nodetracker.node.generative_latent_time_series_model import MLPODEF, NODEDecoder, ELBO
-from nodetracker.utils.meter import MetricMeter
+from nodetracker.node.train_config import LightningTrainConfig
 from nodetracker.utils import torch_helper
+from nodetracker.utils.meter import MetricMeter
 
 
 class ODERNNEncoder(nn.Module):
     """
     ODE-RNN Encoder. Encoder uses combination of NODE and RNN (NODE -> RNN).
     """
-    def __init__(self, observable_dim: int, latent_dim: int, hidden_dim: int, n_node_mlp_layers: int = 2):
+    def __init__(
+        self,
+        observable_dim: int,
+        latent_dim: int,
+        hidden_dim: int,
+        n_node_mlp_layers: int = 2,
+
+        solver_name: Optional[str] = None,
+        solver_params: Optional[dict] = None
+    ):
         """
         Args:
             observable_dim: Data dimension
@@ -39,7 +50,9 @@ class ODERNNEncoder(nn.Module):
             hidden_dim=hidden_dim,
             n_layers=n_node_mlp_layers
         )
-        self._node = NeuralODE(odef_func)
+
+        solver = ode_solver_factory(name=solver_name, params=solver_params)
+        self._node = NeuralODE(func=odef_func, solver=solver)
         self._rnn = nn.GRU(
             input_size=2*latent_dim,
             hidden_size=2*latent_dim,
@@ -73,18 +86,30 @@ class ODERNNVAE(nn.Module):
     """
     ODE-RNN-VAE
     """
-    def __init__(self, observable_dim: int, hidden_dim: int, latent_dim: int):
+    def __init__(
+        self,
+        observable_dim: int,
+        hidden_dim: int,
+        latent_dim: int,
+
+        solver_name: Optional[str] = None,
+        solver_params: Optional[dict] = None
+    ):
         super().__init__()
 
         self._encoder = ODERNNEncoder(
             observable_dim=observable_dim+1, # time is additional obs dimension
             hidden_dim=hidden_dim,
-            latent_dim=latent_dim
+            latent_dim=latent_dim,
+            solver_name=solver_name,
+            solver_params=solver_params
         )
         self._decoder = NODEDecoder(
             latent_dim=latent_dim,
             hidden_dim=hidden_dim,
-            output_dim=observable_dim
+            output_dim=observable_dim,
+            solver_name=solver_name,
+            solver_params=solver_params
         )
 
     def forward(self, x: torch.Tensor, t_obs: torch.Tensor, t_unobs: Optional[torch.Tensor] = None, generate: bool = False) \
@@ -105,19 +130,19 @@ class LightningODERNNVAE(pl.LightningModule):
         observable_dim: int,
         hidden_dim: int,
         latent_dim: int,
+
         noise_std: float = 0.1,
-        learning_rate: float = 1e-3,
-        sched_lr_gamma: float = 1.0,
-        sched_lr_step: int = 10
+
+        solver_name: Optional[str] = None,
+        solver_params: Optional[dict] = None,
+
+        train_config: Optional[LightningTrainConfig] = None
     ):
         super().__init__()
-        self._model = ODERNNVAE(observable_dim, hidden_dim, latent_dim)
+        self._model = ODERNNVAE(observable_dim, hidden_dim, latent_dim, solver_name=solver_name, solver_params=solver_params)
         self._loss_func = ELBO(noise_std)
 
-        self._learning_rate = learning_rate
-        self._sched_lr_gamma = sched_lr_gamma
-        self._sched_lr_step = sched_lr_step
-
+        self._train_config = train_config
         self._meter = MetricMeter()
 
     def forward(self, x: torch.Tensor, t_obs: torch.Tensor, t_unobs: Optional[torch.Tensor] = None, generate: bool = False) \
@@ -166,8 +191,8 @@ class LightningODERNNVAE(pl.LightningModule):
         scheduler = {
             'scheduler': torch.optim.lr_scheduler.StepLR(
                 optimizer=optimizer,
-                step_size=self._sched_lr_step,
-                gamma=self._sched_lr_gamma
+                step_size=self._train_config.sched_lr_step,
+                gamma=self._train_config.sched_lr_gamma
             ),
             'interval': 'epoch',
             'frequency': 1
