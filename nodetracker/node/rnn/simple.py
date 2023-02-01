@@ -3,10 +3,14 @@ Implementation of simple RNN Encoder Decoder architecture used for comparison
 - Encoder: using Same RNNEncoder as in ODEVAE
 -
 """
-from nodetracker.node.building_blocks import MLP
-from nodetracker.library import time_series
-from torch import nn
 import torch
+from torch import nn
+
+from nodetracker.library import time_series
+from nodetracker.node.building_blocks import MLP
+from nodetracker.node.utils import LightningTrainConfig, LightningModuleBase
+from typing import Tuple, Optional
+from nodetracker.node.odernn.odernn import LightningModuleRNN
 
 
 class RNNEncoder(nn.Module):
@@ -89,8 +93,25 @@ class RNNSeq2Seq(nn.Module):
         return x_hat
 
 
+class LightningRNNSeq2Seq(LightningModuleRNN):
+    """
+    Simple RNN implementation to compare with NODE models.
+    """
+    def __init__(
+            self,
+            observable_dim: int,
+            hidden_dim: int,
+            latent_dim: int,
+
+            train_config: Optional[LightningTrainConfig] = None
+    ):
+        super().__init__(train_config=train_config)
+        self._model = RNNSeq2Seq(observable_dim, hidden_dim, latent_dim)
+        self._loss_func = nn.MSELoss()
+
+
 def main() -> None:
-    model = RNNSeq2Seq(
+    model = LightningRNNSeq2Seq(
         observable_dim=5,
         hidden_dim=3,
         latent_dim=2

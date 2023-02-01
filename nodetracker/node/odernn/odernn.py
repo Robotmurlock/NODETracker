@@ -112,25 +112,10 @@ class ODERNN(nn.Module):
         return x_hat
 
 
-class LightningODERNN(LightningModuleBase):
+class LightningModuleRNN(LightningModuleBase):
     """
-    PytorchLightning wrapper for ODERNN model
+    Trainer wrapper for RNN like models.
     """
-
-    def __init__(
-            self,
-            observable_dim: int,
-            hidden_dim: int,
-
-            solver_name: Optional[str] = None,
-            solver_params: Optional[dict] = None,
-
-            train_config: Optional[LightningTrainConfig] = None
-    ):
-        super().__init__(train_config=train_config)
-        self._model = ODERNN(observable_dim, hidden_dim, solver_name=solver_name, solver_params=solver_params)
-        self._loss_func = nn.MSELoss()
-
     def forward(self, x: torch.Tensor, t_obs: torch.Tensor, t_unobs: Optional[torch.Tensor] = None) \
             -> Tuple[torch.Tensor, ...]:
         return self._model(x, t_obs, t_unobs)
@@ -152,6 +137,25 @@ class LightningODERNN(LightningModuleBase):
         self._meter.push('val/loss', loss)
 
         return loss
+
+
+class LightningODERNN(LightningModuleRNN):
+    """
+    PytorchLightning wrapper for ODERNN model
+    """
+    def __init__(
+            self,
+            observable_dim: int,
+            hidden_dim: int,
+
+            solver_name: Optional[str] = None,
+            solver_params: Optional[dict] = None,
+
+            train_config: Optional[LightningTrainConfig] = None
+    ):
+        super().__init__(train_config=train_config)
+        self._model = ODERNN(observable_dim, hidden_dim, solver_name=solver_name, solver_params=solver_params)
+        self._loss_func = nn.MSELoss()
 
 
 def run_test():
