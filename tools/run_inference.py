@@ -69,6 +69,8 @@ def run_inference(
         t_bboxes_obs, t_ts_obs, t_ts_unobs = [v.to(accelerator) for v in [t_bboxes_obs, t_ts_obs, t_ts_unobs]]
         t_bboxes_unobs_hat, *_ = model(t_bboxes_obs, t_ts_obs, t_ts_unobs) # inference
         t_bboxes_unobs_hat = t_bboxes_unobs_hat.detach().cpu()
+        if len(t_bboxes_unobs_hat.shape) == 2:  # FIXME: This is improvisation
+            t_bboxes_unobs_hat = t_bboxes_unobs_hat.unsqueeze(0)
         _, bboxes_unobs_hat, *_ = transform.inverse([bboxes_obs, t_bboxes_unobs_hat]) # postprocess
 
         curr_obs_time_len = bboxes_obs.shape[0]
