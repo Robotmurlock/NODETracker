@@ -1,0 +1,9 @@
+defaults:
+  - resources: cuda.yaml
+  - dataset: mot.yaml
+  - transform: standardized_first_difference.yaml
+  - model: odernn.yaml
+  - train: odernn.yaml
+  - eval: odernn.yaml
+  - visualize: default.yaml
+  - _self_

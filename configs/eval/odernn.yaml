@@ -1,0 +1,7 @@
+experiment: 'ODERNN-iter02-exp02-10h-1f'
+split: 'val'
+batch_size: 32
+num_workers: 8
+
+inference_name: 'initial'
+checkpoint: 'last.ckpt'
