@@ -22,12 +22,13 @@ from nodetracker.datasets import TorchMOTTrajectoryDataset, transforms
 from nodetracker.datasets.utils import ode_dataloader_collate_func
 from nodetracker.node import load_or_create_model
 from nodetracker.utils import pipeline
+from nodetracker.library.cv import BBox
 
 logger = logging.getLogger('InferenceScript')
 
 
 _CONFIG_SAVE_FILENAME = 'config-eval.yaml'
-_METRIC_NAMES = ['MSE', 'MSE-First', 'MSE-Last']
+_METRIC_NAMES = ['MSE', 'MSE-First', 'MSE-Last', 'Accuracy']
 
 
 @torch.no_grad()
@@ -84,28 +85,41 @@ def run_inference(
             frame_range = f'{frame_start}-{middle_frame_id}-{frame_end}'
             sample_id = [scene_name, object_id, frame_range]
 
+            iou_scores = []
             # Save sample predictions (inference) with gt values
             # format: ymin, xmin, w, h
             for frame_relative_index in range(curr_unobs_time_len):
+                # Get data
                 frame_id = middle_frame_id + frame_relative_index
                 prediction_id = sample_id + [frame_id]
                 bboxes_unobs_gt_list = bboxes_unobs[frame_relative_index, batch_index, :].numpy().tolist()
                 bboxes_unobs_pred_list = bboxes_unobs_hat[frame_relative_index, batch_index, :].numpy().tolist()
+
+                # Save predictions
                 pred = prediction_id + bboxes_unobs_pred_list + bboxes_unobs_gt_list
                 predictions.append(pred)
+
+                # Calculate IOU score
+                xyhw_indices = [1, 0, 3, 2]
+                bbox_gt = BBox.from_xyhw(*[bboxes_unobs_gt_list[ind] for ind in xyhw_indices], clip=True)
+                bbox_pred = BBox.from_xyhw(*[bboxes_unobs_pred_list[ind] for ind in xyhw_indices], clip=True)
+                iou_score = bbox_gt.iou(bbox_pred)
+                iou_scores.append(iou_score)
 
             # Save sample eval metrics
             # format: mse
             mse_val = mse_func(bboxes_unobs, bboxes_unobs_hat).detach().item()
             mse_first_val = mse_func(bboxes_unobs[0, ...], bboxes_unobs_hat[0, ...])
             mse_last_val = mse_func(bboxes_unobs[-1, ...], bboxes_unobs_hat[-1, ...])
-            s_metrics = sample_id + [mse_val, mse_first_val, mse_last_val]
+            avg_iou_score = sum(iou_scores) / len(iou_scores)
+            s_metrics = sample_id + [mse_val, mse_first_val, mse_last_val, avg_iou_score]
             sample_metrics.append(s_metrics)
 
             # Save sample eval metrics for aggregation
             dataset_metrics['MSE'].append(mse_val)
             dataset_metrics['MSE-First'].append(mse_first_val)
             dataset_metrics['MSE-Last'].append(mse_last_val)
+            dataset_metrics['Accuracy'].append(avg_iou_score)
 
             saved_metric_names = list(dataset_metrics.keys())
             assert saved_metric_names == _METRIC_NAMES, f'Unexpected metric list. Found {saved_metric_names} but expected {_METRIC_NAMES}.'

@@ -76,19 +76,15 @@ def load_or_create_model(
 
     model_cls = catalog[model_type]
 
-    train_config = None
-    if train_params is not None:
-        if not model_type.trainable:
-            # Models like KF do not need training parameters
-            raise ValueError('Models that are not trainable do not use training parameters!')
-        train_config = LightningTrainConfig(**train_params)
-    elif checkpoint_path is None and model_type.trainable:
+    if not model_type.trainable:
+        return model_cls(**params)
+
+    train_config = LightningTrainConfig(**train_params) if train_params is not None else None
+    if checkpoint_path is None:
         # It does not make sense to use trainable model with no train parameters and no checkpoint path
-        raise ValueError('Train and checkpoint path can\'t be both None for trainable models!')
+        raise ValueError('Train config and checkpoint path can\'t be both None for trainable models!')
 
     if checkpoint_path is not None:
-        if not model_type.trainable:
-            raise ValueError('Models that are not trainable can\'t be loaded from checkpoint!')
         return model_cls.load_from_checkpoint(checkpoint_path=checkpoint_path, **params, train_config=train_config)
 
     return model_cls(**params, train_config=train_config)
