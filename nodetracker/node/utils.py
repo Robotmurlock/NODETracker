@@ -5,6 +5,8 @@ from dataclasses import dataclass, field
 
 import pytorch_lightning as pl
 import torch
+from torch import nn
+from typing import Optional, Tuple
 
 from nodetracker.utils import torch_helper
 from nodetracker.utils.meter import MetricMeter
@@ -50,3 +52,35 @@ class LightningModuleBase(pl.LightningModule):
         }
 
         return [optimizer], [scheduler]
+
+
+class LightningModuleForecaster(LightningModuleBase):
+    """
+    Trainer wrapper for RNN like models.
+    """
+    def __init__(self, train_config: Optional[LightningTrainConfig], model: nn.Module, loss_func: nn.Module):
+        super().__init__(train_config=train_config)
+        self._model = model
+        self._loss_func = loss_func
+
+    def forward(self, x: torch.Tensor, t_obs: torch.Tensor, t_unobs: Optional[torch.Tensor] = None) \
+            -> Tuple[torch.Tensor, ...]:
+        return self._model(x, t_obs, t_unobs)
+
+    def training_step(self, batch: Tuple[torch.Tensor, ...], *args, **kwargs) -> torch.Tensor:
+        bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, _ = batch
+        bboxes_unobs_hat = self.forward(bboxes_obs, ts_obs, ts_unobs)
+        loss = self._loss_func(bboxes_unobs_hat, bboxes_unobs)
+
+        self._meter.push('training/loss', loss)
+
+        return loss
+
+    def validation_step(self, batch: Tuple[torch.Tensor, ...], *args, **kwargs) -> torch.Tensor:
+        bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, _ = batch
+        bboxes_unobs_hat = self.forward(bboxes_obs, ts_obs, ts_unobs)
+        loss = self._loss_func(bboxes_unobs_hat, bboxes_unobs)
+
+        self._meter.push('val/loss', loss)
+
+        return loss

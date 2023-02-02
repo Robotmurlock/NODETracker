@@ -1,16 +1,16 @@
 """
 Implementation of simple RNN Encoder Decoder architecture used for comparison
-- Encoder: using Same RNNEncoder as in ODEVAE
--
+- Encoder: using same form of RNNEncoder as in ODERNN
+- Decoder: Variable step regression
 """
+from typing import Optional
+
 import torch
 from torch import nn
 
 from nodetracker.library import time_series
 from nodetracker.node.building_blocks import MLP
-from nodetracker.node.utils import LightningTrainConfig, LightningModuleBase
-from typing import Tuple, Optional
-from nodetracker.node.odernn.odernn import LightningModuleRNN
+from nodetracker.node.utils import LightningTrainConfig, LightningModuleForecaster
 
 
 class RNNEncoder(nn.Module):
@@ -55,15 +55,16 @@ class RNNDecoder(nn.Module):
     def forward(self, z: torch.Tensor, n_steps: int) -> torch.Tensor:
         batch_size = z.shape[1]
 
-        prev_h = torch.zeros(1, batch_size, self._latent_dim, dtype=torch.float32)
+        prev_h = torch.zeros(1, batch_size, self._latent_dim, dtype=torch.float32).to(z).requires_grad_()
         outputs = []
         for _ in range(n_steps):
-            z_out, prev_h = self._rnn(z, prev_h)
+            z_out, prev_h = self._rnn(z, prev_h.detach())
+            z_out = z_out[-1]
             h = self._latent2hidden(z_out)
             o = self._hidden2obs(h)
             outputs.append(o)
 
-        return torch.vstack(outputs)
+        return torch.stack(outputs)
 
 
 class RNNSeq2Seq(nn.Module):
@@ -93,7 +94,7 @@ class RNNSeq2Seq(nn.Module):
         return x_hat
 
 
-class LightningRNNSeq2Seq(LightningModuleRNN):
+class LightningRNNSeq2Seq(LightningModuleForecaster):
     """
     Simple RNN implementation to compare with NODE models.
     """
@@ -105,11 +106,12 @@ class LightningRNNSeq2Seq(LightningModuleRNN):
 
             train_config: Optional[LightningTrainConfig] = None
     ):
-        super().__init__(train_config=train_config)
-        self._model = RNNSeq2Seq(observable_dim, hidden_dim, latent_dim)
-        self._loss_func = nn.MSELoss()
+        model = RNNSeq2Seq(observable_dim, hidden_dim, latent_dim)
+        loss_func = nn.MSELoss()
+        super().__init__(train_config=train_config, model=model, loss_func=loss_func)
 
 
+# noinspection DuplicatedCode
 def main() -> None:
     model = LightningRNNSeq2Seq(
         observable_dim=5,

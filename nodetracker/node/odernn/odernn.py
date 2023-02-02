@@ -2,7 +2,7 @@
 ODE-RNN implementation
 https://arxiv.org/pdf/1907.03907.pdf
 """
-from typing import Tuple, Optional
+from typing import Optional
 
 import torch
 from torch import nn
@@ -11,7 +11,7 @@ from nodetracker.node.building_blocks import MLP
 from nodetracker.node.core.odevae import MLPODEF, NODEDecoder
 from nodetracker.node.core.original import NeuralODE
 from nodetracker.node.core.solver import ode_solver_factory
-from nodetracker.node.utils import LightningTrainConfig, LightningModuleBase
+from nodetracker.node.utils import LightningTrainConfig, LightningModuleForecaster
 
 
 class ODERNNEncoder(nn.Module):
@@ -112,34 +112,7 @@ class ODERNN(nn.Module):
         return x_hat
 
 
-class LightningModuleRNN(LightningModuleBase):
-    """
-    Trainer wrapper for RNN like models.
-    """
-    def forward(self, x: torch.Tensor, t_obs: torch.Tensor, t_unobs: Optional[torch.Tensor] = None) \
-            -> Tuple[torch.Tensor, ...]:
-        return self._model(x, t_obs, t_unobs)
-
-    def training_step(self, batch: Tuple[torch.Tensor, ...], *args, **kwargs) -> torch.Tensor:
-        bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, _ = batch
-        bboxes_unobs_hat = self.forward(bboxes_obs, ts_obs, ts_unobs)
-        loss = self._loss_func(bboxes_unobs_hat, bboxes_unobs)
-
-        self._meter.push('training/loss', loss)
-
-        return loss
-
-    def validation_step(self, batch: Tuple[torch.Tensor, ...], *args, **kwargs) -> torch.Tensor:
-        bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, _ = batch
-        bboxes_unobs_hat = self.forward(bboxes_obs, ts_obs, ts_unobs)
-        loss = self._loss_func(bboxes_unobs_hat, bboxes_unobs)
-
-        self._meter.push('val/loss', loss)
-
-        return loss
-
-
-class LightningODERNN(LightningModuleRNN):
+class LightningODERNN(LightningModuleForecaster):
     """
     PytorchLightning wrapper for ODERNN model
     """
@@ -153,9 +126,9 @@ class LightningODERNN(LightningModuleRNN):
 
             train_config: Optional[LightningTrainConfig] = None
     ):
-        super().__init__(train_config=train_config)
-        self._model = ODERNN(observable_dim, hidden_dim, solver_name=solver_name, solver_params=solver_params)
-        self._loss_func = nn.MSELoss()
+        model = ODERNN(observable_dim, hidden_dim, solver_name=solver_name, solver_params=solver_params)
+        loss_func = nn.MSELoss()
+        super().__init__(train_config=train_config, model=model, loss_func=loss_func)
 
 
 def run_test():

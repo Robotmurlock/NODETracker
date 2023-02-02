@@ -1,0 +1,9 @@
+defaults:
+  - resources: cuda.yaml
+  - dataset: mot.yaml
+  - transform: standardized_first_difference.yaml
+  - model: mlp.yaml
+  - train: mlp.yaml
+  - eval: mlp.yaml
+  - visualize: default.yaml
+  - _self_

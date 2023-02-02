@@ -1,0 +1,7 @@
+type: 'mlp'
+params:
+  observable_dim: 4
+  hidden_dim: 8
+  latent_dim: 12
+  forecast_steps: 1
+  n_layers: 2
