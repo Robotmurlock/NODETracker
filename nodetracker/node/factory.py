@@ -80,7 +80,7 @@ def load_or_create_model(
         return model_cls(**params)
 
     train_config = LightningTrainConfig(**train_params) if train_params is not None else None
-    if checkpoint_path is None:
+    if checkpoint_path is None and train_config is None:
         # It does not make sense to use trainable model with no train parameters and no checkpoint path
         raise ValueError('Train config and checkpoint path can\'t be both None for trainable models!')
 
