@@ -11,11 +11,13 @@ Pipeline data structure:
                 ...
             configs/
                 [train.yaml]
-                [inference.yaml]
+                [inference.yaml] (last inference config)
                 [visualize.yaml]
                 ...
             inferences/
                 {inference_name_1}/*
+                    dataset_metrics.json
+                    config.yaml
                 {inference_name_2}/*
                 ...
             tensorboard_logs/*
@@ -73,6 +75,19 @@ def get_checkpoint_path(experiment_path: str, checkpoint_filename: str) -> str:
     return os.path.join(get_checkpoints_dirpath(experiment_path), checkpoint_filename)
 
 
+def get_config_dirpath(experiment_path: str) -> str:
+    """
+    Gets path to experiment configs.
+
+    Args:
+        experiment_path: Experiment path
+
+    Returns:
+        Path to saved configs (history) for given experiment path
+    """
+    return os.path.join(experiment_path, CONFIGS_DIRNAME)
+
+
 def get_config_path(experiment_path: str, config_name: str) -> str:
     """
     Gets configs full path.
@@ -84,7 +99,7 @@ def get_config_path(experiment_path: str, config_name: str) -> str:
     Returns:
         Config full path
     """
-    return os.path.join(experiment_path, CONFIGS_DIRNAME, config_name)
+    return os.path.join(get_config_dirpath(experiment_path), config_name)
 
 def get_inference_fullname(model_type: str, dataset_name: str, split: str, experiment_name: str, inference_name: str) -> str:
     """
@@ -123,6 +138,33 @@ def get_inference_path(experiment_path: str, model_type: str, dataset_name: str,
     """
     inf_fullname = get_inference_fullname(model_type, dataset_name, split, experiment_name, inference_name)
     return os.path.join(experiment_path, INFERENCES_DIRNAME, inf_fullname)
+
+
+def get_inference_config_path(inference_dirpath: str) -> str:
+    """
+    Path to config file for given inference.
+
+    Args:
+        inference_dirpath: Inference dirpath
+
+    Returns:
+        Path to inference config file.
+    """
+    return os.path.join(inference_dirpath, 'config.yaml')
+
+
+def get_inferences_dirpath(experiment_path: str) -> str:
+    """
+    Gets path to experiment inferences.
+
+    Args:
+        experiment_path: Experiment path
+
+    Returns:
+        Path to saved (evaluated) inferences (history) for given experiment path
+    """
+    return os.path.join(experiment_path, INFERENCES_DIRNAME)
+
 
 def get_inference_video_path(inference_dirpath: str, scene_name: str, frame_range: str) -> str:
     """

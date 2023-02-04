@@ -283,6 +283,10 @@ def main(cfg: DictConfig):
         inference_dirpath
     )
 
+    # Save inference config
+    inference_config_path = os.path.join(inference_dirpath, 'config.yaml')
+    cfg.save(inference_config_path)
+
 
 if __name__ == '__main__':
     main()
