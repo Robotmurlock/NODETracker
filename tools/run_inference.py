@@ -20,15 +20,15 @@ from nodetracker.common import conventions
 from nodetracker.common.project import CONFIGS_PATH
 from nodetracker.datasets import TorchMOTTrajectoryDataset, transforms
 from nodetracker.datasets.utils import ode_dataloader_collate_func
+from nodetracker.library.cv import BBox
 from nodetracker.node import load_or_create_model
 from nodetracker.utils import pipeline
-from nodetracker.library.cv import BBox
 
 logger = logging.getLogger('InferenceScript')
 
 
 _CONFIG_SAVE_FILENAME = 'config-eval.yaml'
-_METRIC_NAMES = ['MSE', 'MSE-First', 'MSE-Last', 'Accuracy']
+_METRIC_NAMES = ['MSE', 'Accuracy']
 
 
 @torch.no_grad()
@@ -68,10 +68,10 @@ def run_inference(
         # `t` prefix means that tensor is mapped to transformed space
         t_bboxes_obs, _, t_ts_obs, t_ts_unobs = transform.apply([bboxes_obs, bboxes_unobs, ts_obs, ts_unobs], shallow=False) # preprocess
         t_bboxes_obs, t_ts_obs, t_ts_unobs = [v.to(accelerator) for v in [t_bboxes_obs, t_ts_obs, t_ts_unobs]]
-        t_bboxes_unobs_hat, *_ = model(t_bboxes_obs, t_ts_obs, t_ts_unobs) # inference
+        output = model(t_bboxes_obs, t_ts_obs, t_ts_unobs) # inference
+        # In case of multiple suffix values output (tuple) ignore everything except first output
+        t_bboxes_unobs_hat = output[0] if isinstance(output, tuple) else output
         t_bboxes_unobs_hat = t_bboxes_unobs_hat.detach().cpu()
-        if len(t_bboxes_unobs_hat.shape) == 2:  # FIXME: This is improvisation
-            t_bboxes_unobs_hat = t_bboxes_unobs_hat.unsqueeze(0)
         _, bboxes_unobs_hat, *_ = transform.inverse([bboxes_obs, t_bboxes_unobs_hat]) # postprocess
 
         curr_obs_time_len = bboxes_obs.shape[0]
@@ -92,12 +92,18 @@ def run_inference(
                 # Get data
                 frame_id = middle_frame_id + frame_relative_index
                 prediction_id = sample_id + [frame_id]
-                bboxes_unobs_gt_list = bboxes_unobs[frame_relative_index, batch_index, :].numpy().tolist()
-                bboxes_unobs_pred_list = bboxes_unobs_hat[frame_relative_index, batch_index, :].numpy().tolist()
+                bboxes_unobs_gt_numpy = bboxes_unobs[frame_relative_index, batch_index, :].numpy()
+                bboxes_unobs_pred_numpy = bboxes_unobs_hat[frame_relative_index, batch_index, :].numpy()
+                bboxes_unobs_gt_list = bboxes_unobs_gt_numpy.tolist()
+                bboxes_unobs_pred_list = bboxes_unobs_pred_numpy.tolist()
 
                 # Save predictions
                 pred = prediction_id + bboxes_unobs_pred_list + bboxes_unobs_gt_list
                 predictions.append(pred)
+
+                # Calculate MSE
+                mse_val_i = ((bboxes_unobs_gt_numpy - bboxes_unobs_pred_numpy) ** 2).sum()
+                dataset_metrics[f'MSE-{frame_relative_index}'].append(mse_val_i)
 
                 # Calculate IOU score
                 xyhw_indices = [1, 0, 3, 2]
@@ -105,24 +111,18 @@ def run_inference(
                 bbox_pred = BBox.from_xyhw(*[bboxes_unobs_pred_list[ind] for ind in xyhw_indices], clip=True)
                 iou_score = bbox_gt.iou(bbox_pred)
                 iou_scores.append(iou_score)
+                dataset_metrics[f'Accuracy-{frame_relative_index}'].append(iou_score)
 
             # Save sample eval metrics
             # format: mse
             mse_val = mse_func(bboxes_unobs, bboxes_unobs_hat).detach().item()
-            mse_first_val = mse_func(bboxes_unobs[0, ...], bboxes_unobs_hat[0, ...])
-            mse_last_val = mse_func(bboxes_unobs[-1, ...], bboxes_unobs_hat[-1, ...])
             avg_iou_score = sum(iou_scores) / len(iou_scores)
-            s_metrics = sample_id + [mse_val, mse_first_val, mse_last_val, avg_iou_score]
+            s_metrics = sample_id + [mse_val, avg_iou_score]
             sample_metrics.append(s_metrics)
 
             # Save sample eval metrics for aggregation
             dataset_metrics['MSE'].append(mse_val)
-            dataset_metrics['MSE-First'].append(mse_first_val)
-            dataset_metrics['MSE-Last'].append(mse_last_val)
             dataset_metrics['Accuracy'].append(avg_iou_score)
-
-            saved_metric_names = list(dataset_metrics.keys())
-            assert saved_metric_names == _METRIC_NAMES, f'Unexpected metric list. Found {saved_metric_names} but expected {_METRIC_NAMES}.'
 
         batch_cnt += 1
         if batch_cnt >= n_batch_steps:
@@ -165,6 +165,7 @@ def save_dataset_metrics(
 
     # Aggregate
     dataset_metrics = {k: sum(v) / len(v) for k, v in dataset_metrics.items()}
+    logger.info(f'Evaluation Metrics:\n{json.dumps(dataset_metrics, indent=2)}')
 
     # Save dataset evaluation (aggregated) metrics
     inf_dataset_metrics_filepath = os.path.join(inference_dirpath, 'dataset_metrics.json')
@@ -179,6 +180,8 @@ def save_inference(
     append: bool = False
 ) -> None:
     """
+    TODO: Refactor - function coupling at data level
+
     Save inference results (dataset inference and evaluation metrics)
 
     Args:
