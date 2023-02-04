@@ -99,7 +99,10 @@ class EvalConfig:
     inference_name: str
     split: str
     checkpoint: Optional[str]
+
+    # Autoregressive configs
     autoregressive: bool = field(default=False)
+    autoregressive_keep_history: bool = field(default=False)
 
 
 @dataclass

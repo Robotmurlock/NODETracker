@@ -245,13 +245,15 @@ def main(cfg: DictConfig):
         shuffle=True
     )
 
-    checkpoint_path = conventions.get_checkpoint_path(experiment_path, cfg.eval.checkpoint) if cfg.eval.checkpoint else None
+    checkpoint_path = conventions.get_checkpoint_path(experiment_path, cfg.eval.checkpoint) \
+        if cfg.eval.checkpoint else None
     model = load_or_create_model(
         model_type=cfg.model.type,
         params=cfg.model.params,
         checkpoint_path=checkpoint_path
     )
-    model = AutoregressiveForecasterDecorator(model) if cfg.eval.autoregressive else model
+    model = AutoregressiveForecasterDecorator(model, keep_history=cfg.eval.autoregressive_keep_history) \
+        if cfg.eval.autoregressive else model
     accelerator = cfg.resources.accelerator
     model.to(accelerator)
 
