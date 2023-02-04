@@ -1,12 +1,12 @@
 """
-NODE Lightning module utility class.
+NODE Lightning module training utility.
 """
 from dataclasses import dataclass, field
+from typing import Optional, Tuple
 
 import pytorch_lightning as pl
 import torch
 from torch import nn
-from typing import Optional, Tuple
 
 from nodetracker.utils import torch_helper
 from nodetracker.utils.meter import MetricMeter
@@ -17,6 +17,7 @@ class LightningTrainConfig:
     learning_rate: float = field(default=1e-3)
     sched_lr_gamma: float = field(default=1.0)
     sched_lr_step: int = field(default=1)
+
 
 class LightningModuleBase(pl.LightningModule):
     """

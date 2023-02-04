@@ -23,6 +23,7 @@ from nodetracker.datasets.utils import ode_dataloader_collate_func
 from nodetracker.library.cv import BBox
 from nodetracker.node import load_or_create_model
 from nodetracker.utils import pipeline
+from nodetracker.node.utils.autoregressive import AutoregressiveForecasterDecorator
 
 logger = logging.getLogger('InferenceScript')
 
@@ -250,6 +251,7 @@ def main(cfg: DictConfig):
         params=cfg.model.params,
         checkpoint_path=checkpoint_path
     )
+    model = AutoregressiveForecasterDecorator(model) if cfg.eval.autoregressive else model
     accelerator = cfg.resources.accelerator
     model.to(accelerator)
 
@@ -282,4 +284,3 @@ def main(cfg: DictConfig):
 
 if __name__ == '__main__':
     main()
-

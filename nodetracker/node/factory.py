@@ -9,8 +9,8 @@ from pytorch_lightning import LightningModule
 from nodetracker.node.core.odevae import LightningODEVAE
 from nodetracker.node.kalman_filter import TorchConstantVelocityODKalmanFilter
 from nodetracker.node.odernn import LightningODERNN, LightningODERNNVAE
-from nodetracker.node.rnn.simple import LightningRNNSeq2Seq
-from nodetracker.node.rnn.mlp import LightningMLPForecaster
+from nodetracker.node.standard.simple import LightningRNNSeq2Seq
+from nodetracker.node.standard.mlp import LightningMLPForecaster
 from nodetracker.node.trajectory_filter import BBoxTrajectoryForecaster
 from nodetracker.node.utils import LightningTrainConfig
 
