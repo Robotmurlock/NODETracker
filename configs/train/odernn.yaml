@@ -1,5 +1,5 @@
-experiment: 'ODERNN-iter02-exp03-10h-1f'
-description: 'ODERNN one step ahead with 10 steps history'
+experiment: 'ODERNN-iter02-exp04-10h-1f-more-params'
+description: 'ODERNN - like exp03 but with 32 hidden dim params'
 batch_size: 32
 learning_rate: 1e-3
 max_epochs: 10

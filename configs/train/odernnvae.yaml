@@ -1,5 +1,5 @@
-experiment: 'ODERNNVAE-iter02-exp01-1h-1f'
-description: 'ODERNNVAE-one-step'
+experiment: 'ODERNNVAE-iter02-exp02-10h-1f'
+description: 'ODERNNVAE 10 steps history'
 batch_size: 32
 learning_rate: 1e-3
 max_epochs: 10

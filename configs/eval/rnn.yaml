@@ -1,4 +1,4 @@
-experiment: 'RNN-iter02-exp01-10h-1f'
+experiment: 'RNN-iter02-exp03-10h-1f-even-more-params'
 split: 'val'
 batch_size: 32
 num_workers: 8

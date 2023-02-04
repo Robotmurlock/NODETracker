@@ -1,9 +1,9 @@
 type: 'odernnvae'
 params:
   observable_dim: 4
-  hidden_dim: 32
-  latent_dim: 32
-  noise_std: 0.1
+  hidden_dim: 8
+  latent_dim: 8
+  noise_std: 0.3
 
 solver_name: 'rk4'
 solver_params:

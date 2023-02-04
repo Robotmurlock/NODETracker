@@ -1,5 +1,5 @@
-experiment: 'ODERNN-iter02-exp02-10h-1f'
-description: 'RNN one step ahead with 10 steps history'
+experiment: 'RNN-iter02-exp03-10h-1f-even-more-params'
+description: 'Using more parameters (previous version was underfitting)'
 batch_size: 32
 learning_rate: 1e-3
 max_epochs: 10

@@ -1,5 +1,5 @@
 type: 'rnn'
 params:
   observable_dim: 4
-  hidden_dim: 8
-  latent_dim: 12
+  hidden_dim: 64
+  latent_dim: 64
