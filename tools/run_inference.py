@@ -104,7 +104,7 @@ def run_inference(
 
                 # Calculate MSE
                 mse_val_i = ((bboxes_unobs_gt_numpy - bboxes_unobs_pred_numpy) ** 2).sum()
-                dataset_metrics[f'MSE-{frame_relative_index}'].append(mse_val_i)
+                dataset_metrics[f'MSE-{frame_relative_index+1}'].append(mse_val_i)
 
                 # Calculate IOU score
                 xyhw_indices = [1, 0, 3, 2]
@@ -112,7 +112,7 @@ def run_inference(
                 bbox_pred = BBox.from_xyhw(*[bboxes_unobs_pred_list[ind] for ind in xyhw_indices], clip=True)
                 iou_score = bbox_gt.iou(bbox_pred)
                 iou_scores.append(iou_score)
-                dataset_metrics[f'Accuracy-{frame_relative_index}'].append(iou_score)
+                dataset_metrics[f'Accuracy-{frame_relative_index+1}'].append(iou_score)
 
             # Save sample eval metrics
             # format: mse
