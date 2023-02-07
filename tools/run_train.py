@@ -60,14 +60,11 @@ def main(cfg: DictConfig):
     )
 
     model_type = ModelType.from_str(cfg.model.type)
-    resume_from_checkpoint_path = os.path.join(cfg.path.master, cfg.train.resume_from_checkpoint) \
-        if cfg.train.resume_from_checkpoint is not None else None
     assert model_type.trainable, f'Chosen model type "{model_type}" is not trainable!'
     model = load_or_create_model(
         model_type=model_type,
         params=cfg.model.params,
-        train_params=cfg.train.train_params,
-        checkpoint_path=resume_from_checkpoint_path
+        train_params=cfg.train.train_params
     )
 
     tb_logger = TensorBoardLogger(save_dir=experiment_path, name=conventions.TENSORBOARD_DIRNAME)

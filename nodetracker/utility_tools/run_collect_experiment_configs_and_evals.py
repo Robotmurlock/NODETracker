@@ -26,7 +26,6 @@ def main(args: argparse.Namespace) -> None:
         experiment_path = os.path.join(input_path, experiment_name)
         # noinspection PyBroadException
         try:
-
             train_config_path = conventions.get_config_path(experiment_path, 'train.yaml')
             inferences_path = conventions.get_inferences_dirpath(experiment_path)
             inference_directories = os.listdir(inferences_path)
@@ -42,7 +41,7 @@ def main(args: argparse.Namespace) -> None:
                 shutil.copy(metrics_filepath, os.path.join(result_path, dataset_metrics_filename))
                 shutil.copy(train_config_path, os.path.join(result_path, 'train.yaml'))
                 shutil.copy(inference_config_filepath, os.path.join(result_path, 'inference.yaml'))
-        except:
+        except FileNotFoundError:
             logger.error(f'Failed to collect "{experiment_name}"\n{traceback.format_exc()}')
 
 

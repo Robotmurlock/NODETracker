@@ -16,6 +16,15 @@ from nodetracker.common import project
 
 @dataclass
 class DatasetConfig:
+    """
+    Dataset config.
+    - name: Dataset name
+    - train_path: Path to training dataset subset
+    - val_path: Path to validation dataset subset
+    - test_path: Path to test dataset subset
+    - history_len: Number of observable input values
+    - future_len: Number of unobservable output values (values that are being predicted)
+    """
     name: str
     train_path: str
     val_path: str
@@ -25,7 +34,7 @@ class DatasetConfig:
 
     def get_split_path(self, split: str) -> str:
         """
-        Gets split path
+        Gets split path.
 
         Args:
             split: Split name (train, val, test)
@@ -49,18 +58,34 @@ class DatasetConfig:
 
 @dataclass
 class TransformConfig:
+    """
+    Features transform config. Used to transform input features. Optionally performs inverse operation to output values.
+    - name: Name of transform class (type).
+    - params: Transform parameters
+    """
     name: str
     params: dict
 
 
 @dataclass
 class ModelConfig:
+    """
+    Model config;
+    - type: Model (architecture) type
+    - params: Model creation parameters
+    """
     type: str
     params: dict
 
 
 @dataclass
 class ResourcesConfig:
+    """
+    Resources config (cpu/gpu, number of cpu cores, ...)
+    - gpus: Number of gpus
+    - accelerator: gpu/cpu
+    - num_workers: cpu workers
+    """
     gpus: int
     accelerator: str
     num_workers: int
@@ -68,18 +93,40 @@ class ResourcesConfig:
 
 @dataclass
 class TrainLoggingConfig:
-    path: str
+    """
+    Configs for script logging during model training (not important for inference).
+    - path: TB logs path (deprecated)
+    - log_every_n_steps: TB log frequency
+    """
+    path: str  # Deprecated (predefined by conventions)
     log_every_n_steps: int
 
 
 @dataclass
 class TrainCheckpointConfig:
+    """
+    Model checkpoint saving config.
+    - metric_monitor: Chooses the best checkpoint based on metric name
+    - resume_from: Start from chosen checkpoint (finetuning)
+    """
     metric_monitor: str
     resume_from: Optional[str]
 
 
 @dataclass
 class TrainConfig:
+    """
+    Train configuration.
+    - experiment: Name of the training experiment
+    - description: Experiment description
+    - batch_size: Training batch size
+    - max_epochs: Number of epochs to train model
+
+    - logging_cfg: TrainLoggingConfig
+    - checkpoint_cfg: TrainCheckpointConfig
+
+    - train_params: Training architecture specific parameters
+    """
     experiment: str
     description: str
     batch_size: int
@@ -89,7 +136,6 @@ class TrainConfig:
     checkpoint_cfg: TrainCheckpointConfig
 
     train_params: Optional[dict] = field(default_factory=dict)  # default: empty dict
-    resume_from_checkpoint: Optional[str] = field(default=None)
 
 @dataclass
 class EvalConfig:

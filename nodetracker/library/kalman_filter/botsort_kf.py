@@ -22,7 +22,8 @@ chi2inv95 = {
     6: 12.592,
     7: 14.067,
     8: 15.507,
-    9: 16.919}
+    9: 16.919
+}
 
 
 class BotSortKalmanFilter(object):

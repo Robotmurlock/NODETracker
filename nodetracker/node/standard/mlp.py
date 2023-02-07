@@ -11,6 +11,9 @@ from nodetracker.node.utils import LightningTrainConfig, LightningModuleForecast
 
 
 class MLPForecaster(nn.Module):
+    """
+    Simple MLP model.
+    """
     def __init__(
         self,
         observable_steps: int,
@@ -19,6 +22,15 @@ class MLPForecaster(nn.Module):
         forecast_steps: int,
         n_layers: int = 1
     ):
+        """
+        Args:
+            observable_steps: Number of observable steps (input sequence length - fixed)
+            observable_dim: Dimension of each observable step
+            hidden_dim: Hidden dimension
+            forecast_steps: Number of forecast steps (output sequence length - fixed)
+                Note: If number of steps is 1 then this model can be used as autoregressive
+            n_layers: Number of Linear layers
+        """
         super().__init__()
         self._forecast_steps = forecast_steps
         self._flatten = nn.Flatten()
@@ -45,6 +57,9 @@ class MLPForecaster(nn.Module):
 
 
 class LightningMLPForecaster(LightningModuleForecaster):
+    """
+    MLPForecaster trainer wrapper.
+    """
     def __init__(
         self,
         observable_steps: int,
@@ -55,6 +70,16 @@ class LightningMLPForecaster(LightningModuleForecaster):
 
         train_config: Optional[LightningTrainConfig] = None
     ):
+        """
+        Args:
+            observable_steps: Number of observable steps (input sequence length - fixed)
+            observable_dim: Dimension of each observable step
+            hidden_dim: Hidden dimension
+            forecast_steps: Number of forecast steps (output sequence length - fixed)
+                Note: If number of steps is 1 then this model can be used as autoregressive
+            n_layers: Number of Linear layers
+            train_config: TrainConfig (not required for inference)
+        """
         model = MLPForecaster(
             observable_steps=observable_steps,
             observable_dim=observable_dim,

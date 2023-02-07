@@ -151,7 +151,8 @@ disable=abstract-method,
         no-value-for-parameter,  # Hydra conflict
         keyword-arg-before-vararg,
         invalid-name,
-        trailing-comma-tuple
+        trailing-comma-tuple,
+        pointless-string-statement
 
 
 [REPORTS]

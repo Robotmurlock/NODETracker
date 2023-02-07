@@ -31,13 +31,8 @@ def xyhw_add_noise(ymin: float, xmin: float, w: float, h: float, noise: float, c
     Returns:
         xmin, ymin, h, w with added noise
     """
-    values = []
-    for val in [ymin, xmin, w, h]:
-        val += np.random.normal(0, noise)
-        val = max(0.0, min(val, 1.0)) if clip else val
-        values.append(val)
-
-    ymin, xmin, w, h = values
+    add_noise = lambda x: max(0.0, min(x + np.random.normal(0, noise), 1.0)) if clip else x
+    ymin, xmin, w, h = [add_noise(v) for v in [ymin, xmin, w, h]]
     return ymin, xmin, w, h
 
 def sample_tracker_dataset(

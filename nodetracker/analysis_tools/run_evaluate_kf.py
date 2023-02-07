@@ -54,7 +54,6 @@ def main(args: argparse.Namespace) -> None:
     for scene_name in scene_names:
         object_ids = dataset.get_scene_object_ids(scene_name)
         for object_id in tqdm(object_ids, unit='track', desc=f'Evaluating tracker on {scene_name}'):
-            _, object_scene_id = dataset.parse_object_id(object_id)
             kf = BotSortKalmanFilter()  # Create KF for new track
             mean, covariance, mean_hat, covariance_hat = None, None, None, None
             gt, gt_ymin, gt_xmin, gt_w, gt_h = None, None, None, None, None
