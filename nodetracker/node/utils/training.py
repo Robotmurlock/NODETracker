@@ -18,6 +18,8 @@ class LightningTrainConfig:
     sched_lr_gamma: float = field(default=1.0)
     sched_lr_step: int = field(default=1)
 
+    weight_decay: float = field(default=0.0)
+
 
 class LightningModuleBase(pl.LightningModule):
     """
@@ -40,7 +42,11 @@ class LightningModuleBase(pl.LightningModule):
         self.log('train/lr', lr)
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(params=self._model.parameters(), lr=self._train_config.learning_rate)
+        optimizer = torch.optim.Adam(
+            params=self._model.parameters(),
+            lr=self._train_config.learning_rate,
+            weight_decay=0
+        )
 
         scheduler = {
             'scheduler': torch.optim.lr_scheduler.StepLR(
