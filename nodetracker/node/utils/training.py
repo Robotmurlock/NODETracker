@@ -45,7 +45,7 @@ class LightningModuleBase(pl.LightningModule):
         optimizer = torch.optim.Adam(
             params=self._model.parameters(),
             lr=self._train_config.learning_rate,
-            weight_decay=0
+            weight_decay=self._train_config.weight_decay
         )
 
         scheduler = {
