@@ -57,7 +57,10 @@ class ODERNNVAEEncoder(nn.Module):
             batch_first=False
         )
 
+    # noinspection DuplicatedCode
     def forward(self, xs: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        # Reverse input time sequence (running RNN backward in time)
+        xs = torch.flip(xs, dims=[0])
         time_len, batch_size, _ = xs.shape
 
         hs = self._obs2hidden(xs)
@@ -115,8 +118,8 @@ class ODERNNVAE(nn.Module):
         xt = torch.cat([x, t_obs], dim=-1)
         z0_mean, z0_log_var = self._encoder(xt)
         z0 = z0_mean if not generate else z0_mean + torch.randn_like(z0_mean) * torch.exp(0.5 * z0_log_var)
-        x_hat = self._decoder(z0, t_unobs)
-        return x_hat, z0_mean, z0_log_var
+        x_hat, z_hat = self._decoder(z0, t_unobs)
+        return x_hat, z0_mean, z0_log_var, z_hat
 
 
 class LightningODERNNVAE(LightningModuleBase):
@@ -145,9 +148,9 @@ class LightningODERNNVAE(LightningModuleBase):
         return self._model(x, t_obs, t_unobs, generate)
 
     def training_step(self, batch: Tuple[torch.Tensor, ...], *args, **kwargs) -> torch.Tensor:
-        bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, _ = batch
-        bboxes_unobs_hat, z0_mean, z0_log_var = self.forward(bboxes_obs, ts_obs, ts_unobs)
-        loss, kl_div_loss, likelihood_loss = self._loss_func(bboxes_unobs_hat, bboxes_unobs, z0_mean, z0_log_var)
+        bboxes_obs, _, ts_obs, _, _ = batch
+        bboxes_obs_hat, z0_mean, z0_log_var, _ = self.forward(bboxes_obs, ts_obs, ts_obs)
+        loss, kl_div_loss, likelihood_loss = self._loss_func(bboxes_obs_hat, bboxes_obs, z0_mean, z0_log_var)
 
         self._meter.push('training/loss', loss)
         self._meter.push('training/kl_div_loss', kl_div_loss)
@@ -157,14 +160,17 @@ class LightningODERNNVAE(LightningModuleBase):
 
     def validation_step(self, batch: Tuple[torch.Tensor, ...], *args, **kwargs) -> torch.Tensor:
         bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, _ = batch
-        bboxes_unobs_hat, z0_mean, z0_log_var = self.forward(bboxes_obs, ts_obs, ts_unobs)
-        loss, kl_div_loss, likelihood_loss = self._loss_func(bboxes_unobs_hat, bboxes_unobs, z0_mean, z0_log_var)
+        bboxes_obs_hat, z0_mean, z0_log_var, _ = self.forward(bboxes_obs, ts_obs, ts_obs)
+        loss, kl_div_loss, likelihood_loss = self._loss_func(bboxes_obs_hat, bboxes_obs, z0_mean, z0_log_var)
 
         self._meter.push('val/loss', loss)
         self._meter.push('val/kl_div_loss', kl_div_loss)
         self._meter.push('val/likelihood_loss', likelihood_loss)
 
-        # Repeated for compatibility with ODEVAE model
+        ts_all = torch.cat([ts_obs, ts_unobs])
+        bboxes_all = torch.cat([bboxes_obs, bboxes_unobs])
+        bboxes_all_hat, z0_mean, z0_log_var, _ = self.forward(bboxes_obs, ts_obs, ts_all)
+        loss, kl_div_loss, likelihood_loss = self._loss_func(bboxes_all_hat, bboxes_all, z0_mean, z0_log_var)
         self._meter.push('val-forecast/loss', loss)
         self._meter.push('val-forecast/kl_div_loss', kl_div_loss)
         self._meter.push('val-forecast/likelihood_loss', likelihood_loss)
@@ -183,7 +189,7 @@ def run_test():
     xs = torch.randn(4, 3, 7)
     ts_obs = torch.randn(4, 3, 1)
     ts_unobs = torch.randn(2, 3, 1)
-    expected_shapes = [(2, 3, 7), (3, 3), (3,3)]
+    expected_shapes = [(2, 3, 7), (3, 3), (3,3), (2, 3, 3)]
 
     output = odernnvae(xs, ts_obs, ts_unobs)
     shapes = [v.shape for v in output]
