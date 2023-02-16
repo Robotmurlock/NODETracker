@@ -99,7 +99,7 @@ class NODEDecoder(nn.Module):
         zs = self._ode(z0, ts, full_sequence=True)
         hs = self._lrelu(self._latent2hidden(zs))
         xs = self._lrelu(self._hidden2output(hs))
-        return xs
+        return xs, zs
 
 
 class ODEVAE(nn.Module):
@@ -127,10 +127,11 @@ class ODEVAE(nn.Module):
 
         z0_mean, z0_log_var = self._encoder(x, t_obs)
         z0 = z0_mean if not generate else z0_mean + torch.randn_like(z0_mean) * torch.exp(0.5 * z0_log_var)
-        x_hat_all = self._decoder(z0, t_all)
+        x_hat_all, z_hat_all = self._decoder(z0, t_all)
         x_unobs_hat = x_hat_all[n_obs:, :, :]
+        z_hat_hat = z_hat_all[n_obs:, :, :]
 
-        return x_unobs_hat, x_hat_all, z0_mean, z0_log_var
+        return x_unobs_hat, x_hat_all, z0_mean, z0_log_var, z_hat_all, z_hat_hat
 
 
 class ELBO(nn.Module):

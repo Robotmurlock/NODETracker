@@ -2,7 +2,7 @@
 ODE-RNN implementation
 https://arxiv.org/pdf/1907.03907.pdf
 """
-from typing import Optional
+from typing import Optional, Tuple
 
 import torch
 from torch import nn
@@ -105,11 +105,12 @@ class ODERNN(nn.Module):
             solver_params=solver_params
         )
 
-    def forward(self, x: torch.Tensor, t_obs: torch.Tensor, t_unobs: Optional[torch.Tensor] = None) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, t_obs: torch.Tensor, t_unobs: Optional[torch.Tensor] = None) \
+            -> Tuple[torch.Tensor, torch.Tensor]:
         xt = torch.cat([x, t_obs], dim=-1)
         z0 = self._encoder(xt)
-        x_hat = self._decoder(z0, t_unobs)
-        return x_hat
+        x_hat, z_hat = self._decoder(z0, t_unobs)
+        return x_hat, z_hat
 
 
 class LightningODERNN(LightningModuleForecaster):
@@ -143,7 +144,7 @@ def run_test():
         hidden_dim=5
     )
 
-    output = odernn(xs, ts_obs, ts_unobs)
+    output, _ = odernn(xs, ts_obs, ts_unobs)
     assert output.shape == expected_shape, f'Expected shape {expected_shape} but found {output.shape}!'
 
 
