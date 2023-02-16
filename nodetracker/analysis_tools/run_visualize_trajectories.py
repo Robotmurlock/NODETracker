@@ -4,7 +4,7 @@ Inference script
 import logging
 import math
 import os
-from typing import List
+from typing import List, Optional, Tuple
 
 import hydra
 import matplotlib.pyplot as plt
@@ -31,7 +31,8 @@ def plot_trajectories(
     indices: np.ndarray,
     traj_means: np.ndarray,
     traj_stds: np.ndarray,
-    coord_names: List[str]
+    coord_names: List[str],
+    ylim: Optional[Tuple] = None
 ) -> plt.Figure:
     """
     Plots trajectories to visualize their approximated distributions.
@@ -41,6 +42,7 @@ def plot_trajectories(
         traj_means: Trajectory means
         traj_stds: Trajectory stds (required for confidence interval
         coord_names: Coordinate names
+        ylim: Plot coord range
 
     Returns:
         Figure
@@ -48,10 +50,10 @@ def plot_trajectories(
     traj_conf_interval_lower_bound = traj_means - traj_stds
     traj_conf_interval_upper_bound = traj_means + traj_stds
 
-    n_coords = traj_means.shape[0]
+    n_coords = traj_means.shape[1]
     n_rows = 4
     n_cols = math.ceil(n_coords / n_rows)
-    fig, axs = plt.subplots(figsize=(8, 10), nrows=n_rows, ncols=n_cols)
+    fig, axs = plt.subplots(figsize=(5*n_cols, 12), nrows=n_rows, ncols=n_cols)
     for i, coord_name in enumerate(coord_names):
         ri = i % n_rows
         ci = i // n_rows
@@ -63,9 +65,10 @@ def plot_trajectories(
         ax.scatter(indices, traj_means[:, i], color='red', s=16)
         ax.set_xlabel('t')
         ax.set_ylabel(coord_name)
-        ax.set_ylim((0, 1))
-    plt.grid()
-    plt.tight_layout()
+        if ylim is not None:
+            ax.set_ylim(ylim)
+        ax.grid()
+        plt.tight_layout()
     return fig
 
 
@@ -80,10 +83,10 @@ def run_visualize_trajectory_analysis(
     model_latent_dim: int,
     period: float = 0.25,
     start: float = -1.0,
-    end: float = 10.0,
+    end: float = 5.0,
 ) -> None:
     """
-    Visualizes trajectories
+    Visualizes trajectories.
 
     Args:
         model: Model which is used to perform inference
@@ -96,11 +99,6 @@ def run_visualize_trajectory_analysis(
         period: period between two trajectory time points
         start: trajectory start time point
         end: trajectory end time point
-
-    Returns:
-        - Predictions for each sample in dataset
-        - Metrics for each sample on dataset
-        - Aggregated (averaged) dataset metrics
     """
     model.eval()
 
@@ -112,6 +110,8 @@ def run_visualize_trajectory_analysis(
     n_batches = 0
 
     for bboxes_obs, bboxes_unobs, ts_obs, _, _ in tqdm(data_loader, unit='sample', desc='Running inference'):
+        ts_unobs = ts_unobs[:, :bboxes_unobs.shape[1], :]  # Cut ts_unobs for last batch
+
         # `t` prefix means that tensor is mapped to transformed space
         t_bboxes_obs, _, t_ts_obs, t_ts_unobs = transform.apply([bboxes_obs, bboxes_unobs, ts_obs, ts_unobs], shallow=False) # preprocess
         t_bboxes_obs, t_ts_obs, t_ts_unobs = [v.to(accelerator) for v in [t_bboxes_obs, t_ts_obs, t_ts_unobs]]
@@ -137,7 +137,9 @@ def run_visualize_trajectory_analysis(
         indices=indices,
         traj_means=bboxes_unobs_hat_mean,
         traj_stds=bboxes_unobs_hat_std,
-        coord_names=['x', 'y', 'w', 'h'])
+        coord_names=['x', 'y', 'w', 'h'],
+        ylim=(0, 1)
+    )
     fig.savefig(f'{output_path}_bboxes.png')
 
     latent_representation_mean = latent_representation_mean_sum / n_batches
@@ -147,7 +149,9 @@ def run_visualize_trajectory_analysis(
         indices=indices,
         traj_means=latent_representation_mean,
         traj_stds=latent_representation_std,
-        coord_names=[f'L-{i}' for i in range(model_latent_dim)])
+        coord_names=[f'L-{i}' for i in range(model_latent_dim)],
+        ylim=(-5, 5)
+    )
     fig.savefig(f'{output_path}_latent_representation.png')
 
 
