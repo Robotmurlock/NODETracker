@@ -1,5 +1,5 @@
 """
-Mot dataset
+Creates sample dataset for tracker evaluation
 """
 import argparse
 import logging
@@ -13,10 +13,11 @@ from tqdm import tqdm
 from nodetracker.datasets.mot.core import MOTDataset
 from nodetracker.utils.logging import configure_logging
 
-logger = logging.getLogger('MotTools')
+logger = logging.getLogger('SampleTrackerEvaluationDataset')
 
 
-def xyhw_add_noise(ymin: float, xmin: float, w: float, h: float, noise: float, clip: bool = True) -> Tuple[float, float, float, float]:
+def xyhw_add_noise(ymin: float, xmin: float, w: float, h: float, noise: float, clip: bool = True) \
+        -> Tuple[float, float, float, float]:
     """
     Add noise too coordinates.
 
@@ -31,9 +32,21 @@ def xyhw_add_noise(ymin: float, xmin: float, w: float, h: float, noise: float, c
     Returns:
         xmin, ymin, h, w with added noise
     """
-    add_noise = lambda x: max(0.0, min(x + np.random.normal(0, noise), 1.0)) if clip else x
+    def add_noise(x: float) -> float:
+        """
+        Adds noise to `x`.
+
+        Args:
+            x: X value
+
+        Returns:
+            Returns x with noise
+        """
+        return max(0.0, min(x + np.random.normal(0, noise), 1.0)) if clip else x
+
     ymin, xmin, w, h = [add_noise(v) for v in [ymin, xmin, w, h]]
     return ymin, xmin, w, h
+
 
 def sample_tracker_dataset(
     dataset: MOTDataset,

@@ -56,6 +56,7 @@ SceneInfoIndex = Dict[str, SceneInfo]
 
 logger = logging.getLogger('MOTDataset')
 
+
 class MOTDataset:
     """
     Parses MOT dataset in given format
@@ -152,7 +153,12 @@ class MOTDataset:
             scene_name, _ = self.parse_object_id(object_id)
             scene_info = self._scene_info_index[scene_name]
             bbox = data['bbox']
-            bbox = [bbox[0] / scene_info.imwidth, bbox[1] / scene_info.imheight, bbox[2] / scene_info.imwidth, bbox[3] / scene_info.imheight]
+            bbox = [
+                bbox[0] / scene_info.imwidth,
+                bbox[1] / scene_info.imheight,
+                bbox[2] / scene_info.imwidth,
+                bbox[3] / scene_info.imheight
+            ]
             data['bbox'] = bbox
 
         return data
@@ -228,7 +234,8 @@ class MOTDataset:
 
             scene_directory = os.path.join(path, scene_name)
             scene_files = os.listdir(scene_directory)
-            assert label_type.value in scene_files, f'Ground truth file "{label_type.value}" not found. Contents: {scene_files}'
+            assert label_type.value in scene_files, f'Ground truth file "{label_type.value}" not found. ' \
+                                                    f'Contents: {scene_files}'
             gt_path = os.path.join(scene_directory, label_type.value, f'{label_type.value}.txt')
 
             assert 'seqinfo.ini' in scene_files, f'Scene config file "seqinfo.ini" not found. Contents: {scene_files}'
@@ -270,7 +277,8 @@ class MOTDataset:
 
             df = df.iloc[:, :6]
             df.columns = ['frame_id', 'object_id', 'ymin', 'xmin', 'w', 'h']
-            df['object_global_id'] = scene_name + '_' + df['object_id'].astype(str)  # object id is not unique over all scenes
+            df['object_global_id'] = \
+                scene_name + '_' + df['object_id'].astype(str)  # object id is not unique over all scenes
             df = df.drop(columns='object_id', axis=1)
             df = df.sort_values(by=['object_global_id', 'frame_id'])
             n_labels += df.shape[0]
@@ -278,7 +286,8 @@ class MOTDataset:
             object_groups = df.groupby('object_global_id')
             for object_global_id, df_grp in tqdm(object_groups, desc=f'Parsing {scene_name}', unit='pedestrian'):
                 df_grp = df_grp.drop(columns='object_global_id', axis=1).set_index('frame_id')
-                assert df_grp.index.max() - df_grp.index.min() + 1 == df_grp.index.shape[0], f'Object {object_global_id} has missing data points!'
+                assert df_grp.index.max() - df_grp.index.min() + 1 == df_grp.index.shape[0], \
+                    f'Object {object_global_id} has missing data points!'
 
                 for frame_id, row in df_grp.iterrows():
                     data[object_global_id].append({
@@ -292,7 +301,11 @@ class MOTDataset:
         return data, n_labels
 
     @staticmethod
-    def _create_trajectory_index(labels: Dict[str, list], history_len: int, future_len: int) -> List[Tuple[str, int, int]]:
+    def _create_trajectory_index(
+        labels: Dict[str, list],
+        history_len: int,
+        future_len: int
+    ) -> List[Tuple[str, int, int]]:
         """
         Creates trajectory index by going through every object and creating bbox trajectory of consecutive time points
 
@@ -402,9 +415,11 @@ class TorchMOTTrajectoryDataset(Dataset):
         ts_obs = torch.from_numpy(ts_obs)
         ts_unobs = torch.from_numpy(ts_unobs)
 
-        bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, metadata = self._transform([bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, metadata])
+        bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, metadata = \
+            self._transform([bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, metadata])
 
         return bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, metadata
+
 
 def run_test() -> None:
     from nodetracker.common.project import ASSETS_PATH

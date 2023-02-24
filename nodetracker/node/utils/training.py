@@ -76,7 +76,7 @@ class LightningModuleForecaster(LightningModuleBase):
 
     def training_step(self, batch: Tuple[torch.Tensor, ...], *args, **kwargs) -> torch.Tensor:
         bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, _ = batch
-        bboxes_unobs_hat = self.forward(bboxes_obs, ts_obs, ts_unobs)
+        bboxes_unobs_hat, *_ = self.forward(bboxes_obs, ts_obs, ts_unobs)
         loss = self._loss_func(bboxes_unobs_hat, bboxes_unobs)
 
         self._meter.push('training/loss', loss)
@@ -85,7 +85,7 @@ class LightningModuleForecaster(LightningModuleBase):
 
     def validation_step(self, batch: Tuple[torch.Tensor, ...], *args, **kwargs) -> torch.Tensor:
         bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, _ = batch
-        bboxes_unobs_hat = self.forward(bboxes_obs, ts_obs, ts_unobs)
+        bboxes_unobs_hat, *_ = self.forward(bboxes_obs, ts_obs, ts_unobs)
         loss = self._loss_func(bboxes_unobs_hat, bboxes_unobs)
 
         self._meter.push('val/loss', loss)

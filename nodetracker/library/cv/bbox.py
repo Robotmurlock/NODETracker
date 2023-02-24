@@ -116,7 +116,8 @@ class BBox:
         Returns:
             Numpy array in xyxy format
         """
-        return np.array([self.upper_left.x, self.upper_left.y, self.bottom_right.x, self.bottom_right.y], dtype=np.float32)
+        return np.array([self.upper_left.x, self.upper_left.y, self.bottom_right.x, self.bottom_right.y],
+                        dtype=np.float32)
 
     @property
     def yxyx(self) -> np.ndarray:
@@ -124,7 +125,8 @@ class BBox:
         Returns:
             Numpy array in yxyx format
         """
-        return np.array([self.upper_left.y, self.upper_left.x, self.bottom_right.y, self.bottom_right.x], dtype=np.float32)
+        return np.array([self.upper_left.y, self.upper_left.x, self.bottom_right.y, self.bottom_right.x],
+                        dtype=np.float32)
 
     def __eq__(self, other: 'BBox') -> bool:
         return self.upper_left == other.upper_left and self.bottom_right == other.bottom_right
@@ -151,7 +153,6 @@ class BBox:
             upper_left=Point(x=upper, y=left),
             bottom_right=Point(x=bottom, y=right)
         )
-
 
     def iou(self, other: 'BBox') -> float:
         """
@@ -335,8 +336,7 @@ class BBox:
         """
         h, w = image.shape[:2]
         return round(self.upper_left.y * w), round(self.upper_left.x * h), \
-               round(self.bottom_right.y * w), round(self.bottom_right.x * h)
-
+            round(self.bottom_right.y * w), round(self.bottom_right.x * h)
 
     def draw(self, image: np.ndarray, color: Tuple[int, int, int] = (0, 0, 255), thickness: int = 2) -> np.ndarray:
         """
@@ -352,7 +352,6 @@ class BBox:
         y1, x1, y2, x2 = self.scaled_yxyx_from_image(image)
         # noinspection PyUnresolvedReferences
         return cv2.rectangle(image, (y1, x1), (y2, x2), color, thickness)
-
 
 
 @dataclass

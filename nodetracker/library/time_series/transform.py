@@ -1,5 +1,5 @@
 """
-Set of time-series transformation functions
+Set of time-series transformation functions.
 """
 import torch
 

@@ -196,7 +196,7 @@ def create_ode_adjoint_func(solver: ODESolver) -> torch.autograd.Function:
                     #       = a(t) * func(z, i, theta)
                     # Note: we don't need theta in implementation since it is part of func (Module object)
                     # Implementation details: L is scalar, t is scalar, z is vector of dimension n
-                    # hence dLdz shape is (1, n) and dzdt shape is (1, n) and dLdt shape is (1, 1) - vector scalar product
+                    # hence dLdz shape is (1, n), dzdt shape is (1, n) and dLdt shape is (1, 1) - vector scalar product
                     dLdz_i = dLdz[i_t]
                     # bmm is batch matrix multiplication (in parallel)
                     dLdt_i = torch.bmm(torch.transpose(dLdz_i.unsqueeze(-1), 1, 2), dzdt_i.unsqueeze(-1))[:, 0]
@@ -218,7 +218,7 @@ def create_ode_adjoint_func(solver: ODESolver) -> torch.autograd.Function:
                     a_theta[:] += dzdt_aug[:, 2*n_dim:2*n_dim + n_params]
                     a_t[i_t-1] = dzdt_aug[:, 2*n_dim + n_params:]
 
-                ## Adjust 0 time adjoint with direct gradients
+                # Adjust 0 time adjoint with direct gradients
                 # Compute direct gradients
                 dzdt_0 = func(z[0], t[0])
                 dLdz_0 = dLdz[0]
@@ -263,7 +263,11 @@ class NeuralODE(nn.Module):
         return z[-1]
 
 
-def run_test_ode_with_solver(odef: ODEF, solver_name: Optional[str] = None, solver_params: Optional[dict] = None) -> None:
+def run_test_ode_with_solver(
+    odef: ODEF,
+    solver_name: Optional[str] = None,
+    solver_params: Optional[dict] = None
+) -> None:
     solver = ode_solver_factory(name=solver_name, params=solver_params)
     node = NeuralODE(func=odef, solver=solver)
     optim = torch.optim.Adam(params=node.parameters(), lr=0.1)
@@ -276,7 +280,8 @@ def run_test_ode_with_solver(odef: ODEF, solver_name: Optional[str] = None, solv
     out.sum().backward()  # Testing adjoint
     optim.step()
     print(f'[{solver_class_name}] Last state output shape:', out.shape)
-    print(f'[{solver_class_name}] Full state sequence output shape:', node(z0, ts, full_sequence=True).shape, end='\n\n')
+    print(f'[{solver_class_name}] Full state sequence output shape:',
+          node(z0, ts, full_sequence=True).shape, end='\n\n')
 
 
 def run_tests() -> None:

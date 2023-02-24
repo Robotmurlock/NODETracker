@@ -41,6 +41,7 @@ class ModelType(enum.Enum):
         """
         return self.value not in [ModelType.KALMAN_FILTER.value]
 
+
 def load_or_create_model(
     model_type: Union[ModelType, str],
     params: dict,
@@ -49,14 +50,15 @@ def load_or_create_model(
 ) -> Union[BBoxTrajectoryForecaster, LightningModule]:
     """
     Loads trained (if given checkpoint path) or creates new model given name and parameters.
-    If model is trainable (check ModelType) then it can use train config or it can be loaded from checkpoint. In case of trainable model and:
+    If model is trainable (check ModelType) then it can use train config. Otherwise, it can be loaded from checkpoint.
+    Parameters combinations:
     - checkpoint_path is None and train_params is None - not allowed
     - checkpoint_path is None and train_params is not None - model is used for training from scratch
     - checkpoint_path is not None and train_params is None - model is used for inference
     - checkpoint_path is None and train_params is None - model is used for training from checkpoint (continue training)
     Args:
         model_type: Model type
-        params: Model parameters
+        params: Model parameters'
         checkpoint_path: Load pretrained model
         train_params: Parameters for model training
     Returns:

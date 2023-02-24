@@ -1,5 +1,5 @@
 """
-Data transformations
+Implementations of data transformations.
 """
 from abc import ABC, abstractmethod
 from typing import Collection, Union
@@ -46,12 +46,14 @@ class Transform(ABC):
     def __call__(self, data: TensorCollection, shallow: bool = True) -> TensorCollection:
         return self.apply(data)
 
+
 class InvertibleTransform(Transform, ABC):
     """
     Transform that also implements `inverse` method.
     """
     def __init__(self, name: str):
         super().__init__(name=name)
+
     @abstractmethod
     def inverse(self, data: TensorCollection, shallow: bool = True) -> TensorCollection:
         """
@@ -73,7 +75,9 @@ class IdentityTransform(InvertibleTransform):
     """
     def __init__(self):
         super().__init__(name='identity')
+
     def apply(self, data: TensorCollection, shallow: bool = True) -> TensorCollection:
         return data
+
     def inverse(self, data: TensorCollection, shallow: bool = True) -> TensorCollection:
         return data

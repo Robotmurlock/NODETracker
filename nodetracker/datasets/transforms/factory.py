@@ -1,5 +1,5 @@
 """
-Transform factory method
+Transform factory method.
 """
 from nodetracker.datasets.transforms import (
     InvertibleTransform,

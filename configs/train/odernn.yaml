@@ -1,5 +1,5 @@
-experiment: 'ODERNN-iter02-exp04-10h-1f-more-params'
-description: 'ODERNN - like exp03 but with 32 hidden dim params'
+experiment: 'ODERNN-test'
+description: 'ODERNN-test'
 batch_size: 32
 learning_rate: 1e-3
 max_epochs: 10
@@ -8,7 +8,7 @@ train_params:
   learning_rate: 1e-3
   sched_lr_gamma: 0.1
   sched_lr_step: 3
-  weight_decay: 0.0
+  weight_decay: 0.01
 
 resume_from_checkpoint: null
 

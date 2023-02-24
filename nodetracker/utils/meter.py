@@ -43,14 +43,16 @@ class MetricMeter:
             Metric score
         """
         if name not in self._history:
-            raise UnknownMetricException(f'Metric name "{name}" not found. Known metrics: {list(self._history.keys())}.')
+            raise UnknownMetricException(f'Metric name "{name}" not found. '
+                                         f'Known metrics: {list(self._history.keys())}.')
 
         values = self._history[name]
         return sum(values) / len(values)
 
     def get_all(self, flush: bool = True) -> Iterable[Tuple[str, Union[torch.Tensor, float]]]:
         """
-        Calculates averages over all pushed metric values for every pushed metrics. Optionally deletes all data if flush is activated (default).
+        Calculates averages over all pushed metric values for every pushed metrics.
+        Optionally deletes all data if flush is activated (default).
 
         Args:
             flush: Performs flush at the end

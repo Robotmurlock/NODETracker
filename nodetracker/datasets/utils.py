@@ -10,7 +10,7 @@ from torch.utils.data import default_collate
 def ode_dataloader_collate_func(items: List[torch.Tensor]) \
         -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, dict]:
     """
-    ODE collate func: Standard way to batch sequences of dimension (T, *shape)
+    ODE's collate func: Standard way to batch sequences of dimension (T, *shape)
     where T is time dimension and shape is feature dimension is to create batch
     of size (B, T, *shape) but for NODE it makes more sense to do it as (T, B, *shape)
     which requires custom collate_func
@@ -41,4 +41,3 @@ def preprocess_batch(batch: tuple) -> tuple:
     ts_all = torch.cat([ts_obs, ts_unobs], dim=0)
     bboxes_all = torch.cat([bboxes_obs, bboxes_unobs], dim=0)
     return bboxes_obs, bboxes_unobs, bboxes_all, ts_obs, ts_unobs, ts_all, metadata
-

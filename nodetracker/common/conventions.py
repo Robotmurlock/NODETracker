@@ -101,7 +101,14 @@ def get_config_path(experiment_path: str, config_name: str) -> str:
     """
     return os.path.join(get_config_dirpath(experiment_path), config_name)
 
-def get_inference_fullname(model_type: str, dataset_name: str, split: str, experiment_name: str, inference_name: str) -> str:
+
+def get_inference_fullname(
+    model_type: str,
+    dataset_name: str,
+    split: str,
+    experiment_name: str,
+    inference_name: str
+) -> str:
     """
     Gets inference name by convention.
 
@@ -121,7 +128,15 @@ def get_inference_fullname(model_type: str, dataset_name: str, split: str, exper
 
     return f'{model_type}_{dataset_name}_{split}_{experiment_name}_{inference_name}'
 
-def get_inference_path(experiment_path: str, model_type: str, dataset_name: str, split: str, experiment_name: str, inference_name: str) -> str:
+
+def get_inference_path(
+    experiment_path: str,
+    model_type: str,
+    dataset_name: str,
+    split: str,
+    experiment_name: str,
+    inference_name: str
+) -> str:
     """
     Gets inference name convention.
 
@@ -180,6 +195,7 @@ def get_inference_video_path(inference_dirpath: str, scene_name: str, frame_rang
     """
     video_name = f'{scene_name}_{frame_range}.mp4'
     return os.path.join(inference_dirpath, INFERENCE_VISUALIZATIONS_DIRNAME, video_name)
+
 
 def get_analysis_filepath(master_path: str, filename: str) -> str:
     """

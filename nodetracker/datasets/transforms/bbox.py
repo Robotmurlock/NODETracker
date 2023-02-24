@@ -21,7 +21,8 @@ class BboxFirstOrderDifferenceTransform(InvertibleTransform):
 
     def apply(self, data: TensorCollection, shallow: bool = True) -> TensorCollection:
         bbox_obs, bbox_unobs, ts_obs, *other = data
-        assert bbox_obs.shape[0] >= 0, f'{self.__name__} requires at least 2 observable points. Found {bbox_obs.shape[0]}'
+        assert bbox_obs.shape[0] >= 0, f'{self.__name__} requires at least 2 observable points. ' \
+                                       f'Found {bbox_obs.shape[0]}'
         if not shallow:
             bbox_obs = bbox_obs.clone()
             bbox_unobs = bbox_unobs.clone() if bbox_unobs is not None else None
@@ -72,6 +73,7 @@ class BBoxStandardizationTransform(InvertibleTransform):
         bbox_unobs = bbox_unobs * self._std + self._mean
 
         return [bbox_obs, bbox_unobs, *other]
+
 
 class BBoxStandardizedFirstOrderDifferenceTransform(InvertibleTransform):
     """

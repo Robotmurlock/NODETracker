@@ -12,6 +12,7 @@ from nodetracker.config_parser import GlobalConfig
 
 logger = logging.getLogger('PipelineUtils')
 
+
 def preprocess(cfg: DictConfig, name: str) -> Tuple[GlobalConfig, str]:
     """
     Pipeline preprocess:

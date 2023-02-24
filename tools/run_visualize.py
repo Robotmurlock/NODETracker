@@ -1,5 +1,5 @@
 """
-Training script
+Visualize script
 """
 import logging
 import os
@@ -25,8 +25,14 @@ def main(cfg: DictConfig):
     cfg, experiment_path = pipeline.preprocess(cfg, name='visualize')
     assert cfg.visualize is not None, 'Visualize config are not defined!'
 
-    inference_dirpath = conventions.get_inference_path(experiment_path, cfg.model.type, cfg.dataset.name, cfg.eval.split, cfg.eval.experiment,
-                                                       cfg.eval.inference_name)
+    inference_dirpath = conventions.get_inference_path(
+        experiment_path=experiment_path,
+        model_type=cfg.model.type,
+        dataset_name=cfg.dataset.name,
+        split=cfg.eval.split,
+        experiment_name=cfg.eval.experiment,
+        inference_name=cfg.eval.inference_name
+    )
     predictions_path = os.path.join(inference_dirpath, 'inference.csv')
 
     dataset_path = os.path.join(cfg.path.assets, cfg.dataset.get_split_path(cfg.eval.split))

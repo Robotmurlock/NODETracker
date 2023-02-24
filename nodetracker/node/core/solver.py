@@ -181,6 +181,7 @@ def ode_solver_factory(name: Optional[str] = None, params: Optional[dict] = None
 
     return catalog[name](**params)
 
+
 def run_test(ode_solver: ODESolver, name: str):
     def cosine_dynamics(x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
         """
@@ -195,7 +196,6 @@ def run_test(ode_solver: ODESolver, name: str):
         """
         _ = x  # void(x)
         return torch.cos(t)
-
 
     ts = torch.linspace(1, 10, 100)
     t0, t1 = torch.tensor(1.0), torch.tensor(10.0)

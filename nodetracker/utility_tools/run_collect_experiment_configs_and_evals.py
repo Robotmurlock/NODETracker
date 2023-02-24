@@ -15,6 +15,7 @@ from nodetracker.utils.logging import configure_logging
 
 logger = logging.getLogger('CollectExperimentData')
 
+
 def main(args: argparse.Namespace) -> None:
     input_path = args.input_path
     output_path = args.output_path
@@ -52,7 +53,8 @@ def parse_configs() -> argparse.Namespace:
     """
     parser = argparse.ArgumentParser(description='Script Arguments Parser')
     parser.add_argument('--input-path', type=str, required=True, help='Path to dataset outputs.')
-    parser.add_argument('--output-path', type=str, required=False, default='collected_experiments', help='Path to script output')
+    parser.add_argument('--output-path', type=str, required=False, default='collected_experiments',
+                        help='Path to script output')
     return parser.parse_args()
 
 

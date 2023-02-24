@@ -107,7 +107,7 @@ class TrainCheckpointConfig:
     """
     Model checkpoint saving config.
     - metric_monitor: Chooses the best checkpoint based on metric name
-    - resume_from: Start from chosen checkpoint (finetuning)
+    - resume_from: Start from chosen checkpoint (fine-tuning)
     """
     metric_monitor: str
     resume_from: Optional[str]
@@ -136,6 +136,7 @@ class TrainConfig:
     checkpoint_cfg: TrainCheckpointConfig
 
     train_params: Optional[dict] = field(default_factory=dict)  # default: empty dict
+
 
 @dataclass
 class EvalConfig:

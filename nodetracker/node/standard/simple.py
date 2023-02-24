@@ -35,6 +35,7 @@ class RNNEncoder(nn.Module):
         z = self._hidden2latent(h)
         return z
 
+
 class RNNDecoder(nn.Module):
     """
     Simple RNN decoder

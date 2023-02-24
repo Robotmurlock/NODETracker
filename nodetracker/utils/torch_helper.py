@@ -3,6 +3,7 @@ PyTorch's extension with simple functions
 """
 from torch.optim import Optimizer
 
+
 def get_optim_lr(optimizer: Optimizer) -> float:
     """
     Gets current optimizer learning rate

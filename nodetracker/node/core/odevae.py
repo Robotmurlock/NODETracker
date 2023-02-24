@@ -118,10 +118,16 @@ class ODEVAE(nn.Module):
         super().__init__()
 
         self._encoder = RNNEncoder(observable_dim, hidden_dim, latent_dim)
-        self._decoder = NODEDecoder(latent_dim, hidden_dim, observable_dim, solver_name=solver_name, solver_params=solver_params)
+        self._decoder = NODEDecoder(latent_dim, hidden_dim, observable_dim,
+                                    solver_name=solver_name, solver_params=solver_params)
 
-    def forward(self, x: torch.Tensor, t_obs: torch.Tensor, t_unobs: Optional[torch.Tensor] = None, generate: bool = False) \
-            -> Tuple[torch.Tensor, ...]:
+    def forward(
+        self,
+        x: torch.Tensor,
+        t_obs: torch.Tensor,
+        t_unobs: Optional[torch.Tensor] = None,
+        generate: bool = False
+    ) -> Tuple[torch.Tensor, ...]:
         n_obs = t_obs.shape[0]
         t_all = torch.cat([t_obs, t_unobs], dim=0) if t_unobs is not None else t_obs
 
@@ -169,11 +175,17 @@ class LightningODEVAE(LightningModuleBase):
         train_config: Optional[LightningTrainConfig] = None
     ):
         super().__init__(train_config=train_config)
-        self._model = ODEVAE(observable_dim, hidden_dim, latent_dim, solver_name=solver_name, solver_params=solver_params)
+        self._model = ODEVAE(observable_dim, hidden_dim, latent_dim,
+                             solver_name=solver_name, solver_params=solver_params)
         self._loss_func = ELBO(noise_std)
 
-    def forward(self, x: torch.Tensor, t_obs: torch.Tensor, t_unobs: Optional[torch.Tensor] = None, generate: bool = False) \
-            -> Tuple[torch.Tensor, ...]:
+    def forward(
+        self,
+        x: torch.Tensor,
+        t_obs: torch.Tensor,
+        t_unobs: Optional[torch.Tensor] = None,
+        generate: bool = False
+    ) -> Tuple[torch.Tensor, ...]:
         return self._model(x, t_obs, t_unobs, generate)
 
     def training_step(self, batch: Tuple[torch.Tensor, ...], *args, **kwargs) -> torch.Tensor:
@@ -192,8 +204,10 @@ class LightningODEVAE(LightningModuleBase):
         bboxes_obs, bboxes_unobs, bboxes_all, ts_obs, ts_unobs, _, _ = preprocess_batch(batch)
 
         bboxes_unobs_hat, bboxes_all_hat, z0_mean, z0_log_var = self.forward(bboxes_obs, ts_obs, ts_unobs)
-        all_loss, all_kl_div_loss, all_likelihood_loss = self._loss_func(bboxes_all_hat, bboxes_all, z0_mean, z0_log_var)
-        unobs_loss, unobs_kl_div_loss, unobs_likelihood_loss = self._loss_func(bboxes_unobs_hat, bboxes_unobs, z0_mean, z0_log_var)
+        all_loss, all_kl_div_loss, all_likelihood_loss = \
+            self._loss_func(bboxes_all_hat, bboxes_all, z0_mean, z0_log_var)
+        unobs_loss, unobs_kl_div_loss, unobs_likelihood_loss = \
+            self._loss_func(bboxes_unobs_hat, bboxes_unobs, z0_mean, z0_log_var)
 
         self._meter.push('val/loss', all_loss)
         self._meter.push('val/kl_div_loss', all_kl_div_loss)
@@ -204,7 +218,6 @@ class LightningODEVAE(LightningModuleBase):
         self._meter.push('val-forecast/likelihood_loss', unobs_likelihood_loss)
 
         return all_loss
-
 
 
 def run_test():

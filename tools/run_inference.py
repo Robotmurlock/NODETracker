@@ -65,15 +65,17 @@ def run_inference(
     batch_cnt = 0
     first_chunk = True
 
-    for bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, metadata in tqdm(data_loader, unit='sample', desc='Running inference'):
+    for bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, metadata in tqdm(data_loader, unit='sample',
+                                                                     desc='Running inference'):
         # `t` prefix means that tensor is mapped to transformed space
-        t_bboxes_obs, _, t_ts_obs, t_ts_unobs = transform.apply([bboxes_obs, bboxes_unobs, ts_obs, ts_unobs], shallow=False) # preprocess
+        t_bboxes_obs, _, t_ts_obs, t_ts_unobs = transform.apply([bboxes_obs, bboxes_unobs, ts_obs, ts_unobs],
+                                                                shallow=False)  # preprocess
         t_bboxes_obs, t_ts_obs, t_ts_unobs = [v.to(accelerator) for v in [t_bboxes_obs, t_ts_obs, t_ts_unobs]]
-        output = model(t_bboxes_obs, t_ts_obs, t_ts_unobs) # inference
+        output = model(t_bboxes_obs, t_ts_obs, t_ts_unobs)  # inference
         # In case of multiple suffix values output (tuple) ignore everything except first output
         t_bboxes_unobs_hat = output[0] if isinstance(output, tuple) else output
         t_bboxes_unobs_hat = t_bboxes_unobs_hat.detach().cpu()
-        _, bboxes_unobs_hat, *_ = transform.inverse([bboxes_obs, t_bboxes_unobs_hat]) # postprocess
+        _, bboxes_unobs_hat, *_ = transform.inverse([bboxes_obs, t_bboxes_unobs_hat])  # postprocess
 
         curr_obs_time_len = bboxes_obs.shape[0]
         curr_unobs_time_len, curr_batch_size = bboxes_unobs.shape[:2]

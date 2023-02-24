@@ -40,7 +40,7 @@ def plot_trajectories(
     Args:
         indices: Indices (time points)
         traj_means: Trajectory means
-        traj_stds: Trajectory stds (required for confidence interval
+        traj_stds: Trajectory stds (required for confidence interval)
         coord_names: Coordinate names
         ylim: Plot coord range
 
@@ -61,7 +61,7 @@ def plot_trajectories(
 
         ax.plot(indices, traj_means[:, i], color='red')
         ax.fill_between(indices, traj_conf_interval_lower_bound[:, i],
-                            traj_conf_interval_upper_bound[:, i], color='red', alpha=0.1)
+                        traj_conf_interval_upper_bound[:, i], color='red', alpha=0.1)
         ax.scatter(indices, traj_means[:, i], color='red', s=16)
         ax.set_xlabel('t')
         ax.set_ylabel(coord_name)
@@ -113,13 +113,14 @@ def run_visualize_trajectory_analysis(
         ts_unobs = ts_unobs[:, :bboxes_unobs.shape[1], :]  # Cut ts_unobs for last batch
 
         # `t` prefix means that tensor is mapped to transformed space
-        t_bboxes_obs, _, t_ts_obs, t_ts_unobs = transform.apply([bboxes_obs, bboxes_unobs, ts_obs, ts_unobs], shallow=False) # preprocess
+        t_bboxes_obs, _, t_ts_obs, t_ts_unobs = transform.apply([bboxes_obs, bboxes_unobs, ts_obs, ts_unobs],
+                                                                shallow=False)  # preprocess
         t_bboxes_obs, t_ts_obs, t_ts_unobs = [v.to(accelerator) for v in [t_bboxes_obs, t_ts_obs, t_ts_unobs]]
-        t_bboxes_unobs_hat, latent_representation = model(t_bboxes_obs, t_ts_obs, t_ts_unobs) # inference
+        t_bboxes_unobs_hat, latent_representation = model(t_bboxes_obs, t_ts_obs, t_ts_unobs)  # inference
         # In case of multiple suffix values output (tuple) ignore everything except first output
         t_bboxes_unobs_hat = t_bboxes_unobs_hat.detach().cpu()
         latent_representation = latent_representation.detach().cpu()
-        _, bboxes_unobs_hat, *_ = transform.inverse([bboxes_obs, t_bboxes_unobs_hat]) # postprocess
+        _, bboxes_unobs_hat, *_ = transform.inverse([bboxes_obs, t_bboxes_unobs_hat])  # postprocess
 
         bboxes_unobs_hat = bboxes_unobs_hat.numpy()
         latent_representation = latent_representation.numpy()
