@@ -34,24 +34,28 @@ def main(cfg: DictConfig):
         postprocess=transforms.BboxFirstOrderDifferenceTransform()
     )
 
-    sum_x = 0
-    sum_x2 = 0
+    sum_bbox = torch.zeros(4, dtype=torch.float32)  # Used to calculate mean and std
+    sum_bbox2 = torch.zeros(4, dtype=torch.float32)  # Used to calculate std
     n_total = 0
     for bboxes_obs, bboxes_unobs, _, _, _ in tqdm(dataset, unit='sample', desc='Calculating diff statistics'):
         for data in [bboxes_obs, bboxes_unobs]:
-            sum_x += data.sum().item()
-            sum_x2 += torch.pow(data, 2).sum().item()
-            n_total += data.view(-1).shape[0]
+            sum_bbox += data.sum(dim=0)
+            sum_bbox2 += torch.pow(data, 2).sum(dim=0)
+            n_total += data.shape[0]
 
-    mean_x = sum_x / n_total
-    mean_x2 = sum_x2 / n_total
-    std_x = (mean_x2 - mean_x ** 2) ** 0.5
+    # Calculate statistics
+    mean_bbox = sum_bbox / n_total
+    mean_bbox2 = sum_bbox2 / n_total
+    std_bbox = (mean_bbox2 - mean_bbox ** 2) ** 0.5
 
-    logger.info(f'Mean={mean_x}, Std={std_x}')
+    # Convert all to lists
+    mean_bbox, mean_bbox2, std_bbox = [v.numpy().tolist() for v in [mean_bbox, mean_bbox2, std_bbox]]
+
+    logger.info(f'Mean={mean_bbox}, Std={std_bbox}')
 
     stats_data = {
-        'mean': mean_x,
-        'std': std_x
+        'mean': mean_bbox,
+        'std': std_bbox
     }
     output_path = conventions.get_analysis_filepath(cfg.path.master, 'first_order_difference_stats.json')
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)

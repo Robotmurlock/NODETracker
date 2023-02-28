@@ -6,6 +6,7 @@ BBox transformations. Contains
 """
 
 import torch
+from typing import Union, List
 
 from nodetracker.datasets.transforms.base import InvertibleTransform, TensorCollection
 
@@ -52,10 +53,21 @@ class BBoxStandardizationTransform(InvertibleTransform):
     Applies standardization transformation:
     Y[i] = (X[i] - mean(X)) / std(X)
     """
-    def __init__(self, mean: float, std: float):
+    def __init__(self, mean: Union[float, List[float]], std: Union[float, List[float]]):
         super().__init__(name='standardization')
         self._mean = mean
         self._std = std
+
+        if isinstance(self._mean, float):
+            # Convert to list
+            self._mean = [self._mean] * 4
+
+        if isinstance(self._std, float):
+            # Convert to list
+            self._std = [self._std] * 4
+
+        self._mean = torch.tensor(self._mean, dtype=torch.float32)
+        self._std = torch.tensor(self._std, dtype=torch.float32)
 
     def apply(self, data: TensorCollection, shallow: bool = True) -> TensorCollection:
         bbox_obs, bbox_unobs, *other = data

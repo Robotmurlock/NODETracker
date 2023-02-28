@@ -1,4 +1,4 @@
-experiment: 'ODERNNVAE-iter02-exp02-10h-1f'
+experiment: 'ODERNNVAE-iter03-exp02-10h-1f-proper-standardization'
 split: 'val'
 batch_size: 32
 num_workers: 8
