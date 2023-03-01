@@ -19,7 +19,7 @@ from nodetracker.common import conventions
 from nodetracker.common.project import CONFIGS_PATH
 from nodetracker.datasets import TorchMOTTrajectoryDataset, transforms
 from nodetracker.datasets.utils import ode_dataloader_collate_func
-from nodetracker.node import LightningODERNN
+from nodetracker.node import LightningODERNN, LightningODERNNVAE
 from nodetracker.node import load_or_create_model
 from nodetracker.node.utils.autoregressive import AutoregressiveForecasterDecorator
 from nodetracker.utils import pipeline
@@ -116,7 +116,7 @@ def run_visualize_trajectory_analysis(
         t_bboxes_obs, _, t_ts_obs, t_ts_unobs = transform.apply([bboxes_obs, bboxes_unobs, ts_obs, ts_unobs],
                                                                 shallow=False)  # preprocess
         t_bboxes_obs, t_ts_obs, t_ts_unobs = [v.to(accelerator) for v in [t_bboxes_obs, t_ts_obs, t_ts_unobs]]
-        t_bboxes_unobs_hat, latent_representation = model(t_bboxes_obs, t_ts_obs, t_ts_unobs)  # inference
+        t_bboxes_unobs_hat, latent_representation, *_ = model(t_bboxes_obs, t_ts_obs, t_ts_unobs)  # inference
         # In case of multiple suffix values output (tuple) ignore everything except first output
         t_bboxes_unobs_hat = t_bboxes_unobs_hat.detach().cpu()
         latent_representation = latent_representation.detach().cpu()
@@ -186,7 +186,8 @@ def main(cfg: DictConfig):
         params=cfg.model.params,
         checkpoint_path=checkpoint_path
     )
-    assert isinstance(model, LightningODERNN), 'Visualization currently only supported for ODERNN!'
+    assert isinstance(model, LightningODERNN) or isinstance(model, LightningODERNNVAE), \
+        'Visualization currently only supported for ODERNN and ODERNNVAE!'
 
     model = AutoregressiveForecasterDecorator(model, keep_history=cfg.eval.autoregressive_keep_history) \
         if cfg.eval.autoregressive else model
