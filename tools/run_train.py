@@ -9,15 +9,13 @@ from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.loggers import TensorBoardLogger
-from torch.utils.data import DataLoader
 
 from nodetracker.common import conventions
 from nodetracker.common.project import CONFIGS_PATH
 from nodetracker.datasets import transforms
-from nodetracker.datasets.mot.core import TorchMOTTrajectoryDataset
-from nodetracker.datasets.utils import ode_dataloader_collate_func
 from nodetracker.node import load_or_create_model, ModelType
 from nodetracker.utils import pipeline
+from tools.utils import create_mot20_dataloader
 
 logger = logging.getLogger('TrainScript')
 
@@ -26,37 +24,26 @@ logger = logging.getLogger('TrainScript')
 def main(cfg: DictConfig):
     cfg, experiment_path = pipeline.preprocess(cfg, name='train')
 
+    postprocess_transform = transforms.transform_factory(cfg.transform.name, cfg.transform.params)
+
+    # Load train dataset
     dataset_train_path = os.path.join(cfg.path.assets, cfg.dataset.train_path)
     logger.info(f'Dataset train path: "{dataset_train_path}".')
-
-    postprocess_transform = transforms.transform_factory(cfg.transform.name, cfg.transform.params)
-    train_dataset = TorchMOTTrajectoryDataset(
-        path=dataset_train_path,
-        history_len=cfg.dataset.history_len,
-        future_len=cfg.dataset.future_len,
-        postprocess=postprocess_transform
-    )
-    train_loader = DataLoader(
-        dataset=train_dataset,
-        collate_fn=ode_dataloader_collate_func,
-        batch_size=cfg.train.batch_size,
-        num_workers=cfg.resources.num_workers,
+    train_loader = create_mot20_dataloader(
+        dataset_path=dataset_train_path,
+        cfg=cfg,
+        postprocess_transform=postprocess_transform,
         shuffle=True
     )
 
+    # Load val dataset
     dataset_val_path = os.path.join(cfg.path.assets, cfg.dataset.val_path)
     logger.info(f'Dataset val path: "{dataset_val_path}".')
-    val_dataset = TorchMOTTrajectoryDataset(
-        path=dataset_val_path,
-        history_len=cfg.dataset.history_len,
-        future_len=cfg.dataset.future_len,
-        postprocess=postprocess_transform
-    )
-    val_loader = DataLoader(
-        dataset=val_dataset,
-        collate_fn=ode_dataloader_collate_func,
-        batch_size=cfg.train.batch_size,
-        num_workers=cfg.resources.num_workers
+    val_loader = create_mot20_dataloader(
+        dataset_path=dataset_val_path,
+        cfg=cfg,
+        postprocess_transform=postprocess_transform,
+        shuffle=False
     )
 
     model_type = ModelType.from_str(cfg.model.type)

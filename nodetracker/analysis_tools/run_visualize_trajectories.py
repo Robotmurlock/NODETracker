@@ -1,5 +1,5 @@
 """
-Inference script
+Script for latent and prediction trajectory analysis.
 """
 import logging
 import math
@@ -17,12 +17,12 @@ from tqdm import tqdm
 
 from nodetracker.common import conventions
 from nodetracker.common.project import CONFIGS_PATH
-from nodetracker.datasets import TorchMOTTrajectoryDataset, transforms
-from nodetracker.datasets.utils import ode_dataloader_collate_func
+from nodetracker.datasets import transforms
 from nodetracker.node import LightningODERNN, LightningODERNNVAE
 from nodetracker.node import load_or_create_model
 from nodetracker.node.utils.autoregressive import AutoregressiveForecasterDecorator
 from nodetracker.utils import pipeline
+from tools.utils import create_mot20_dataloader
 
 logger = logging.getLogger('VisualizeTrajectories')
 
@@ -156,27 +156,20 @@ def run_visualize_trajectory_analysis(
     fig.savefig(f'{output_path}_latent_representation.png')
 
 
-# noinspection DuplicatedCode
 @hydra.main(config_path=CONFIGS_PATH, config_name='default', version_base='1.1')
 def main(cfg: DictConfig):
     cfg, experiment_path = pipeline.preprocess(cfg, name='visualize_trajectories')
 
+    postprocess_transform = transforms.transform_factory(cfg.transform.name, cfg.transform.params)
+
+    # Load dataset for visualization
     dataset_path = os.path.join(cfg.path.assets, cfg.dataset.get_split_path(cfg.eval.split))
     logger.info(f'Dataset {cfg.eval.split} path: "{dataset_path}".')
-
-    postprocess_transform = transforms.transform_factory(cfg.transform.name, cfg.transform.params)
-    dataset = TorchMOTTrajectoryDataset(
-        path=dataset_path,
-        history_len=cfg.dataset.history_len,
-        future_len=cfg.dataset.future_len
-    )
-
-    data_loader = DataLoader(
-        dataset=dataset,
-        collate_fn=ode_dataloader_collate_func,
-        batch_size=cfg.eval.batch_size,
-        num_workers=cfg.resources.num_workers,
-        shuffle=True
+    data_loader = create_mot20_dataloader(
+        dataset_path=dataset_path,
+        cfg=cfg,
+        postprocess_transform=postprocess_transform,
+        shuffle=False
     )
 
     checkpoint_path = conventions.get_checkpoint_path(experiment_path, cfg.eval.checkpoint) \

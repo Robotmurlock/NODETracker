@@ -2,7 +2,7 @@
 ODE-RNN-VAE implementation
 https://arxiv.org/pdf/1907.03907.pdf
 """
-from typing import Tuple, Optional
+from typing import Tuple, Optional, List
 
 import torch
 from torch import nn
@@ -99,7 +99,7 @@ class ODERNNVAE(nn.Module):
         super().__init__()
 
         self._encoder = ODERNNVAEEncoder(
-            observable_dim=observable_dim+1, # time is additional obs dimension
+            observable_dim=observable_dim+1,  # time is additional obs dimension
             hidden_dim=hidden_dim,
             latent_dim=latent_dim,
             solver_name=solver_name,
@@ -113,11 +113,27 @@ class ODERNNVAE(nn.Module):
             solver_params=solver_params
         )
 
-    def forward(self, x: torch.Tensor, t_obs: torch.Tensor, t_unobs: Optional[torch.Tensor] = None, generate: bool = False) \
-            -> Tuple[torch.Tensor, ...]:
+    def forward(self, x: torch.Tensor, t_obs: torch.Tensor, t_unobs: Optional[torch.Tensor] = None,
+                generate: bool = False, n_samples: int = 1) -> Tuple[torch.Tensor, ...]:
         xt = torch.cat([x, t_obs], dim=-1)
         z0_mean, z0_log_var = self._encoder(xt)
-        z0 = z0_mean if not generate else z0_mean + torch.randn_like(z0_mean) * torch.exp(0.5 * z0_log_var)
+
+        z0 = z0_mean  # shape: (batch_size, latent_dim)
+        if generate:
+            # Generation:
+            # std = sqrt(var)
+            # var = exp(log_var)
+            # => std = sqrt(exp(log_var)) = exp(log_var/2) = exp(0.5 * log_var)
+            # noise := r * std, where r is from N(0, 1) - normal distribution
+
+            z0_samples: List[torch.Tensor] = []
+            for _ in range(n_samples):
+                noise = torch.randn_like(z0_mean) * torch.exp(0.5 * z0_log_var)
+                z0_samples.append(z0 + noise)
+
+            z0 = torch.cat(z0_samples, dim=0)  # shape: (n_samples*batch_size, latent_dim)
+            t_unobs = t_unobs.repeat(1, n_samples, 1)
+
         x_hat, z_hat = self._decoder(z0, t_unobs)
         return x_hat, z_hat, z0_mean, z0_log_var
 
@@ -140,11 +156,12 @@ class LightningODERNNVAE(LightningModuleBase):
         train_config: Optional[LightningTrainConfig] = None
     ):
         super().__init__(train_config=train_config)
-        self._model = ODERNNVAE(observable_dim, hidden_dim, latent_dim, solver_name=solver_name, solver_params=solver_params)
+        self._model = ODERNNVAE(observable_dim, hidden_dim, latent_dim,
+                                solver_name=solver_name, solver_params=solver_params)
         self._loss_func = ELBO(noise_std)
 
-    def forward(self, x: torch.Tensor, t_obs: torch.Tensor, t_unobs: Optional[torch.Tensor] = None, generate: bool = False) \
-            -> Tuple[torch.Tensor, ...]:
+    def forward(self, x: torch.Tensor, t_obs: torch.Tensor, t_unobs: Optional[torch.Tensor] = None,
+                generate: bool = False) -> Tuple[torch.Tensor, ...]:
         return self._model(x, t_obs, t_unobs, generate)
 
     def training_step(self, batch: Tuple[torch.Tensor, ...], *args, **kwargs) -> torch.Tensor:
@@ -160,7 +177,7 @@ class LightningODERNNVAE(LightningModuleBase):
 
     def validation_step(self, batch: Tuple[torch.Tensor, ...], *args, **kwargs) -> torch.Tensor:
         bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, _ = batch
-        bboxes_obs_hat, _, z0_mean, z0_log_var, _ = self.forward(bboxes_obs, ts_obs, ts_obs)
+        bboxes_obs_hat, _, z0_mean, z0_log_var = self.forward(bboxes_obs, ts_obs, ts_obs)
         loss, kl_div_loss, likelihood_loss = self._loss_func(bboxes_obs_hat, bboxes_obs, z0_mean, z0_log_var)
 
         self._meter.push('val/loss', loss)
@@ -192,6 +209,17 @@ def run_test():
     expected_shapes = [(2, 3, 7), (2, 3, 3), (3, 3), (3, 3)]
 
     output = odernnvae(xs, ts_obs, ts_unobs)
+    shapes = [v.shape for v in output]
+    assert shapes == expected_shapes, f'Expected shapes {expected_shapes} but found {shapes}!'
+
+    odernnvae = ODERNNVAE(
+        observable_dim=7,
+        hidden_dim=5,
+        latent_dim=3
+    )
+    expected_shapes = [(2, 6, 7), (2, 6, 3), (3, 3), (3, 3)]
+
+    output = odernnvae(xs, ts_obs, ts_unobs, generate=True, n_samples=2)
     shapes = [v.shape for v in output]
     assert shapes == expected_shapes, f'Expected shapes {expected_shapes} but found {shapes}!'
 
