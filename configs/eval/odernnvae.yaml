@@ -1,7 +1,7 @@
-experiment: 'ODERNNVAE-iter03-exp03-10h-1f-stronger-weight-decay'
+experiment: 'ODERNNVAE-iter03-exp04-10h-more-params'
 split: 'val'
-batch_size: 32
-num_workers: 8
+batch_size: 10240
+num_workers: 20
 
 inference_name: 'initial'
 checkpoint: 'last.ckpt'

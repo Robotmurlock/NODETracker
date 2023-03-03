@@ -1,5 +1,5 @@
 """
-ODE-RNN-VAE implementation
+Custom ODE-RNN-VAE implementation
 https://arxiv.org/pdf/1907.03907.pdf
 """
 from typing import Tuple, Optional, List
@@ -85,18 +85,29 @@ class ODERNNVAEEncoder(nn.Module):
 
 class ODERNNVAE(nn.Module):
     """
-    ODE-RNN-VAE
+    ODE-RNN-VAE implementation
     """
     def __init__(
         self,
         observable_dim: int,
         hidden_dim: int,
         latent_dim: int,
+        stochastic: bool = True,
 
         solver_name: Optional[str] = None,
         solver_params: Optional[dict] = None
     ):
+        """
+        Args:
+            observable_dim: Trajectory point dimension
+            hidden_dim: Hidden dimension
+            latent_dim: Latent dimension
+            stochastic: Use re-parameterization trick (default: True)
+            solver_name: ODE solver name
+            solver_params: ODE solver params
+        """
         super().__init__()
+        self._stochastic = stochastic
 
         self._encoder = ODERNNVAEEncoder(
             observable_dim=observable_dim+1,  # time is additional obs dimension
@@ -113,13 +124,19 @@ class ODERNNVAE(nn.Module):
             solver_params=solver_params
         )
 
-    def forward(self, x: torch.Tensor, t_obs: torch.Tensor, t_unobs: Optional[torch.Tensor] = None,
-                generate: bool = False, n_samples: int = 1) -> Tuple[torch.Tensor, ...]:
+    def forward(
+        self,
+        x: torch.Tensor,
+        t_obs: torch.Tensor,
+        t_unobs: Optional[torch.Tensor] = None,
+        n_samples: int = 1
+    ) -> Tuple[torch.Tensor, ...]:
         xt = torch.cat([x, t_obs], dim=-1)
         z0_mean, z0_log_var = self._encoder(xt)
 
         z0 = z0_mean  # shape: (batch_size, latent_dim)
-        if generate:
+        if self._stochastic:
+            assert n_samples >= 1, f'Number of samples must be at least 1! Got {n_samples}.'
             # Generation:
             # std = sqrt(var)
             # var = exp(log_var)
@@ -137,6 +154,32 @@ class ODERNNVAE(nn.Module):
         x_hat, z_hat = self._decoder(z0, t_unobs)
         return x_hat, z_hat, z0_mean, z0_log_var
 
+    def predict_monte_carlo(
+        self,
+        x: torch.Tensor,
+        t_obs: torch.Tensor,
+        t_unobs: Optional[torch.Tensor] = None,
+        n_samples: int = 1
+    ) -> torch.Tensor:
+        """
+        Estimate model mean and std using Monte Carlo sampling from latent space.
+        For each trajectory in batch:
+            - Sample `n_samples` from estimated VAE posterior distribution
+            - Propagate all samples through decoder
+
+        Args:
+            x: Features (trajectory)
+            t_obs: Observed time points
+            t_unobs: Unobserved time points
+            n_samples: Number of samples to estimate mean and variance
+
+        Returns:
+            Grouped trajectory samples
+        """
+        unobs_time_len, batch_size, _ = t_unobs.shape
+        x_hat, *_ = self.forward(x, t_obs, t_unobs, n_samples=n_samples)
+        return x_hat.view(unobs_time_len, batch_size, n_samples, -1)
+
 
 class LightningODERNNVAE(LightningModuleBase):
     """
@@ -147,6 +190,7 @@ class LightningODERNNVAE(LightningModuleBase):
         observable_dim: int,
         hidden_dim: int,
         latent_dim: int,
+        stochastic: bool = True,
 
         noise_std: float = 0.1,
 
@@ -156,13 +200,19 @@ class LightningODERNNVAE(LightningModuleBase):
         train_config: Optional[LightningTrainConfig] = None
     ):
         super().__init__(train_config=train_config)
-        self._model = ODERNNVAE(observable_dim, hidden_dim, latent_dim,
-                                solver_name=solver_name, solver_params=solver_params)
+        self._model = ODERNNVAE(
+            observable_dim=observable_dim,
+            hidden_dim=hidden_dim,
+            latent_dim=latent_dim,
+            stochastic=stochastic,
+            solver_name=solver_name,
+            solver_params=solver_params
+        )
         self._loss_func = ELBO(noise_std)
 
-    def forward(self, x: torch.Tensor, t_obs: torch.Tensor, t_unobs: Optional[torch.Tensor] = None,
-                generate: bool = False) -> Tuple[torch.Tensor, ...]:
-        return self._model(x, t_obs, t_unobs, generate)
+    def forward(self, x: torch.Tensor, t_obs: torch.Tensor, t_unobs: Optional[torch.Tensor] = None) \
+            -> Tuple[torch.Tensor, ...]:
+        return self._model(x, t_obs, t_unobs)
 
     def training_step(self, batch: Tuple[torch.Tensor, ...], *args, **kwargs) -> torch.Tensor:
         bboxes_obs, _, ts_obs, _, _ = batch
@@ -194,6 +244,27 @@ class LightningODERNNVAE(LightningModuleBase):
 
         return loss
 
+    def predict_monte_carlo(
+        self,
+        x: torch.Tensor,
+        t_obs: torch.Tensor,
+        t_unobs: Optional[torch.Tensor] = None,
+        n_samples: int = 1
+    ) -> torch.Tensor:
+        """
+        Estimated mean and std for each trajectory (check model docstring for more info)
+
+        Args:
+            x: Features (trajectory)
+            t_obs: Observed time points
+            t_unobs: Unobserved time points
+            n_samples: Number of samples to estimate mean and variance
+
+        Returns:
+            Prediction mean and std
+        """
+        return self._model.predict_monte_carlo(x, t_obs, t_unobs, n_samples=n_samples)
+
 
 def run_test():
     odernnvae = ODERNNVAE(
@@ -202,7 +273,7 @@ def run_test():
         latent_dim=3
     )
 
-    # Test ODERNNVAE
+    # Test ODERNNVAE prediction
     xs = torch.randn(4, 3, 7)
     ts_obs = torch.randn(4, 3, 1)
     ts_unobs = torch.randn(2, 3, 1)
@@ -212,14 +283,17 @@ def run_test():
     shapes = [v.shape for v in output]
     assert shapes == expected_shapes, f'Expected shapes {expected_shapes} but found {shapes}!'
 
-    odernnvae = ODERNNVAE(
-        observable_dim=7,
-        hidden_dim=5,
-        latent_dim=3
-    )
+    # Test ODERNNVAE generate
     expected_shapes = [(2, 6, 7), (2, 6, 3), (3, 3), (3, 3)]
 
     output = odernnvae(xs, ts_obs, ts_unobs, generate=True, n_samples=2)
+    shapes = [v.shape for v in output]
+    assert shapes == expected_shapes, f'Expected shapes {expected_shapes} but found {shapes}!'
+
+    # Test ODERNNVAE estimate - Monte Carlo
+    expected_shapes = [(2, 3, 7), (2, 3, 7)]
+
+    output = odernnvae.predict_monte_carlo(xs, ts_obs, ts_unobs, n_samples=10)
     shapes = [v.shape for v in output]
     assert shapes == expected_shapes, f'Expected shapes {expected_shapes} but found {shapes}!'
 

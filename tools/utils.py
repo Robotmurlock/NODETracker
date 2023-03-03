@@ -13,7 +13,8 @@ def create_mot20_dataloader(
     dataset_path: str,
     cfg: GlobalConfig,
     postprocess_transform: Optional[InvertibleTransform] = None,
-    shuffle: bool = False
+    shuffle: bool = False,
+    batch_size: Optional[int] = None
 ) -> DataLoader:
     """
     Creates dataloader for MOT20 dataset.
@@ -22,7 +23,8 @@ def create_mot20_dataloader(
         dataset_path: Dataset path
         cfg: Global config
         postprocess_transform: preprocess-postprocess transform function
-        shuffle: Perform shuffle (default: False0
+        shuffle: Perform shuffle (default: False)
+        batch_size: Override config batch size (optional)
 
     Returns:
         Dataloader for MOT20 dataset.
@@ -36,7 +38,7 @@ def create_mot20_dataloader(
     return DataLoader(
         dataset=train_dataset,
         collate_fn=ode_dataloader_collate_func,
-        batch_size=cfg.train.batch_size,
+        batch_size=cfg.train.batch_size if batch_size is None else batch_size,
         num_workers=cfg.resources.num_workers,
         shuffle=shuffle
     )

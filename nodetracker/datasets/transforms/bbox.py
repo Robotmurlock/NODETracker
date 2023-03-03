@@ -78,11 +78,17 @@ class BBoxStandardizationTransform(InvertibleTransform):
 
         return bbox_obs, bbox_unobs, *other
 
-    def inverse(self, data: TensorCollection, shallow: bool = True) -> TensorCollection:
+    def inverse(self, data: TensorCollection, shallow: bool = True, n_samples: int = 1) -> TensorCollection:
         bbox_obs, bbox_unobs, *other = data
 
-        # Note: inverse transform is not applied to `bbox_obs`
-        bbox_unobs = bbox_unobs * self._std + self._mean
+        if n_samples == 1:
+            # Note: inverse transform is not applied to `bbox_obs`
+            bbox_unobs = bbox_unobs * self._std + self._mean
+        else:
+            # Support (Improvisation) for VAE monte carlo sampling for mean and std estimation
+            mean_repeated = self._mean.repeat(n_samples)
+            std_repeated = self._std.repeat(n_samples)
+            bbox_unobs = bbox_unobs * std_repeated + mean_repeated
 
         return [bbox_obs, bbox_unobs, *other]
 
@@ -106,8 +112,8 @@ class BBoxStandardizedFirstOrderDifferenceTransform(InvertibleTransform):
         data = self._standardization.apply(data, shallow=False)
         return data
 
-    def inverse(self, data: TensorCollection, shallow: bool = True) -> TensorCollection:
-        data = self._standardization.inverse(data, shallow=shallow)
+    def inverse(self, data: TensorCollection, shallow: bool = True, n_samples: int = 1) -> TensorCollection:
+        data = self._standardization.inverse(data, shallow=shallow, n_samples=n_samples)
         data = self._first_difference.inverse(data, shallow=False)
         return data
 
