@@ -43,7 +43,7 @@ The current set of `tools` scripts is:
 - `run_inference`: inference and evaluation;
 - `run_visualize`: inference visualization.
 
-### Struktura generisanih podataka:
+### Generated data structure
 
 All generated data is stored in `master_path` path which is configurable. Structure:
 
@@ -61,3 +61,11 @@ All generated data is stored in `master_path` path which is configurable. Struct
                 ...
         tensorboard_logs/*
 ```
+
+### Model Zoo
+
+Configurations for all models and links to model checkpoints can be found in `models` section.
+
+## Papers
+
+Published versions of paper can be found in `papers` section.
