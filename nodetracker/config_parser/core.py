@@ -140,9 +140,19 @@ class TrainConfig:
 
 @dataclass
 class EvalConfig:
+    """
+    Inference + Evaluation config
+    - experiment: experiment name (should match train)
+    - batch_size: inference batch size
+    - inference_name: inference run name
+    - split: what split to use for evaluation (train/val/test)
+    - checkpoint: what checkpoint to use for evaluation
+
+    - autoregressive: use autoregressive decorator
+    - autoregressive_keep_history: requires `autoregressive` - keeps all history when predicting (not droppping last)
+    """
     experiment: str
     batch_size: int
-    num_workers: int
     inference_name: str
     split: str
     checkpoint: Optional[str]
@@ -176,6 +186,11 @@ class VisualizeConfig:
 
 @dataclass
 class PathConfig:
+    """
+    Path configs
+    - master: location where all final and intermediate results are stored
+    - assets: location where datasets can be found
+    """
     master: str
     assets: str
 

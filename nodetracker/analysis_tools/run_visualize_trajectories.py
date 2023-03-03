@@ -179,7 +179,7 @@ def main(cfg: DictConfig):
         params=cfg.model.params,
         checkpoint_path=checkpoint_path
     )
-    assert isinstance(model, LightningODERNN) or isinstance(model, LightningODERNNVAE), \
+    assert isinstance(model, (LightningODERNN, LightningODERNNVAE)), \
         'Visualization currently only supported for ODERNN and ODERNNVAE!'
 
     model = AutoregressiveForecasterDecorator(model, keep_history=cfg.eval.autoregressive_keep_history) \

@@ -1,4 +1,4 @@
-experiment: 'ODERNNVAE-iter03-exp04-10h-more-params'
+experiment: '${train.experiment}'
 split: 'val'
 batch_size: 10240
 num_workers: 20

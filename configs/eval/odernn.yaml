@@ -1,4 +1,4 @@
-experiment: 'ODERNN-iter02-exp04-10h-1f-more-params'
+experiment: '${train.experiment}'
 split: 'val'
 batch_size: 32
 num_workers: 8
