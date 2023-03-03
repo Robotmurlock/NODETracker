@@ -65,8 +65,15 @@ class LightningModuleForecaster(LightningModuleBase):
     """
     Trainer wrapper for RNN like models.
     """
-    def __init__(self, train_config: Optional[LightningTrainConfig], model: nn.Module, loss_func: nn.Module):
+    def __init__(
+        self,
+        train_config: Optional[LightningTrainConfig],
+        model: nn.Module,
+        loss_func: nn.Module,
+        model_gaussian: bool = False,
+    ):
         super().__init__(train_config=train_config)
+        self._model_gaussian = model_gaussian
         self._model = model
         self._loss_func = loss_func
 
@@ -74,20 +81,38 @@ class LightningModuleForecaster(LightningModuleBase):
             -> Tuple[torch.Tensor, ...]:
         return self._model(x, t_obs, t_unobs)
 
+    def _calc_loss(self, bboxes_unobs: torch.Tensor, bboxes_unobs_hat: torch.Tensor) -> torch.Tensor:
+        """
+        Calculates loss based on set loss function.
+
+        Args:
+            bboxes_unobs: Ground truth bboxes
+            bboxes_unobs_hat: Predicted bboxes
+
+        Returns:
+            Loss value
+        """
+        if self._model_gaussian:
+            bboxes_unobs_hat = bboxes_unobs_hat.view(*bboxes_unobs_hat.shape[:-1], -1, 2)
+            bboxes_unobs_hat_mean = bboxes_unobs_hat[..., 0]
+            bboxes_unobs_hat_log_var = bboxes_unobs_hat[..., 1]
+            bboxes_unobs_hat_var = torch.exp(bboxes_unobs_hat_log_var)
+            return self._loss_func(bboxes_unobs_hat_mean, bboxes_unobs, bboxes_unobs_hat_var)
+
+        return self._loss_func(bboxes_unobs_hat, bboxes_unobs)
+
     def training_step(self, batch: Tuple[torch.Tensor, ...], *args, **kwargs) -> torch.Tensor:
         bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, _ = batch
         bboxes_unobs_hat, *_ = self.forward(bboxes_obs, ts_obs, ts_unobs)
-        loss = self._loss_func(bboxes_unobs_hat, bboxes_unobs)
+        loss = self._calc_loss(bboxes_unobs, bboxes_unobs_hat)
 
         self._meter.push('training/loss', loss)
-
         return loss
 
     def validation_step(self, batch: Tuple[torch.Tensor, ...], *args, **kwargs) -> torch.Tensor:
         bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, _ = batch
         bboxes_unobs_hat, *_ = self.forward(bboxes_obs, ts_obs, ts_unobs)
-        loss = self._loss_func(bboxes_unobs_hat, bboxes_unobs)
+        loss = self._calc_loss(bboxes_unobs, bboxes_unobs_hat)
 
         self._meter.push('val/loss', loss)
-
         return loss

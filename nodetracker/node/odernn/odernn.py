@@ -82,12 +82,14 @@ class ODERNN(nn.Module):
     """
 
     def __init__(
-            self,
-            observable_dim: int,
-            hidden_dim: int,
+        self,
+        observable_dim: int,
+        hidden_dim: int,
 
-            solver_name: Optional[str] = None,
-            solver_params: Optional[dict] = None
+        model_gaussian: bool = False,
+
+        solver_name: Optional[str] = None,
+        solver_params: Optional[dict] = None
     ):
         super().__init__()
 
@@ -102,7 +104,8 @@ class ODERNN(nn.Module):
             hidden_dim=hidden_dim,
             output_dim=observable_dim,
             solver_name=solver_name,
-            solver_params=solver_params
+            solver_params=solver_params,
+            model_gaussian=model_gaussian
         )
 
     def forward(self, x: torch.Tensor, t_obs: torch.Tensor, t_unobs: Optional[torch.Tensor] = None) \
@@ -118,18 +121,46 @@ class LightningODERNN(LightningModuleForecaster):
     PytorchLightning wrapper for ODERNN model
     """
     def __init__(
-            self,
-            observable_dim: int,
-            hidden_dim: int,
+        self,
+        observable_dim: int,
+        hidden_dim: int,
 
-            solver_name: Optional[str] = None,
-            solver_params: Optional[dict] = None,
+        model_gaussian: bool = False,
 
-            train_config: Optional[LightningTrainConfig] = None
+        solver_name: Optional[str] = None,
+        solver_params: Optional[dict] = None,
+
+        train_config: Optional[LightningTrainConfig] = None
     ):
-        model = ODERNN(observable_dim, hidden_dim, solver_name=solver_name, solver_params=solver_params)
-        loss_func = nn.MSELoss()
-        super().__init__(train_config=train_config, model=model, loss_func=loss_func)
+        model = ODERNN(
+            observable_dim=observable_dim,
+            hidden_dim=hidden_dim,
+            model_gaussian=model_gaussian,
+            solver_name=solver_name,
+            solver_params=solver_params
+        )
+        loss_func = nn.GaussianNLLLoss() if model_gaussian else nn.MSELoss()
+        super().__init__(train_config=train_config, model=model, loss_func=loss_func, model_gaussian=model_gaussian)
+
+    @staticmethod
+    def extract_mean_and_std(bboxes_unobs_hat: torch.Tensor) \
+        -> Tuple[torch.Tensor, torch.Tensor]:
+        """
+        Helper function for Gaussian model postprocess
+
+        Args:
+            bboxes_unobs_hat: Prediction
+
+        Returns:
+            bboxes_hat_mean, bboxes_hat_std
+        """
+        bboxes_unobs_hat = bboxes_unobs_hat.view(*bboxes_unobs_hat.shape[:-1], -1, 2)
+        bboxes_unobs_hat_mean = bboxes_unobs_hat[..., 0]
+        bboxes_unobs_hat_log_var = bboxes_unobs_hat[..., 1]
+        bboxes_unobs_hat_var = torch.exp(bboxes_unobs_hat_log_var)
+        bboxes_unobs_hat_std = torch.sqrt(bboxes_unobs_hat_var)
+
+        return bboxes_unobs_hat_mean, bboxes_unobs_hat_std
 
 
 def run_test():
@@ -139,6 +170,7 @@ def run_test():
     ts_unobs = torch.randn(2, 3, 1)
     expected_shape = (2, 3, 7)
 
+    # Test standard ODERNN
     odernn = LightningODERNN(
         observable_dim=7,
         hidden_dim=5
@@ -146,6 +178,22 @@ def run_test():
 
     output, _ = odernn(xs, ts_obs, ts_unobs)
     assert output.shape == expected_shape, f'Expected shape {expected_shape} but found {output.shape}!'
+
+    # Test ODERNN with gaussian modeling
+    odernn = LightningODERNN(
+        observable_dim=7,
+        hidden_dim=5,
+        model_gaussian=True
+    )
+
+    expected_shape = (2, 3, 14)
+    output, _ = odernn(xs, ts_obs, ts_unobs)
+    assert output.shape == expected_shape, f'Expected shape {expected_shape} but found {output.shape}!'
+
+    expected_shapes = [(2, 3, 7), (2, 3, 7)]
+    output = odernn.extract_mean_and_std(output)
+    output_shapes = [o.shape for o in output]
+    assert output_shapes == expected_shapes, f'Expected shape {expected_shape} but found {output_shapes}!'
 
 
 if __name__ == '__main__':

@@ -81,6 +81,8 @@ class NODEDecoder(nn.Module):
         hidden_dim: int,
         output_dim: int,
 
+        model_gaussian: bool = False,
+
         solver_name: Optional[str] = None,
         solver_params: Optional[dict] = None
     ):
@@ -92,6 +94,8 @@ class NODEDecoder(nn.Module):
         self._ode = NeuralODE(func=func, solver=solver)
         self._latent2hidden = nn.Linear(latent_dim, hidden_dim)
         self._lrelu = nn.LeakyReLU(0.1)
+
+        output_dim = output_dim if not model_gaussian else 2 * output_dim  # mean + std in case of gaussian modeling
         self._hidden2output = nn.Linear(hidden_dim, output_dim)
 
     def forward(self, z0: torch.Tensor, ts: torch.Tensor):
