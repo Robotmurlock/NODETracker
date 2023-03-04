@@ -5,13 +5,15 @@ BBox transformations. Contains
 - BBox trajectory standardized first order difference transformation
 """
 
+import math
+from typing import Union, List, Optional
+
 import torch
-from typing import Union, List
 
-from nodetracker.datasets.transforms.base import InvertibleTransform, TensorCollection
+from nodetracker.datasets.transforms.base import InvertibleTransformWithStd, TensorCollection
 
 
-class BboxFirstOrderDifferenceTransform(InvertibleTransform):
+class BboxFirstOrderDifferenceTransform(InvertibleTransformWithStd):
     """
     Applies first difference transformation:
     Y[i] = X[i] - X[i-1]
@@ -49,8 +51,14 @@ class BboxFirstOrderDifferenceTransform(InvertibleTransform):
 
         return orig_bbox_obs, bbox_hat, *other
 
+    def inverse_std(self, t_std: torch.Tensor, additional_data: Optional[TensorCollection] = None, shallow: bool = True) \
+            -> TensorCollection:
+        # Can't properly estimate std for this function
+        # This approximation should be upper bound in most cases
+        return t_std * math.sqrt(2)
 
-class BBoxStandardizationTransform(InvertibleTransform):
+
+class BBoxStandardizationTransform(InvertibleTransformWithStd):
     """
     Applies standardization transformation:
     Y[i] = (X[i] - mean(X)) / std(X)
@@ -94,8 +102,12 @@ class BBoxStandardizationTransform(InvertibleTransform):
 
         return [bbox_obs, bbox_unobs, *other]
 
+    def inverse_std(self, t_std: torch.Tensor, additional_data: Optional[TensorCollection] = None, shallow: bool = True) \
+            -> TensorCollection:
+        return t_std * self._std
 
-class BBoxStandardizedFirstOrderDifferenceTransform(InvertibleTransform):
+
+class BBoxStandardizedFirstOrderDifferenceTransform(InvertibleTransformWithStd):
     """
     Step 1: Applies first difference transformation:
     Y[i] = X[i] - X[i-1]
@@ -118,6 +130,12 @@ class BBoxStandardizedFirstOrderDifferenceTransform(InvertibleTransform):
         data = self._standardization.inverse(data, shallow=shallow, n_samples=n_samples)
         data = self._first_difference.inverse(data, shallow=False)
         return data
+
+    def inverse_std(self, t_std: torch.Tensor, additional_data: Optional[TensorCollection] = None, shallow: bool = True) \
+            -> TensorCollection:
+        std = self._standardization.inverse_std(t_std, additional_data, shallow=shallow)
+        std = self._first_difference.inverse_std(std, additional_data, shallow=shallow)
+        return std
 
 
 # noinspection DuplicatedCode

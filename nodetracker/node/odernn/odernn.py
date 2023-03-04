@@ -142,6 +142,17 @@ class LightningODERNN(LightningModuleForecaster):
         loss_func = nn.GaussianNLLLoss() if model_gaussian else nn.MSELoss()
         super().__init__(train_config=train_config, model=model, loss_func=loss_func, model_gaussian=model_gaussian)
 
+    @property
+    def is_modeling_gaussian(self) -> bool:
+        """
+        Checks if model estimates Gaussian or not.
+
+        Returns:
+            True if model estimates Gaussian
+            else False (model just predicts values)
+        """
+        return self._model_gaussion
+
     @staticmethod
     def extract_mean_and_std(bboxes_unobs_hat: torch.Tensor) \
         -> Tuple[torch.Tensor, torch.Tensor]:

@@ -2,7 +2,7 @@
 Implementations of data transformations.
 """
 from abc import ABC, abstractmethod
-from typing import Collection, Union
+from typing import Collection, Union, Optional
 
 import torch
 
@@ -65,6 +65,29 @@ class InvertibleTransform(Transform, ABC):
 
         Returns:
             "Untransformed" data
+        """
+        pass
+
+
+class InvertibleTransformWithStd(InvertibleTransform):
+    """
+    Extended InvertibleTransform with inverse for std
+    """
+    def __init__(self, name: str):
+        super().__init__(name=name)
+
+    @abstractmethod
+    def inverse_std(self, t_std: torch.Tensor, additional_data: Optional[TensorCollection] = None, shallow: bool = True) -> TensorCollection:
+        """
+        Performs "inverse" transformation on std given the transformed data.
+
+        Args:
+            t_std: Transformed std
+            additional_data: Data required to perform inverse std operation
+            shallow: Take shallow copy of data (may cause side effects)
+
+        Returns:
+            "Untransformed" std
         """
         pass
 
