@@ -4,6 +4,7 @@ params:
   hidden_dim: 8
   latent_dim: 32
   noise_std: 0.3
+  stochastic: True
 
   solver_name: 'rk4'
   solver_params:

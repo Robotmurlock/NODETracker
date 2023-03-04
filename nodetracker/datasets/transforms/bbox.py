@@ -33,6 +33,7 @@ class BboxFirstOrderDifferenceTransform(InvertibleTransform):
             # During live inference, bbox_unobs are not known (this is for training only)
             bbox_unobs[1:, ...] = bbox_unobs[1:, ...] - bbox_unobs[:-1, ...]
             bbox_unobs[0, ...] = bbox_unobs[0, ...] - bbox_obs[-1, ...]
+
         bbox_obs[1:, ...] = bbox_obs[1:, ...] - bbox_obs[:-1, ...]
         bbox_obs, ts_obs = bbox_obs[1:, ...], ts_obs[1:, ...]  # Dump first
 
@@ -45,6 +46,7 @@ class BboxFirstOrderDifferenceTransform(InvertibleTransform):
 
         bbox_hat[0, ...] = bbox_hat[0, ...] + orig_bbox_obs[-1, ...]
         bbox_hat = torch.cumsum(bbox_hat, dim=0)
+
         return orig_bbox_obs, bbox_hat, *other
 
 

@@ -33,7 +33,8 @@ def main(cfg: DictConfig):
         dataset_path=dataset_train_path,
         cfg=cfg,
         postprocess_transform=postprocess_transform,
-        shuffle=True
+        shuffle=True,
+        train=True
     )
 
     # Load val dataset
@@ -43,7 +44,8 @@ def main(cfg: DictConfig):
         dataset_path=dataset_val_path,
         cfg=cfg,
         postprocess_transform=postprocess_transform,
-        shuffle=False
+        shuffle=False,
+        train=False
     )
 
     model_type = ModelType.from_str(cfg.model.type)

@@ -12,6 +12,7 @@ from typing import Optional
 def create_mot20_dataloader(
     dataset_path: str,
     cfg: GlobalConfig,
+    train: bool,
     postprocess_transform: Optional[InvertibleTransform] = None,
     shuffle: bool = False,
     batch_size: Optional[int] = None
@@ -22,6 +23,7 @@ def create_mot20_dataloader(
     Args:
         dataset_path: Dataset path
         cfg: Global config
+        train: Is dataloader created for train or eval
         postprocess_transform: preprocess-postprocess transform function
         shuffle: Perform shuffle (default: False)
         batch_size: Override config batch size (optional)
@@ -29,14 +31,16 @@ def create_mot20_dataloader(
     Returns:
         Dataloader for MOT20 dataset.
     """
-    train_dataset = TorchMOTTrajectoryDataset(
+    dataset = TorchMOTTrajectoryDataset(
         path=dataset_path,
         history_len=cfg.dataset.history_len,
         future_len=cfg.dataset.future_len,
         postprocess=postprocess_transform
     )
+
+    batch_size = cfg.train.batch_size if train else cfg.eval.batch_size
     return DataLoader(
-        dataset=train_dataset,
+        dataset=dataset,
         collate_fn=ode_dataloader_collate_func,
         batch_size=cfg.train.batch_size if batch_size is None else batch_size,
         num_workers=cfg.resources.num_workers,
