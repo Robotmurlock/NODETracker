@@ -32,7 +32,7 @@ def plot_trajectory_estimation(
     traj_stds: np.ndarray,
     gt_traj: np.ndarray,
     coord_names: List[str],
-    loss: float
+    loss_for_each_coordinate: np.ndarray
 ) -> plt.Figure:
     """
     Plots sampled trajectories (up) and estimated trajectory (down).
@@ -43,7 +43,7 @@ def plot_trajectory_estimation(
         traj_stds: Trajectory stds (required for confidence interval)
         gt_traj: Ground truth trajectory
         coord_names: Coordinate names
-        loss: GaussianNLLLoss
+        loss_for_each_coordinate: GaussianNLLLoss for each coordinate
 
     Returns:
         Figure
@@ -58,7 +58,7 @@ def plot_trajectory_estimation(
     center_traj = gt_traj.mean(dim=0)
     ylims = [(c - 0.01, c + 0.01) for c in center_traj]
 
-    fig, axs = plt.subplots(figsize=(4, 6), nrows=1, ncols=n_cols)
+    fig, axs = plt.subplots(figsize=(4 * n_cols, 6), nrows=1, ncols=n_cols)
     for col in range(n_cols):
         ax = axs[col]
         ax.grid()
@@ -75,7 +75,7 @@ def plot_trajectory_estimation(
         ax.scatter(indices, gt_traj[:, col], color='k', s=32, marker='x', zorder=1, label='gt')
 
         # Set graph items
-        ax.set_title(f'[{coord_name}] Trajectory estimation (nll={loss:.2f})')
+        ax.set_title(f'[{coord_name}] Trajectory estimation (nll={loss_for_each_coordinate[col]:.2f})')
         ax.set_xlabel('t')
         ax.set_ylabel(coord_name)
         ax.set_ylim(ylims[col])
@@ -109,7 +109,7 @@ def run_odernn_model_gaussian_inference_and_visualization(
             else run full evaluation
     """
     model.eval()
-    loss_func = nn.GaussianNLLLoss()
+    loss_func = nn.GaussianNLLLoss(reduction='none')
     loss_sum = torch.tensor(0, dtype=torch.float32)
     n_batches = 0
 
@@ -135,7 +135,7 @@ def run_odernn_model_gaussian_inference_and_visualization(
         bboxes_unobs_hat_std = transform.inverse_std(t_bboxes_unobs_hat_std)
 
         # Calculate loss (TODO: Duplicate code)
-        loss = loss_func(bboxes_unobs_hat_mean, bboxes_unobs, bboxes_unobs_hat_std)
+        loss = loss_func(bboxes_unobs_hat_mean, bboxes_unobs, bboxes_unobs_hat_std).mean()
         n_batches += 1
         loss_sum += loss
 
@@ -151,6 +151,10 @@ def run_odernn_model_gaussian_inference_and_visualization(
         bboxes_unobs_hat_std = bboxes_unobs_hat_std[:, 0, :]
         bboxes_unobs = bboxes_unobs[:, 0, :]
 
+        # Calculate loss per coordinate
+        loss_for_each_coordinate = loss_func(bboxes_unobs_hat_mean, bboxes_unobs, bboxes_unobs_hat_std).mean(dim=0)
+        loss_for_each_coordinate = loss_for_each_coordinate.numpy()
+
         # Convert to numpy for visualization
         bboxes_unobs_hat_mean = bboxes_unobs_hat_mean.numpy()
         bboxes_unobs_hat_std = bboxes_unobs_hat_std.numpy()
@@ -163,7 +167,7 @@ def run_odernn_model_gaussian_inference_and_visualization(
             traj_stds=bboxes_unobs_hat_std,
             gt_traj=bboxes_unobs,
             coord_names=coord_names,
-            loss=loss.item()
+            loss_for_each_coordinate=loss_for_each_coordinate
         )
         Path(experiment_name).mkdir(parents=True, exist_ok=True)
         fig.savefig(os.path.join(experiment_name, f'{traj_index + 1:04d}.png'))
