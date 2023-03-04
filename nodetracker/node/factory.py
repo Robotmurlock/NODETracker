@@ -11,7 +11,7 @@ from nodetracker.node.kalman_filter import TorchConstantVelocityODKalmanFilter
 from nodetracker.node.odernn import LightningODERNN, LightningODERNNVAE
 from nodetracker.node.standard.simple import LightningRNNSeq2Seq
 from nodetracker.node.standard.mlp import LightningMLPForecaster
-from nodetracker.node.trajectory_filter import BBoxTrajectoryForecaster
+from nodetracker.node.utils.training import LightningModuleForecaster
 from nodetracker.node.utils import LightningTrainConfig
 
 
@@ -47,7 +47,7 @@ def load_or_create_model(
     params: dict,
     checkpoint_path: Optional[str] = None,
     train_params: Optional[dict] = None
-) -> Union[BBoxTrajectoryForecaster, LightningModule]:
+) -> Union[LightningModuleForecaster, LightningModule]:
     """
     Loads trained (if given checkpoint path) or creates new model given name and parameters.
     If model is trainable (check ModelType) then it can use train config. Otherwise, it can be loaded from checkpoint.

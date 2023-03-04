@@ -162,6 +162,15 @@ class LightningODERNN(LightningModuleForecaster):
 
         return bboxes_unobs_hat_mean, bboxes_unobs_hat_std
 
+    def inference(self, x: torch.Tensor, t_obs: torch.Tensor, t_unobs: Optional[torch.Tensor] = None) -> Tuple[torch.Tensor, ...]:
+        x_hat, *other = self._model(x, t_obs, t_unobs)
+
+        if self._model_gaussian:
+            x_hat_mean, x_hat_std = self.extract_mean_and_std(x_hat)
+            return x_hat_mean, x_hat_std, *other
+
+        return x_hat, *other
+
 
 def run_test():
     # Test ODERNNVAE

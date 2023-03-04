@@ -81,6 +81,21 @@ class LightningModuleForecaster(LightningModuleBase):
             -> Tuple[torch.Tensor, ...]:
         return self._model(x, t_obs, t_unobs)
 
+    def inference(self, x: torch.Tensor, t_obs: torch.Tensor, t_unobs: Optional[torch.Tensor] = None) \
+            -> Tuple[torch.Tensor, ...]:
+        """
+        By default, this function is synonym for `forward` but optionally it can be overriden for preprocessing or postprocessing.
+
+        Args:
+            x: Trajectory bboxes points
+            t_obs: Observable time points
+            t_unobs: Unobservable time points
+
+        Returns:
+            Model inference (output)
+        """
+        return self._model(x, t_obs, t_unobs)
+
     def _calc_loss(self, bboxes_unobs: torch.Tensor, bboxes_unobs_hat: torch.Tensor) -> torch.Tensor:
         """
         Calculates loss based on set loss function.
