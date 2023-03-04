@@ -124,6 +124,11 @@ def run_odernn_model_gaussian_inference_and_visualization(
         t_bboxes_obs, t_ts_obs, t_ts_unobs = [v.to(accelerator) for v in [t_bboxes_obs, t_ts_obs, t_ts_unobs]]
         t_bboxes_unobs_hat_mean, t_bboxes_unobs_hat_std, *_ = model.inference(t_bboxes_obs, t_ts_obs, t_ts_unobs)
 
+        # Move tensors to cpu
+        bboxes_obs = bboxes_obs.detach().cpu()
+        t_bboxes_unobs_hat_mean = t_bboxes_unobs_hat_mean.detach().cpu()
+        t_bboxes_unobs_hat_std = t_bboxes_unobs_hat_std.detach().cpu()
+
         # Postprocess MEAN (trivial)
         _, bboxes_unobs_hat_mean, *_ = transform.inverse([bboxes_obs, t_bboxes_unobs_hat_mean])
         # Postprocess STD (not trivial) - depends on the transform function
