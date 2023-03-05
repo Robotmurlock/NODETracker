@@ -53,9 +53,16 @@ class BboxFirstOrderDifferenceTransform(InvertibleTransformWithStd):
 
     def inverse_std(self, t_std: torch.Tensor, additional_data: Optional[TensorCollection] = None, shallow: bool = True) \
             -> TensorCollection:
-        # Can't properly estimate std for this function
-        # This approximation should be upper bound in most cases
-        return t_std * math.sqrt(2)
+        # Can't properly estimate std for this function (this is an approximation)
+        # y - transformed, x - original
+        # y[i] = x[i] - x[i-1]
+        # std(x[i-1]) is not known for first estimated point
+        # Assumption: x[i] and x[i-1] are iid
+        # Approximation: std(x[i-1]) = std(x[i])
+        # => var(y[i]) = var(x[i-1]) + var(x[i]) ~ 2 * var(x[i])
+        # => std(y[i]) = sqrt(2) * std(x[i])
+        # => std(x[i]) = std(y[i]) / sqrt(2)
+        return t_std / math.sqrt(2)
 
 
 class BBoxStandardizationTransform(InvertibleTransformWithStd):
@@ -104,6 +111,11 @@ class BBoxStandardizationTransform(InvertibleTransformWithStd):
 
     def inverse_std(self, t_std: torch.Tensor, additional_data: Optional[TensorCollection] = None, shallow: bool = True) \
             -> TensorCollection:
+        # Std of inverse transformation in this case is trivial to calculate
+        # y - transformed, x - original
+        # y[i] = (x[i] - m) / s
+        # => x[i] = y[i] * s + m
+        # => std(x) = std(y) * s
         return t_std * self._std
 
 
