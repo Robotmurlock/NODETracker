@@ -18,6 +18,9 @@ class LightningTrainConfig:
     sched_lr_gamma: float = field(default=1.0)
     sched_lr_step: int = field(default=1)
 
+    optim_name: str = field(default='default')
+    optim_additional_params: dict = field(default_factory=dict)
+
     weight_decay: float = field(default=0.0)
 
 
@@ -42,7 +45,16 @@ class LightningModuleBase(pl.LightningModule):
         self.log('train/lr', lr)
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(
+        optim_name = self._train_config.optim_name.lower()
+        optim_catalog = {
+            'default': torch.optim.Adam,
+            'sgd': torch.optim.SGD,
+            'adam': torch.optim.Adam,
+            'adamw': torch.optim.AdamW
+        }
+        optim_cls = optim_catalog[optim_name]
+
+        optimizer = optim_cls(
             params=self._model.parameters(),
             lr=self._train_config.learning_rate,
             weight_decay=self._train_config.weight_decay
