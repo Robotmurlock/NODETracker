@@ -53,16 +53,21 @@ class BboxFirstOrderDifferenceTransform(InvertibleTransformWithStd):
 
     def inverse_std(self, t_std: torch.Tensor, additional_data: Optional[TensorCollection] = None, shallow: bool = True) \
             -> TensorCollection:
-        # Can't properly estimate std for this function (this is an approximation)
-        # y - transformed, x - original
-        # y[i] = x[i] - x[i-1]
-        # std(x[i-1]) is not known for first estimated point
-        # Assumption: x[i] and x[i-1] are iid
-        # Approximation: std(x[i-1]) = std(x[i])
-        # => var(y[i]) = var(x[i-1]) + var(x[i]) ~ 2 * var(x[i])
-        # => std(y[i]) = sqrt(2) * std(x[i])
-        # => std(x[i]) = std(y[i]) / sqrt(2)
-        return t_std / math.sqrt(2)
+        # In order to estimate std for inverse two assumptions are added
+        # 1. Random variables y[i-1] and y[i] are independent
+        # 2. Variance of last observed bbox coordinate is 0 (i.e. var(x[-1]) = 0)
+        # Let: y - transformed, x - original, 0 - first unobserved time point
+        # Transformation: y[i] = x[i] - x[i-1]
+        # Inverse transformation: x[i] = y[i] + x[i-1]
+        # Known variances: y[i] and x[-1]
+        # => var(x[0]) = var(y[0]) + var(x[-1]) = var(y[0])  # from (1) and (2)
+        # => var(x[1]) = var(y[1]) + var(x[0]) = var(y[0]) + var(y[1]))  # from (1)
+        # ...
+        # => var(x[i]) = var(y[i]) + var(x[i-1]) = sum[j=0,i] var(y[j])
+        t_var = torch.square(t_std)
+        t_var_cumsum = torch.cumsum(t_var, dim=0)
+        t_std_cumsum = torch.sqrt(t_var_cumsum)
+        return t_std_cumsum
 
 
 class BBoxStandardizationTransform(InvertibleTransformWithStd):
