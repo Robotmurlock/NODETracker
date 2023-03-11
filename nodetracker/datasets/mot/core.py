@@ -327,7 +327,7 @@ class MOTDataset:
             df = df[df[7] == 1]  # Ignoring non-pedestrian objects
 
             df = df.iloc[:, :6]
-            df.columns = ['frame_id', 'object_id', 'ymin', 'xmin', 'w', 'h']
+            df.columns = ['frame_id', 'object_id', 'ymin', 'xmin', 'w', 'h']  # format: yxwh
             df['object_global_id'] = \
                 scene_name + '_' + df['object_id'].astype(str)  # object id is not unique over all scenes
             df = df.drop(columns='object_id', axis=1)
