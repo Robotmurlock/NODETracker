@@ -16,13 +16,16 @@ class BoxCoordSystem(enum.Enum):
     """
     XYXY = 0
     XYHW = 1
-    CXYHW = 2
+    YXWH = 2
+    CXYHW = 3
 
     def __str__(self):
         if self == BoxCoordSystem.XYXY:
             return 'xyxy'
         elif self == BoxCoordSystem.XYHW:
             return 'xyhw'
+        elif self == BoxCoordSystem.YXWH:
+            return 'yxwh'
         elif self == BoxCoordSystem.CXYHW:
             return 'cxyhw'
         else:
@@ -222,6 +225,23 @@ class BBox:
         return cls.from_xyxy(x1, y1, x2, y2, clip=clip)
 
     @classmethod
+    def from_yxwh(cls, y: float, x: float, w: float, h: float, clip: bool = False) -> 'BBox':
+        """
+        Creates BBox from xyhw format
+
+        Args:
+            y: up
+            x: left
+            w: width
+            h: height
+            clip: Clip bbox coordinates to [0, 1] range
+
+        Returns: Bbox
+        """
+        x1, y1, x2, y2 = x, y, x + h, y + w
+        return cls.from_xyxy(x1, y1, x2, y2, clip=clip)
+
+    @classmethod
     def from_cxyhw(cls, x: float, y: float, h: float, w: float, clip: bool = False) -> 'BBox':
         """
         Creates BBox from cxywh format
@@ -261,6 +281,18 @@ class BBox:
             BBox xyhw coords as a numpy array.
         """
         return np.array([self.upper_left.x, self.upper_left.y, self.height, self.width], dtype=dtype)
+
+    def as_numpy_yxwh(self, dtype: np.dtype = np.float32) -> np.ndarray:
+        """
+        Converts Bbox to yxwh numpy array.
+
+        Args:
+            dtype: Numpy array dtype (default: np.float32)
+
+        Returns:
+            BBox yxwh coords as a numpy array.
+        """
+        return np.array([self.upper_left.y, self.upper_left.x, self.width, self.height], dtype=dtype)
 
     def as_numpy_cxyhw(self, dtype: np.dtype = np.float32) -> np.ndarray:
         """

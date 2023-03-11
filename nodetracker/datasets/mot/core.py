@@ -10,6 +10,7 @@ from collections import defaultdict
 from dataclasses import dataclass, asdict
 from typing import Dict, Tuple, List, Any, Union, Optional
 from pathlib import Path
+import copy
 
 import numpy as np
 import pandas as pd
@@ -151,7 +152,7 @@ class MOTDataset:
         Returns:
             Data point.
         """
-        data = self._data_labels[object_id][index]
+        data = copy.deepcopy(self._data_labels[object_id][index])
 
         if relative_bbox_coords:
             scene_name, _ = self.parse_object_id(object_id)

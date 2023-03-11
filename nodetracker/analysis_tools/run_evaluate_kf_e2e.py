@@ -7,6 +7,8 @@ import logging
 import os
 from pathlib import Path
 from collections import defaultdict
+import numpy as np
+from typing import Dict, List
 
 from tqdm import tqdm
 
@@ -17,6 +19,20 @@ from nodetracker.library.kalman_filter.botsort_kf import BotSortKalmanFilter
 from nodetracker.utils.logging import configure_logging
 
 logger = logging.getLogger('MotTools')
+
+
+def aggregate_metrics(sample_metrics: Dict[str, List[float]]) -> Dict[str, float]:
+    """
+    Aggregates dictionary of sample metrics (list of values) to dictionary of metrics.
+    All metrics should be "mean-friendly".
+
+    Args:
+        sample_metrics: Sample metrics
+
+    Returns:
+        Aggregated metrics.
+    """
+    return {k: sum(v) / len(v) for k, v in sample_metrics.items()}
 
 
 def parse_args() -> argparse.Namespace:
@@ -56,16 +72,15 @@ def main(args: argparse.Namespace) -> None:
         for object_id in tqdm(object_ids, unit='track', desc=f'Evaluating tracker on {scene_name}'):
             kf = BotSortKalmanFilter()  # Create KF for new track
             mean, covariance, mean_hat, covariance_hat = None, None, None, None
-            gt, gt_ymin, gt_xmin, gt_w, gt_h = None, None, None, None, None
 
             n_data_points = dataset.get_object_data_length(object_id)
-            for index in range(n_data_points):
+            for index in range(n_data_points-n_pred_steps):
                 measurement = dataset.get_object_data_label(object_id, index)['bbox']
 
                 if mean is None:
                     # First KF iteration
                     mean, covariance = kf.initiate(measurement)
-                    pred, _ = kf.project(mean, covariance)
+                    prior, _ = kf.project(mean, covariance)
                     # Nothing to compare in first iteration
                 else:
                     # Perform prediction
@@ -75,20 +90,20 @@ def main(args: argparse.Namespace) -> None:
                     total_mse = 0.0
                     total_iou = 0.0
                     for p_index in range(1, n_pred_steps+1):
-                        pred, _ = kf.project(mean_hat, covariance_hat)  # KF Prediction is before update
+                        prior, _ = kf.project(mean_hat, covariance_hat)  # KF Prediction is before update
+
+                        gt = np.array(dataset.get_object_data_label(object_id, index + p_index)['bbox'], dtype=np.float32)
 
                         # Calculate MSE
-                        mse = ((gt - pred) ** 2).mean()
+                        mse = ((gt - prior) ** 2).mean()
                         sample_metrics[f'MSE-{p_index}'].append(mse)
                         total_mse += mse
 
                         # Calculate IOU (Accuracy)
-                        pred_ymin, pred_xmin, pred_w, pred_h = pred
-                        gt_bbox = BBox.from_xyhw(gt_xmin, gt_ymin, gt_h, gt_w, clip=True)
-                        pred_bbox = BBox.from_xyhw(pred_xmin, pred_ymin, pred_h, pred_w, clip=True)
-
+                        gt_bbox = BBox.from_xyhw(*gt, clip=True)
+                        pred_bbox = BBox.from_yxwh(*prior, clip=True)
                         iou_score = gt_bbox.iou(pred_bbox)
-                        sample_metrics[f'Accuracy-{p_index}'].append(iou_score)
+                        sample_metrics[f'posterior-Accuracy-{p_index}'].append(iou_score)
                         total_iou += iou_score
 
                         mean_hat, covariance_hat = kf.predict(mean_hat, covariance_hat)
@@ -96,13 +111,25 @@ def main(args: argparse.Namespace) -> None:
                     sample_metrics['MSE'].append(total_mse / n_pred_steps)
                     sample_metrics['Accuracy'].append(total_iou / n_pred_steps)
 
-                # Ground truth values need to be 1 step behind in order to compare with predictions
-                gt_ymin, gt_xmin, gt_w, gt_h = measurement
-                gt = measurement.copy()
+                    # Posterior eval
+                    # Calculate MSE
+                    posterior, _ = kf.project(mean, covariance)
+                    gt = np.array(measurement, dtype=np.float32)
 
-    metrics = {k: sum(v) / len(v) for k, v in sample_metrics.items()}  # Metrics aggregation (averaging)
+                    posterior_mse = ((posterior - gt) ** 2).mean()
+                    sample_metrics[f'posterior-MSE'].append(posterior_mse)
+
+                    # Calculate IOU (Accuracy)
+                    posterior_ymin, posterior_xmin, posterior_w, posterior_h = posterior
+                    posterior_bbox = BBox.from_yxwh(posterior_xmin, posterior_ymin, posterior_h, posterior_w, clip=True)
+                    gt_bbox = BBox.from_xyhw(*gt, clip=True)
+                    posterior_iou_score = gt_bbox.iou(posterior_bbox)
+                    sample_metrics[f'posterior-Accuracy'].append(posterior_iou_score)
+
+    metrics = aggregate_metrics(sample_metrics)
+
+    # Save metrics
     logger.info(f'Metrics: \n{json.dumps(metrics, indent=2)}')
-
     with open(metrics_path, 'w', encoding='utf-8') as f:
         json.dump(metrics, f, indent=2)
 
