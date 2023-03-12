@@ -1,5 +1,5 @@
 """
-Evaluate Kalman Filter
+Evaluate ODERNN E2E
 """
 import json
 import logging
@@ -13,16 +13,14 @@ import torch
 from omegaconf import DictConfig
 from tqdm import tqdm
 
+from nodetracker.analysis_tools.run_evaluate_kf_e2e import aggregate_metrics, calc_iou
 from nodetracker.common import conventions
 from nodetracker.common.project import CONFIGS_PATH
 from nodetracker.common.project import OUTPUTS_PATH
 from nodetracker.datasets import transforms
 from nodetracker.datasets.mot.core import MOTDataset, LabelType
-from nodetracker.library.cv.bbox import BBox
 from nodetracker.node import load_or_create_model, LightningODERNN
 from nodetracker.utils import pipeline
-from nodetracker.analysis_tools.run_evaluate_kf_e2e import aggregate_metrics
-
 
 logger = logging.getLogger('ODERNN_E2E_EVAL')
 
@@ -154,9 +152,7 @@ def main(cfg: DictConfig):
                     total_iou = 0.0
                     for p_index in range(1, n_pred_steps+1):
                         pred = x_mean_hat[p_index-1, 0]
-
-                        gt_ymin, gt_xmin, gt_w, gt_h = dataset.get_object_data_label(object_id, index + p_index)['bbox']
-                        gt = torch.tensor([gt_ymin, gt_xmin, gt_w, gt_h], dtype=torch.float32)
+                        gt = torch.tensor(dataset.get_object_data_label(object_id, index + p_index)['bbox'], dtype=torch.float32)
 
                         # Calculate MSE
                         mse = ((gt - pred) ** 2).mean().item()
@@ -164,11 +160,7 @@ def main(cfg: DictConfig):
                         total_mse += mse
 
                         # Calculate IOU (Accuracy)
-                        pred_ymin, pred_xmin, pred_w, pred_h = [v.item() for v in pred]
-                        gt_bbox = BBox.from_xyhw(gt_xmin, gt_ymin, gt_h, gt_w, clip=True)
-                        pred_bbox = BBox.from_xyhw(pred_xmin, pred_ymin, pred_h, pred_w, clip=True)
-
-                        iou_score = gt_bbox.iou(pred_bbox)
+                        iou_score = calc_iou(pred, gt)
                         sample_metrics[f'Accuracy-{p_index}'].append(iou_score)
                         total_iou += iou_score
 

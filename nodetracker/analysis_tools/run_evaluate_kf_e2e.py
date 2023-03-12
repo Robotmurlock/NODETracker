@@ -7,9 +7,10 @@ import logging
 import os
 from collections import defaultdict
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 
 import numpy as np
+import torch
 from tqdm import tqdm
 
 from nodetracker.common.project import ASSETS_PATH, OUTPUTS_PATH
@@ -37,8 +38,10 @@ def aggregate_metrics(sample_metrics: Dict[str, List[float]]) -> Dict[str, float
 
 def parse_args() -> argparse.Namespace:
     """
+    Parses script arguments.
+
     Returns:
-        Parse tool arguments
+        Parse script arguments
     """
     parser = argparse.ArgumentParser(description='Kalman Filter evaluation')
     parser.add_argument('--input-path', type=str, required=False, default=ASSETS_PATH, help='Datasets path.')
@@ -85,6 +88,22 @@ def add_measurement_noise(
     ]
 
 
+def calc_iou(pred: Union[List[float], np.ndarray, torch.Tensor], gt: Union[List[float], np.ndarray, torch.Tensor]) -> float:
+    """
+    Calculates iou score between two bboxes represented as numpy arrays in yxwh format.
+
+    Args:
+        pred: Prediction bbox (numpy)
+        gt: Ground Truth bbox (numpy)
+
+    Returns:
+        IOU score
+    """
+    pred_bbox = BBox.from_yxwh(*pred, clip=True)
+    gt_bbox = BBox.from_yxwh(*gt, clip=True)
+    return gt_bbox.iou(pred_bbox)
+
+
 def main(args: argparse.Namespace) -> None:
     dataset_path = os.path.join(args.input_path, args.dataset_name, args.split)
     n_pred_steps = args.steps
@@ -121,8 +140,8 @@ def main(args: argparse.Namespace) -> None:
                     # Nothing to compare in first iteration
                 else:
                     # Perform prediction
-                    mean_hat, covariance_hat = kf.predict(mean, covariance)
-                    mean, covariance = kf.update(mean_hat, covariance_hat, measurement)
+                    mean_hat, covariance_hat = kf.predict(mean, covariance)  # Prior
+                    mean, covariance = kf.update(mean_hat, covariance_hat, measurement)  # Posterior
 
                     total_mse = 0.0
                     total_iou = 0.0
@@ -133,14 +152,12 @@ def main(args: argparse.Namespace) -> None:
 
                         # Calculate MSE
                         mse = ((gt - prior) ** 2).mean()
-                        sample_metrics[f'MSE-{p_index}'].append(mse)
+                        sample_metrics[f'prior-MSE-{p_index}'].append(mse)
                         total_mse += mse
 
                         # Calculate IOU (Accuracy)
-                        gt_bbox = BBox.from_yxwh(*gt, clip=True)
-                        pred_bbox = BBox.from_yxwh(*prior, clip=True)
-                        iou_score = gt_bbox.iou(pred_bbox)
-                        sample_metrics[f'posterior-Accuracy-{p_index}'].append(iou_score)
+                        iou_score = calc_iou(prior, gt)
+                        sample_metrics[f'prior-Accuracy-{p_index}'].append(iou_score)
                         total_iou += iou_score
 
                         mean_hat, covariance_hat = kf.predict(mean_hat, covariance_hat)
@@ -148,18 +165,12 @@ def main(args: argparse.Namespace) -> None:
                     sample_metrics['MSE'].append(total_mse / n_pred_steps)
                     sample_metrics['Accuracy'].append(total_iou / n_pred_steps)
 
-                    # Posterior eval
-                    # Calculate MSE
                     posterior, _ = kf.project(mean, covariance)
                     gt = np.array(measurement, dtype=np.float32)
 
                     posterior_mse = ((posterior - gt) ** 2).mean()
                     sample_metrics[f'posterior-MSE'].append(posterior_mse)
-
-                    # Calculate IOU (Accuracy)
-                    posterior_bbox = BBox.from_yxwh(*posterior, clip=True)
-                    gt_bbox = BBox.from_yxwh(*gt, clip=True)
-                    posterior_iou_score = gt_bbox.iou(posterior_bbox)
+                    posterior_iou_score = calc_iou(posterior, gt)
                     sample_metrics[f'posterior-Accuracy'].append(posterior_iou_score)
 
                     # Save data
