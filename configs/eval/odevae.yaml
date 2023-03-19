@@ -1,4 +1,4 @@
-experiment: 'ODEVAE-exp01-one-epoch'
+experiment: '${train.experiment}'
 split: 'val'
 batch_size: 32
 num_workers: 8

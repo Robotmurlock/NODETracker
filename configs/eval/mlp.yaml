@@ -1,4 +1,4 @@
-experiment: 'MLP-iter02-exp01-10h-1f'
+experiment: '${train.experiment}'
 split: 'val'
 batch_size: 32
 num_workers: 8
