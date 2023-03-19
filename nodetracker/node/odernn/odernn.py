@@ -7,7 +7,7 @@ from typing import Optional, Tuple
 import torch
 from torch import nn
 
-from nodetracker.node.building_blocks import MLP
+from nodetracker.library.building_blocks import MLP
 from nodetracker.node.core.odevae import MLPODEF, NODEDecoder
 from nodetracker.node.core.original import NeuralODE
 from nodetracker.node.core.solver import ode_solver_factory

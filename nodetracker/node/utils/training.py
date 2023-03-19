@@ -4,6 +4,7 @@ NODE Lightning module training utility.
 from dataclasses import dataclass, field
 from typing import Optional, Tuple
 
+import numpy as np
 import pytorch_lightning as pl
 import torch
 from torch import nn
@@ -32,6 +33,17 @@ class LightningModuleBase(pl.LightningModule):
         super().__init__()
         self._train_config = train_config
         self._meter = MetricMeter()
+
+    @property
+    def n_params(self) -> int:
+        """
+        Gets number of model parameters.
+
+        Returns:
+            Return number of model parameters
+        """
+        trainable_parameters = filter(lambda p: p.requires_grad, self.parameters())
+        return sum([np.prod(p.size()) for p in trainable_parameters])
 
     def on_validation_epoch_end(self) -> None:
         for name, value in self._meter.get_all():

@@ -6,7 +6,7 @@ from typing import Optional
 import torch
 from torch import nn
 
-from nodetracker.node.building_blocks.mlp import MLP
+from nodetracker.library.building_blocks import MLP
 from nodetracker.node.utils import LightningTrainConfig, LightningModuleForecaster
 
 

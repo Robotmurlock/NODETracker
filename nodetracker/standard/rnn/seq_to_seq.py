@@ -9,7 +9,7 @@ import torch
 from torch import nn
 
 from nodetracker.library import time_series
-from nodetracker.node.building_blocks import MLP
+from nodetracker.library.building_blocks import MLP
 from nodetracker.node.utils import LightningTrainConfig, LightningModuleForecaster
 
 
@@ -21,7 +21,7 @@ class RNNEncoder(nn.Module):
     def __init__(self, input_dim: int, hidden_dim: int, latent_dim: int):
         super().__init__()
         self._latent_dim = latent_dim
-        self._rnn = nn.GRU(input_dim + 1, hidden_dim)
+        self._rnn = nn.GRU(input_dim + 1, hidden_dim, num_layers=1, batch_first=False)
         self._hidden2latent = nn.Linear(hidden_dim, latent_dim)  # outputs log_var and mean for each input
 
     def forward(self, x_obs: torch.Tensor, t_obs: torch.Tensor) -> torch.Tensor:

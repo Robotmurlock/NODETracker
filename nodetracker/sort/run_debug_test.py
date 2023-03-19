@@ -3,7 +3,7 @@ SortTracker debug test (few iteration)
 """
 import logging
 
-from library.cv.bbox import PredBBox, Point
+from nodetracker.library.cv.bbox import PredBBox, Point
 from nodetracker.node.kalman_filter import TorchConstantVelocityODKalmanFilter
 from nodetracker.sort import SortTracker
 from nodetracker.sort.matching import HungarianAlgorithmIOU
