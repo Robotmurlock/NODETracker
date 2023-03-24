@@ -1,3 +1,3 @@
 """
-RNN Seq2Seq
+Standard models for trajectory prediction
 """

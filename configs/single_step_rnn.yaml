@@ -1,0 +1,9 @@
+defaults:
+  - resources: cuda.yaml
+  - dataset: mot.yaml
+  - transform: standardized_first_difference_v2.yaml
+  - model: single_step_rnn.yaml
+  - train: single_step_rnn.yaml
+  - eval: single_step_rnn.yaml
+  - visualize: default.yaml
+  - _self_

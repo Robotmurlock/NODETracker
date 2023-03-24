@@ -1,4 +1,7 @@
-from typing import Optional
+"""
+Autoregressive RNN
+"""
+from typing import Optional, Tuple
 
 import torch
 from torch import nn
@@ -81,7 +84,7 @@ class ARRNN(nn.Module):
         prev_h = torch.zeros(1, batch_size, self._hidden_dim).to(x_i) if prev_h is None else prev_h
         if self._resnet_block is not None:
             x_i = self._resnet_block(x_i)
-        z, prev_h = self._rnn(x_i, prev_h)
+        z, prev_h = self._rnn(x_i, prev_h.detach())
 
         return z, prev_h
 
@@ -97,7 +100,8 @@ class ARRNN(nn.Module):
         """
         return self._head(zs)
 
-    def forward(self, x_obs: torch.Tensor, t_obs: torch.Tensor, t_unobs: torch.Tensor) -> torch.Tensor:
+    def forward(self, x_obs: torch.Tensor, t_obs: torch.Tensor, t_unobs: torch.Tensor) \
+            -> Tuple[torch.Tensor, torch.Tensor]:
         obs_time_len, unobs_time_len = t_obs.shape[0], t_unobs.shape[0]
         assert obs_time_len >= 1, f'Minimum history length is 1 but found {obs_time_len}.'
 
@@ -118,7 +122,7 @@ class ARRNN(nn.Module):
         zs = torch.stack(zs)
         x_hats = self.postprocess(zs)
 
-        return x_hats
+        return x_hats, zs
 
 
 class LightningARRNN(LightningModuleForecaster):
@@ -126,19 +130,19 @@ class LightningARRNN(LightningModuleForecaster):
     Simple RNN implementation to compare with NODE models.
     """
     def __init__(
-            self,
-            input_dim: int,
-            hidden_dim: int,
+        self,
+        input_dim: int,
+        hidden_dim: int,
 
-            resnet: bool = False,
-            resnet_n_layers: int = 2,
-            resnet_n_bottleneck_layers: int = 4,
+        resnet: bool = False,
+        resnet_n_layers: int = 2,
+        resnet_n_bottleneck_layers: int = 4,
 
-            stem_n_layers: int = 2,
-            head_n_layers: int = 1,
-            rnn_n_layers: int = 1,
+        stem_n_layers: int = 2,
+        head_n_layers: int = 1,
+        rnn_n_layers: int = 1,
 
-            train_config: Optional[LightningTrainConfig] = None
+        train_config: Optional[LightningTrainConfig] = None
     ):
         model = ARRNN(
             input_dim=input_dim,
@@ -168,7 +172,7 @@ def run_test() -> None:
             resnet=resnet
         )
 
-        output = model(xs, ts_obs, ts_unobs)
+        output, *_ = model(xs, ts_obs, ts_unobs)
         assert output.shape == expected_shape, f'Expected shape {expected_shape} but found {output.shape}!'
         print(f'Number of parameters (resnet={resnet}): {model.n_params}.')
 
