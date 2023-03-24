@@ -40,6 +40,21 @@ class AutoregressiveForecasterDecorator(nn.Module):
 
         return torch.cat(result)
 
+    @torch.no_grad()
+    def inference(self, x: torch.Tensor, t_obs: torch.Tensor, t_unobs: Optional[torch.Tensor] = None) -> torch.Tensor:
+        """
+        Alias for `forward` method.
+
+        Args:
+            x: Input trajectory
+            t_obs: Input trajectory time points
+            t_unobs: "Output" trajectory time points
+
+        Returns:
+            Model prediction
+        """
+        return self(x, t_obs, t_unobs)
+
 
 def run_test():
     class Baseline(nn.Module):

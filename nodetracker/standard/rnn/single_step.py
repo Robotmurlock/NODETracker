@@ -7,7 +7,7 @@ import torch
 from torch import nn
 
 from nodetracker.library import time_series
-from nodetracker.library.building_blocks import MLP
+from nodetracker.library.building_blocks import MLP, ResnetMLPBlock
 from nodetracker.node.utils import LightningModuleForecaster, LightningTrainConfig
 
 
@@ -40,19 +40,6 @@ class SingleStepRNN(nn.Module):
             n_layers=head_n_layers
         )
 
-    def preprocess(self, x_obs: torch.Tensor, t_obs: torch.Tensor) -> torch.Tensor:
-        """
-        Preprocess raw trajectory by transforming it into "hidden trajectory" combined with time step differences.
-
-        Args:
-            x_obs: Trajectory
-            t_obs: Time points
-
-        Returns:
-            Hidden trajectory
-        """
-
-
     def forward(self, x_obs: torch.Tensor, t_obs: torch.Tensor, t_unobs: torch.Tensor) \
             -> Tuple[torch.Tensor, torch.Tensor]:
         _ = t_unobs  # Unused
@@ -71,7 +58,7 @@ class SingleStepRNN(nn.Module):
         h = torch.zeros(1, batch_size, self._hidden_dim).to(x_obs)
 
         z, _ = self._rnn(xt, h.detach())
-        out = self._head(z[-1])
+        out = self._head(z[-1]).unsqueeze(0)  # Add time step dimension (1, ...)
         return out
 
 
@@ -106,7 +93,7 @@ def run_test() -> None:
     xs = torch.randn(4, 3, 7)
     ts_obs = torch.randn(4, 3, 1)
     ts_unobs = torch.randn(2, 3, 1)
-    expected_shape = (3, 7)
+    expected_shape = (1, 3, 7)
 
     model = SingleStepRNN(
         input_dim=7,
