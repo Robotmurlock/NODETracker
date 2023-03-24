@@ -23,7 +23,7 @@ class ModelType(enum.Enum):
     ODERNN = 'odernn'
     ODERNNVAE = 'odernnvae'
     ARRNN = 'arrnn'
-    SINGLE_STEP_RNN = 'single_step_rnn'
+    SINGLE_STEP_RNN = 'single-step-rnn'
     RNN = 'rnn'
     MLP = 'mlp'
     KALMAN_FILTER = 'kf'
