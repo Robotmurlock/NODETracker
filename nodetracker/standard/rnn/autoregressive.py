@@ -8,7 +8,7 @@ from torch import nn
 
 from nodetracker.library import time_series
 from nodetracker.library.building_blocks import MLP, ResnetMLPBlock
-from nodetracker.node.utils import LightningModuleForecaster, LightningTrainConfig
+from nodetracker.node.utils import LightningModuleForecasterWithTeacherForcing, LightningTrainConfig
 
 
 class ARRNN(nn.Module):
@@ -24,6 +24,8 @@ class ARRNN(nn.Module):
         resnet_n_layers: int = 2,
         resnet_n_bottleneck_layers: int = 4,
 
+        rnn_dropout: float = 0.3,
+
         stem_n_layers: int = 2,
         head_n_layers: int = 1,
         rnn_n_layers: int = 1
@@ -35,15 +37,16 @@ class ARRNN(nn.Module):
         self._stem = MLP(
             input_dim=input_dim + 1,  # time dim
             hidden_dim=hidden_dim,
-            output_dim=hidden_dim,
+            output_dim=input_dim,
             n_layers=stem_n_layers
         )
         self._resnet_block = ResnetMLPBlock(
-            dim=hidden_dim,
+            dim=input_dim,
             n_layers=resnet_n_layers,
             n_bottleneck_layers=resnet_n_bottleneck_layers
         ) if resnet else None
-        self._rnn = nn.GRU(hidden_dim, hidden_dim, num_layers=rnn_n_layers, batch_first=False)
+        self._rnn = nn.GRU(input_dim, hidden_dim, num_layers=rnn_n_layers, batch_first=False)
+        self._dropout = nn.Dropout(rnn_dropout)
         self._head = MLP(
             input_dim=hidden_dim,
             hidden_dim=hidden_dim,
@@ -87,23 +90,13 @@ class ARRNN(nn.Module):
         if self._resnet_block is not None:
             x_i = self._resnet_block(x_i)
         z, prev_h = self._rnn(x_i, prev_h.detach())
+        z = self._dropout(z)
+        x_hat = self._head(z)
 
-        return z, prev_h
+        return x_hat, prev_h
 
-    def postprocess(self, zs: torch.Tensor) -> torch.Tensor:
-        """
-        Projects hidden states to observable space.
-
-        Args:
-            zs: Hidden states
-
-        Returns:
-            Prediction
-        """
-        return self._head(zs)
-
-    def forward(self, x_obs: torch.Tensor, t_obs: torch.Tensor, t_unobs: torch.Tensor) \
-            -> Tuple[torch.Tensor, torch.Tensor]:
+    def forward(self, x_obs: torch.Tensor, t_obs: torch.Tensor, t_unobs: torch.Tensor, x_tf: Optional[torch.Tensor] = None) \
+            -> Tuple[torch.Tensor]:
         obs_time_len, unobs_time_len = t_obs.shape[0], t_unobs.shape[0]
         assert obs_time_len >= 1, f'Minimum history length is 1 but found {obs_time_len}.'
 
@@ -111,23 +104,24 @@ class ARRNN(nn.Module):
 
         # WarmUp
         prev_h = None
-        z = None
+        x_hat = None
         for i in range(obs_time_len):
-            z, prev_h = self.step(xt[i:i+1], prev_h)
+            x_hat, prev_h = self.step(xt[i:i+1], prev_h)
+
 
         # Autoregressive
-        zs = [z[0]]
-        for _ in range(unobs_time_len-1):
-            z, prev_h = self.step(z, prev_h)
-            zs.append(z[0])
+        x_hats = [x_hat]
+        for i in range(unobs_time_len-1):
+            x_hat = x_hat if x_tf is None else x_tf[i:i+1]
+            x_hat, prev_h = self.step(x_hat, prev_h)
+            x_hats.append(x_hat)
 
-        zs = torch.stack(zs)
-        x_hats = self.postprocess(zs)
+        x_hats = torch.cat(x_hats)
+        # noinspection PyTypeChecker
+        return x_hats,
 
-        return x_hats, zs
 
-
-class LightningARRNN(LightningModuleForecaster):
+class LightningARRNN(LightningModuleForecasterWithTeacherForcing):
     """
     Simple RNN implementation to compare with NODE models.
     """
@@ -144,6 +138,9 @@ class LightningARRNN(LightningModuleForecaster):
         head_n_layers: int = 1,
         rnn_n_layers: int = 1,
 
+        model_gaussian: bool = False,
+        teacher_forcing: bool = False,
+
         train_config: Optional[LightningTrainConfig] = None
     ):
         model = ARRNN(
@@ -157,7 +154,13 @@ class LightningARRNN(LightningModuleForecaster):
             rnn_n_layers=rnn_n_layers
         )
         loss_func = nn.MSELoss()
-        super().__init__(train_config=train_config, model=model, loss_func=loss_func)
+        super().__init__(
+            train_config=train_config,
+            model=model,
+            loss_func=loss_func,
+            model_gaussian=model_gaussian,
+            teacher_forcing=teacher_forcing
+        )
 
 
 def run_test() -> None:
@@ -165,18 +168,22 @@ def run_test() -> None:
     xs = torch.randn(4, 3, 7)
     ts_obs = torch.randn(4, 3, 1)
     ts_unobs = torch.randn(2, 3, 1)
+    x_unobs = torch.randn(2, 3, 7)
     expected_shape = (2, 3, 7)
 
-    for resnet in [False, True]:
-        model = LightningARRNN(
-            input_dim=7,
-            hidden_dim=5,
-            resnet=resnet
-        )
+    for teacher_forcing in [False, True]:
+        for resnet in [False, True]:
+            model = LightningARRNN(
+                input_dim=7,
+                hidden_dim=5,
+                resnet=resnet,
+                teacher_forcing=teacher_forcing
+            )
 
-        output, *_ = model(xs, ts_obs, ts_unobs)
-        assert output.shape == expected_shape, f'Expected shape {expected_shape} but found {output.shape}!'
-        print(f'Number of parameters (resnet={resnet}): {model.n_params}.')
+            x_tf = x_unobs if teacher_forcing else None
+            output, *_ = model(xs, ts_obs, ts_unobs, x_tf=x_tf)
+            assert output.shape == expected_shape, f'Expected shape {expected_shape} but found {output.shape}!'
+            print(f'Number of parameters (resnet={resnet}): {model.n_params}.')
 
 
 if __name__ == '__main__':

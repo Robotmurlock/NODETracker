@@ -7,7 +7,7 @@ import torch
 from torch import nn
 
 from nodetracker.library import time_series
-from nodetracker.library.building_blocks import MLP, ResnetMLPBlock
+from nodetracker.library.building_blocks import MLP
 from nodetracker.node.utils import LightningModuleForecaster, LightningTrainConfig
 
 
@@ -22,7 +22,9 @@ class SingleStepRNN(nn.Module):
 
         stem_n_layers: int = 2,
         head_n_layers: int = 1,
-        rnn_n_layers: int = 1
+        rnn_n_layers: int = 1,
+
+        rnn_dropout: float = 0.3
     ):
         super().__init__()
         self._hidden_dim = hidden_dim
@@ -33,6 +35,7 @@ class SingleStepRNN(nn.Module):
             n_layers=stem_n_layers
         )
         self._rnn = nn.GRU(hidden_dim, hidden_dim, num_layers=rnn_n_layers, batch_first=False)
+        self._dropout = nn.Dropout(rnn_dropout)
         self._head = MLP(
             input_dim=hidden_dim,
             hidden_dim=hidden_dim,
@@ -45,7 +48,6 @@ class SingleStepRNN(nn.Module):
         _ = t_unobs  # Unused
 
         obs_time_len = t_obs.shape[0]
-        batch_size = x_obs.shape[1]
         assert obs_time_len >= 1, f'Minimum history length is 1 but found {obs_time_len}.'
 
         # Using relative time point values instead of absolute time point values
@@ -56,6 +58,7 @@ class SingleStepRNN(nn.Module):
 
         xt = self._stem(xt)
         z, _ = self._rnn(xt)
+        z = self._dropout(z)
         out = self._head(z[-1]).unsqueeze(0)  # Add time step dimension (1, ...)
         return out
 
@@ -73,6 +76,8 @@ class LightningSingleStepRNN(LightningModuleForecaster):
         head_n_layers: int = 1,
         rnn_n_layers: int = 1,
 
+        model_gaussian: bool = False,
+
         train_config: Optional[LightningTrainConfig] = None
     ):
         model = SingleStepRNN(
@@ -83,7 +88,12 @@ class LightningSingleStepRNN(LightningModuleForecaster):
             rnn_n_layers=rnn_n_layers
         )
         loss_func = nn.MSELoss()
-        super().__init__(train_config=train_config, model=model, loss_func=loss_func)
+        super().__init__(
+            train_config=train_config,
+            model=model,
+            loss_func=loss_func,
+            model_gaussian=model_gaussian
+        )
 
 
 def run_test() -> None:
