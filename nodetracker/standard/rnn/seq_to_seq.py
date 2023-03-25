@@ -18,10 +18,24 @@ class RNNEncoder(nn.Module):
     Time-series RNN encoder. Can work with time-series with variable lengths and possible missing values.
     Simplified version of NODE latent model RNN encoder.
     """
-    def __init__(self, input_dim: int, hidden_dim: int, latent_dim: int):
+    def __init__(
+        self,
+        input_dim: int,
+        hidden_dim: int,
+        latent_dim: int,
+            
+        rnn_n_layers: int = 1
+    ):
+        """
+        Args:
+            input_dim: Trajectory point dimension
+            hidden_dim: Hidden trajectory dimension
+            latent_dim: "latent" (hidden-2) trajectory dimension
+            rnn_n_layers: Number of stacked RNN (GRU) layers
+        """
         super().__init__()
         self._latent_dim = latent_dim
-        self._rnn = nn.GRU(input_dim + 1, hidden_dim, num_layers=1, batch_first=False)
+        self._rnn = nn.GRU(input_dim + 1, hidden_dim, num_layers=rnn_n_layers, batch_first=False)
         self._hidden2latent = nn.Linear(hidden_dim, latent_dim)  # outputs log_var and mean for each input
 
     def forward(self, x_obs: torch.Tensor, t_obs: torch.Tensor) -> torch.Tensor:
@@ -40,14 +54,30 @@ class RNNDecoder(nn.Module):
     """
     Simple RNN decoder
     """
-    def __init__(self, observable_dim: int, hidden_dim: int, latent_dim: int):
+    def __init__(
+        self, 
+        observable_dim: int, 
+        hidden_dim: int, 
+        latent_dim: int,
+
+        rnn_n_layers: int = 1
+    ):
+        """
+        Args:
+            observable_dim: Trajectory point dimension
+            hidden_dim: Hidden trajectory dimension
+            latent_dim: "latent" (hidden-2) trajectory dimension
+            rnn_n_layers: Number of stacked RNN (GRU) layers
+        """
         super().__init__()
 
         self._latent_dim = latent_dim
+        self._rnn_n_layers = rnn_n_layers
+
         self._rnn = nn.GRU(
             input_size=latent_dim,
             hidden_size=latent_dim,
-            num_layers=1,
+            num_layers=rnn_n_layers,
             batch_first=False
         )
         self._latent2hidden = MLP(input_dim=latent_dim, output_dim=hidden_dim)
@@ -56,7 +86,7 @@ class RNNDecoder(nn.Module):
     def forward(self, z: torch.Tensor, n_steps: int) -> torch.Tensor:
         batch_size = z.shape[1]
 
-        prev_h = torch.zeros(1, batch_size, self._latent_dim, dtype=torch.float32).to(z).requires_grad_()
+        prev_h = torch.zeros(self._rnn_n_layers, batch_size, self._latent_dim, dtype=torch.float32).to(z).requires_grad_()
         outputs = []
         for _ in range(n_steps):
             z_out, prev_h = self._rnn(z, prev_h.detach())
@@ -75,17 +105,38 @@ class RNNSeq2Seq(nn.Module):
     - variable output sequence length;
     - potential missing values (uses time diff)
     """
-    def __init__(self, observable_dim: int, hidden_dim: int, latent_dim: int):
+    def __init__(
+        self, 
+        observable_dim: int, 
+        hidden_dim: int, 
+        latent_dim: int,
+
+        encoder_rnn_n_layers: int = 1,
+        dcoder_rnn_n_layers: int = 1
+
+    ):
+        """
+        Args:
+            observable_dim: Trajectory point dimension
+            hidden_dim: Hidden trajectory dimension
+            latent_dim: "latent" (hidden-2) trajectory dimension
+            encoder_rnn_n_layers: Number of stacked RNN (GRU) layers for RNN Encoder
+            dcoder_rnn_n_layers: Number of stacked RNN (GRU) layers for RNN Decoder
+        """
         super().__init__()
         self._encoder = RNNEncoder(
             input_dim=observable_dim,
             hidden_dim=hidden_dim,
-            latent_dim=latent_dim
+            latent_dim=latent_dim,
+            
+            rnn_n_layers=encoder_rnn_n_layers
         )
         self._decoder = RNNDecoder(
             observable_dim=observable_dim,
             hidden_dim=hidden_dim,
-            latent_dim=latent_dim
+            latent_dim=latent_dim,
+            
+            rnn_n_layers=dcoder_rnn_n_layers
         )
 
     def forward(self, x: torch.Tensor, ts_obs: torch.Tensor, ts_unobs: torch.Tensor) -> torch.Tensor:
@@ -105,9 +156,27 @@ class LightningRNNSeq2Seq(LightningModuleForecaster):
             hidden_dim: int,
             latent_dim: int,
 
+            encoder_rnn_n_layers: int = 1,
+            dcoder_rnn_n_layers: int = 1,
+
             train_config: Optional[LightningTrainConfig] = None
     ):
-        model = RNNSeq2Seq(observable_dim, hidden_dim, latent_dim)
+        """
+        Args:
+            observable_dim: Trajectory point dimension
+            hidden_dim: Hidden trajectory dimension
+            latent_dim: "latent" (hidden-2) trajectory dimension
+            encoder_rnn_n_layers: Number of stacked RNN (GRU) layers for RNN Encoder
+            dcoder_rnn_n_layers: Number of stacked RNN (GRU) layers for RNN Decoder
+        """
+        model = RNNSeq2Seq(
+            observable_dim=observable_dim, 
+            hidden_dim=hidden_dim, 
+            latent_dim=latent_dim,
+
+            encoder_rnn_n_layers=encoder_rnn_n_layers,
+            dcoder_rnn_n_layers=dcoder_rnn_n_layers
+        )
         loss_func = nn.MSELoss()
         super().__init__(train_config=train_config, model=model, loss_func=loss_func)
 
@@ -117,7 +186,10 @@ def main() -> None:
     model = LightningRNNSeq2Seq(
         observable_dim=5,
         hidden_dim=3,
-        latent_dim=2
+        latent_dim=2,
+
+        encoder_rnn_n_layers=2,
+        dcoder_rnn_n_layers=2
     )
     xs = torch.randn(10, 3, 5)
     ts_obs = torch.randn(10, 3, 1)

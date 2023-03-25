@@ -30,6 +30,8 @@ class ARRNN(nn.Module):
     ):
         super().__init__()
         self._hidden_dim = hidden_dim
+        self._rnn_n_layers = rnn_n_layers
+
         self._stem = MLP(
             input_dim=input_dim + 1,  # time dim
             hidden_dim=hidden_dim,
@@ -81,7 +83,7 @@ class ARRNN(nn.Module):
         """
         batch_size = x_i.shape[1]
 
-        prev_h = torch.zeros(1, batch_size, self._hidden_dim).to(x_i) if prev_h is None else prev_h
+        prev_h = torch.zeros(self._rnn_n_layers, batch_size, self._hidden_dim).to(x_i) if prev_h is None else prev_h
         if self._resnet_block is not None:
             x_i = self._resnet_block(x_i)
         z, prev_h = self._rnn(x_i, prev_h.detach())

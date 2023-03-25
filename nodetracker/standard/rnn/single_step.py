@@ -55,9 +55,7 @@ class SingleStepRNN(nn.Module):
         xt = torch.cat([x_obs, t_diff], dim=-1)
 
         xt = self._stem(xt)
-        h = torch.zeros(1, batch_size, self._hidden_dim).to(x_obs)
-
-        z, _ = self._rnn(xt, h.detach())
+        z, _ = self._rnn(xt)
         out = self._head(z[-1]).unsqueeze(0)  # Add time step dimension (1, ...)
         return out
 
