@@ -106,7 +106,7 @@ def run_inference(
                 predictions.append(pred)
 
                 # Calculate MSE
-                mse_val_i = ((bboxes_unobs_gt_numpy - bboxes_unobs_pred_numpy) ** 2).sum()
+                mse_val_i = ((bboxes_unobs_gt_numpy - bboxes_unobs_pred_numpy) ** 2).mean()
                 dataset_metrics[f'MSE-{frame_relative_index+1}'].append(mse_val_i)
 
                 # Calculate IOU score
