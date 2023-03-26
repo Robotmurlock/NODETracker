@@ -13,7 +13,7 @@ import torch
 from omegaconf import DictConfig
 from tqdm import tqdm
 
-from nodetracker.analysis_tools.run_evaluate_kf_e2e import aggregate_metrics, calc_iou
+from nodetracker.analysis_tools.run_evaluate_kf_e2e import aggregate_metrics, calc_iou, add_measurement_noise
 from nodetracker.common import conventions
 from nodetracker.common.project import CONFIGS_PATH
 from nodetracker.common.project import OUTPUTS_PATH
@@ -28,7 +28,8 @@ logger = logging.getLogger('ODERNN_E2E_EVAL')
 # Improvisation
 N_STEPS = 5
 N_HIST = 10
-DETECTION_NOISE = torch.tensor(1)
+DETECTION_NOISE_SIGMA = 0.05
+DETECTION_STD = torch.tensor([1.0, 1.0, 1.0, 1.0])
 
 
 class ODETorchTensorBuffer:
@@ -137,16 +138,24 @@ def main(cfg: DictConfig):
         object_ids = dataset.get_scene_object_ids(scene_name)
         for object_id in tqdm(object_ids, unit='track', desc=f'Evaluating tracker on {scene_name}'):
             buffer = ODETorchTensorBuffer(N_HIST, min_size=10, dtype=torch.float32)
+            prev_measurement = None
 
             n_data_points = dataset.get_object_data_length(object_id)
             for index in range(n_data_points-n_pred_steps):
-                measurement = torch.tensor(dataset.get_object_data_label(object_id, index)['bbox'], dtype=torch.float32)
+                measurement = dataset.get_object_data_label(object_id, index)['bbox']
+                measurement_no_noise = torch.tensor(measurement)
+                measurement = add_measurement_noise(measurement, prev_measurement, DETECTION_NOISE_SIGMA)
+
+                # Save data
+                prev_measurement = measurement
+
+                measurement = torch.tensor(measurement)
                 buffer.push(measurement.clone())
 
                 if buffer.has_input:
                     x_obs, ts_obs, ts_unobs = buffer.get_input(n_pred_steps)
                     x_mean_hat, x_std_hat = ode_filter.predict(x_obs, ts_obs, ts_unobs)
-                    # TODO: mean, covariance = ode_filter.update(x_mean_hat, x_cov_hat, measurement, DETECTION_NOISE)
+                    mean, covariance = ode_filter.update(x_mean_hat, x_std_hat, measurement, DETECTION_STD)
 
                     total_mse = 0.0
                     total_iou = 0.0
@@ -156,16 +165,21 @@ def main(cfg: DictConfig):
 
                         # Calculate MSE
                         mse = ((gt - pred) ** 2).mean().item()
-                        sample_metrics[f'MSE-{p_index}'].append(mse)
+                        sample_metrics[f'prior-MSE-{p_index}'].append(mse)
                         total_mse += mse
 
                         # Calculate IOU (Accuracy)
                         iou_score = calc_iou(pred, gt)
-                        sample_metrics[f'Accuracy-{p_index}'].append(iou_score)
+                        sample_metrics[f'prior-Accuracy-{p_index}'].append(iou_score)
                         total_iou += iou_score
 
-                    sample_metrics['MSE'].append(total_mse / n_pred_steps)
-                    sample_metrics['Accuracy'].append(total_iou / n_pred_steps)
+                    sample_metrics['prior-MSE'].append(total_mse / n_pred_steps)
+                    sample_metrics['prior-Accuracy'].append(total_iou / n_pred_steps)
+
+                    posterior_mse = ((mean - measurement_no_noise) ** 2).mean()
+                    sample_metrics[f'posterior-MSE'].append(posterior_mse)
+                    posterior_iou_score = calc_iou(mean, measurement_no_noise)
+                    sample_metrics[f'posterior-Accuracy'].append(posterior_iou_score)
 
             n_objects += 1
             if n_objects >= 10:

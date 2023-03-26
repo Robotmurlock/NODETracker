@@ -131,6 +131,7 @@ def main(args: argparse.Namespace) -> None:
             n_data_points = dataset.get_object_data_length(object_id)
             for index in range(n_data_points-n_pred_steps):
                 measurement = dataset.get_object_data_label(object_id, index)['bbox']
+                measurement_no_noise = measurement
                 measurement = add_measurement_noise(measurement, prev_measurement, args.noise_sigma)
 
                 if mean is None:
@@ -162,11 +163,11 @@ def main(args: argparse.Namespace) -> None:
 
                         mean_hat, covariance_hat = kf.predict(mean_hat, covariance_hat)
 
-                    sample_metrics['MSE'].append(total_mse / n_pred_steps)
-                    sample_metrics['Accuracy'].append(total_iou / n_pred_steps)
+                    sample_metrics['prior-MSE'].append(total_mse / n_pred_steps)
+                    sample_metrics['prior-Accuracy'].append(total_iou / n_pred_steps)
 
                     posterior, _ = kf.project(mean, covariance)
-                    gt = np.array(measurement, dtype=np.float32)
+                    gt = np.array(measurement_no_noise, dtype=np.float32)
 
                     posterior_mse = ((posterior - gt) ** 2).mean()
                     sample_metrics[f'posterior-MSE'].append(posterior_mse)
