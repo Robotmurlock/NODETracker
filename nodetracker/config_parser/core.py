@@ -8,6 +8,7 @@ from dataclasses import dataclass, asdict, field
 from pathlib import Path
 from typing import Optional, List, Union, Tuple
 from nodetracker.datasets.augmentations import TrajectoryAugmentation, create_identity_augmentation
+from nodetracker.utils.serialization import serialize_json
 
 import dacite
 import yaml
@@ -280,4 +281,6 @@ class GlobalConfig:
         """
         Path(path).parent.mkdir(exist_ok=True, parents=True)
         with open(path, 'w', encoding='utf-8') as f:
-            yaml.safe_dump(asdict(self), f)
+            data = asdict(self)  # Not fully "serialized"
+            data = serialize_json(data)
+            yaml.safe_dump(data, f)

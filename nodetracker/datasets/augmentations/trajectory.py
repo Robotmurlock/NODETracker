@@ -2,11 +2,12 @@
 Implementation of trajectory augmentations
 """
 from abc import abstractmethod, ABC
+from nodetracker.utils.serialization import Serializable, JSONType
 import torch
-from typing import Tuple, List
+from typing import Tuple, List, Any
 
 
-class TrajectoryAugmentation(ABC):
+class TrajectoryAugmentation(Serializable, ABC):
     """
     Abstract augmentation - defines interface
     """
@@ -28,7 +29,7 @@ class TrajectoryAugmentation(ABC):
     def __call__(self, x_obs: torch.Tensor, t_obs: torch.Tensor, x_unobs: torch.Tensor, t_unobs: torch.Tensor) \
         -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """
-        Alias for `apply`
+        Alias for `apply` function.
 
         Args:
             x_obs: Observed bboxes data
@@ -39,6 +40,7 @@ class TrajectoryAugmentation(ABC):
         Returns:
             augmented (x_obs, t_obs, x_unobs, t_unobs)
         """
+        return self.apply(x_obs, t_obs, x_unobs, t_unobs)
 
 
 class CompositionAugmentation(TrajectoryAugmentation):
@@ -57,6 +59,17 @@ class CompositionAugmentation(TrajectoryAugmentation):
         for aug in self._augs:
             x_obs, t_obs, x_unobs, t_unobs = aug.apply(x_obs, t_obs, x_unobs, t_unobs)
         return x_obs, t_obs, x_unobs, t_unobs
+
+    def serialize(self) -> JSONType:
+        return {
+            '_target_': 'nodetracker.datasets.augmentations.trajectory.DetectorNoiseAugmentation',  # TODO
+            'augs': [v.serialize() for v in self._augs]
+        }
+
+    @classmethod
+    def deserialize(cls, raw: JSONType) -> Any:
+        del raw['_target_']  # Redundant
+        return cls(**raw)
 
 
 class DetectorNoiseAugmentation(TrajectoryAugmentation):
@@ -77,6 +90,17 @@ class DetectorNoiseAugmentation(TrajectoryAugmentation):
         x_obs_noise[:, :, [1, 3]] *= x_obs[:, :, 3]  # `y` and `w` noise are proportional to the `w`
         x_obs += x_obs_noise
         return x_obs, t_obs, x_unobs, t_unobs
+
+    def serialize(self) -> JSONType:
+        return {
+            '_target_': 'nodetracker.datasets.augmentations.trajectory.DetectorNoiseAugmentation',  # TODO
+            'sigma': self._sigma
+        }
+
+    @classmethod
+    def deserialize(cls, raw: JSONType) -> Any:
+        del raw['_target_']  # Redundant
+        return cls(**raw)
 
 
 def create_identity_augmentation() -> TrajectoryAugmentation:

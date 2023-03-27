@@ -32,9 +32,11 @@ def preprocess(cfg: DictConfig, name: str) -> Tuple[GlobalConfig, str]:
     raw_cfg = OmegaConf.to_object(cfg)
     if 'augmentations' in raw_cfg:
         # noinspection PyTypeChecker
-        raw_cfg.augmentations.before_transform = CompositionAugmentation([instantiate(a) for a in raw_cfg.augmentations.before_transform])
+        raw_cfg['augmentations']['before_transform'] = \
+            CompositionAugmentation([instantiate(a) for a in raw_cfg['augmentations']['before_transform']])
         # noinspection PyTypeChecker
-        raw_cfg.augmentations.after_transform = CompositionAugmentation([instantiate(a) for a in raw_cfg.augmentations.after_transform])
+        raw_cfg['augmentations']['after_transform'] = \
+            CompositionAugmentation([instantiate(a) for a in raw_cfg['augmentations']['after_transform']])
 
     cfg = GlobalConfig.from_dict(raw_cfg)
     logger.info(f'Config:\n{cfg.prettyprint}')
