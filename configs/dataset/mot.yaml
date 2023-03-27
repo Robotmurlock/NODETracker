@@ -3,4 +3,4 @@ train_path: '${dataset.name}/train'
 val_path: '${dataset.name}/val'
 test_path: '${dataset.name}/test'
 history_len: 10 
-future_len: 5
+future_len: 1
