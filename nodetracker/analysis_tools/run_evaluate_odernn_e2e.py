@@ -29,7 +29,7 @@ logger = logging.getLogger('ODERNN_E2E_EVAL')
 N_STEPS = 5
 N_HIST = 10
 DETECTION_NOISE_SIGMA = 0.05
-DETECTION_STD = torch.tensor([1.0, 1.0, 1.0, 1.0])
+DETECTION_STD = 1e-3 * torch.tensor([1.0, 1.0, 1.0, 1.0])
 
 
 class ODETorchTensorBuffer:
@@ -131,8 +131,6 @@ def main(cfg: DictConfig):
     ode_filter = ODERNNFilter(model=model, transform=transform_func, accelerator=cfg.resources.accelerator)
     n_pred_steps = N_STEPS
 
-    n_objects = 0
-
     scene_names = dataset.scenes
     for scene_name in scene_names:
         object_ids = dataset.get_scene_object_ids(scene_name)
@@ -143,13 +141,13 @@ def main(cfg: DictConfig):
             n_data_points = dataset.get_object_data_length(object_id)
             for index in range(n_data_points-n_pred_steps):
                 measurement = dataset.get_object_data_label(object_id, index)['bbox']
-                measurement_no_noise = torch.tensor(measurement)
+                measurement_no_noise = torch.tensor(measurement, dtype=torch.float32)
                 measurement = add_measurement_noise(measurement, prev_measurement, DETECTION_NOISE_SIGMA)
 
                 # Save data
                 prev_measurement = measurement
 
-                measurement = torch.tensor(measurement)
+                measurement = torch.tensor(measurement, dtype=torch.float32)
                 buffer.push(measurement.clone())
 
                 if buffer.has_input:
@@ -176,15 +174,11 @@ def main(cfg: DictConfig):
                     sample_metrics['prior-MSE'].append(total_mse / n_pred_steps)
                     sample_metrics['prior-Accuracy'].append(total_iou / n_pred_steps)
 
-                    posterior_mse = ((mean - measurement_no_noise) ** 2).mean()
+                    mean = mean[0, 0, :]  # Taking only first prediction
+                    posterior_mse = ((mean - measurement_no_noise) ** 2).mean().item()
                     sample_metrics[f'posterior-MSE'].append(posterior_mse)
                     posterior_iou_score = calc_iou(mean, measurement_no_noise)
                     sample_metrics[f'posterior-Accuracy'].append(posterior_iou_score)
-
-            n_objects += 1
-            if n_objects >= 10:
-                break
-        break
 
     metrics = aggregate_metrics(sample_metrics)
 

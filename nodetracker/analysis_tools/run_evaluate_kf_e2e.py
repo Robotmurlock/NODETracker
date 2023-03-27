@@ -101,7 +101,7 @@ def calc_iou(pred: Union[List[float], np.ndarray, torch.Tensor], gt: Union[List[
     """
     pred_bbox = BBox.from_yxwh(*pred, clip=True)
     gt_bbox = BBox.from_yxwh(*gt, clip=True)
-    return gt_bbox.iou(pred_bbox)
+    return float(gt_bbox.iou(pred_bbox))
 
 
 def main(args: argparse.Namespace) -> None:
