@@ -6,4 +6,5 @@ defaults:
   - train: arrnn.yaml
   - eval: arrnn.yaml
   - visualize: default.yaml
+  - augmentations: default.yaml
   - _self_

@@ -6,4 +6,5 @@ defaults:
   - train: odernn.yaml
   - eval: odernn.yaml
   - visualize: default.yaml
+  - augmentations: default.yaml
   - _self_

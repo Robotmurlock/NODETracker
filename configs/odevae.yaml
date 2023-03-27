@@ -6,4 +6,5 @@ defaults:
   - train: odevae.yaml
   - eval: odevae.yaml
   - visualize: default.yaml
+  - augmentations: default.yaml
   - _self_

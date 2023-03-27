@@ -7,6 +7,7 @@ Config structure. Config should be loaded as dictionary and parsed into GlobalCo
 from dataclasses import dataclass, asdict, field
 from pathlib import Path
 from typing import Optional, List, Union, Tuple
+from nodetracker.datasets.augmentations import TrajectoryAugmentation, create_identity_augmentation
 
 import dacite
 import yaml
@@ -68,9 +69,33 @@ class TransformConfig:
 
 
 @dataclass
+class AugmentationsConfig:
+    """
+    Augmentations applied before or after transform:
+    - before_transform: Composition of augmentations applied before transform function.
+    - after_transform: Composition of augmentations applied after transform function.
+    """
+    before_transform: TrajectoryAugmentation
+    after_transform: TrajectoryAugmentation
+
+    @classmethod
+    def default(cls) -> 'AugmentationsConfig':
+        """
+        Default augmentations (none) in case it is not defined.
+
+        Returns:
+            Default augmentations
+        """
+        return cls(
+            before_transform=create_identity_augmentation(),
+            after_transform=create_identity_augmentation()
+        )
+
+
+@dataclass
 class ModelConfig:
     """
-    Model config;
+    Model config:
     - type: Model (architecture) type
     - params: Model creation parameters
     """
@@ -219,6 +244,7 @@ class GlobalConfig:
     eval: EvalConfig
     model: ModelConfig
 
+    augmentations: AugmentationsConfig = field(default_factory=AugmentationsConfig.default)
     path: PathConfig = field(default_factory=PathConfig.default)
     visualize: Optional[VisualizeConfig] = None
 

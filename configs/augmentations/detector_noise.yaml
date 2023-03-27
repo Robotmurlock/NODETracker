@@ -1,0 +1,4 @@
+before_transform:
+  - _target_: nodetracker.datasets.augmentation.trajectory.DetectorNoiseAugmentation
+    sigma: 0.05
+after_transform: []

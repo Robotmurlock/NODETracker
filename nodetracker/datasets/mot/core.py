@@ -20,6 +20,7 @@ from torch.utils.data import Dataset
 from tqdm import tqdm
 
 from nodetracker.datasets import transforms
+from nodetracker.datasets import augmentations
 from nodetracker.datasets.utils import ode_dataloader_collate_func
 from nodetracker.utils.logging import configure_logging
 
@@ -80,6 +81,7 @@ class MOTDataset:
             future_len: Number of unobserved data points
             label_type: Label Type
             fast_loading: Cache metadata (faster loading)
+
         """
         self._path = path
         self._history_len = history_len
@@ -427,7 +429,9 @@ class TorchMOTTrajectoryDataset(Dataset):
         history_len: int,
         future_len: int,
         label_type: LabelType = LabelType.GROUND_TRUTH,
-        postprocess: transforms.InvertibleTransform = None
+        transform: Optional[transforms.InvertibleTransform] = None,
+        augmentation_before_transform: Optional[augmentations.TrajectoryAugmentation] = None,
+        augmentation_after_transform: Optional[augmentations.TrajectoryAugmentation] = None
     ) -> None:
         """
         Args:
@@ -435,7 +439,7 @@ class TorchMOTTrajectoryDataset(Dataset):
             history_len: Number of observed data points
             future_len: Number of unobserved data points
             label_type: Label Type
-            postprocess: Item postprocess
+            transform: Item postprocess
         """
         super().__init__()
         self._dataset = MOTDataset(
@@ -445,9 +449,17 @@ class TorchMOTTrajectoryDataset(Dataset):
             label_type=label_type
         )
 
-        self._transform = postprocess
+        self._transform = transform
         if self._transform is None:
             self._transform = transforms.IdentityTransform()
+
+        self._augmentation_before_transform = augmentation_before_transform
+        if self._augmentation_before_transform is None:
+            self._augmentation_before_transform = augmentations.create_identity_augmentation()
+
+        self._augmentation_after_transform = augmentation_after_transform
+        if self._augmentation_after_transform is None:
+            self._augmentation_after_transform = augmentations.create_identity_augmentation()
 
     @property
     def dataset(self) -> MOTDataset:
@@ -466,8 +478,15 @@ class TorchMOTTrajectoryDataset(Dataset):
         ts_obs = torch.from_numpy(ts_obs)
         ts_unobs = torch.from_numpy(ts_unobs)
 
+        # Trajectory transformations
+        bboxes_obs, bboxes_unobs, ts_obs, ts_unobs = \
+            self._augmentation_before_transform(bboxes_obs, bboxes_unobs, ts_obs, ts_unobs)
+
         bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, metadata = \
             self._transform([bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, metadata])
+
+        bboxes_obs, bboxes_unobs, ts_obs, ts_unobs = \
+            self._augmentation_after_transform(bboxes_obs, bboxes_unobs, ts_obs, ts_unobs)
 
         return bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, metadata
 
@@ -483,7 +502,7 @@ def run_test() -> None:
     print(f'Sample example: {dataset[5]}')
 
     torch_dataset = TorchMOTTrajectoryDataset(dataset_path, history_len=4, future_len=4,
-                                              postprocess=transforms.BboxFirstOrderDifferenceTransform())
+                                              transform=transforms.BboxFirstOrderDifferenceTransform())
 
     print(f'Torch Dataset size: {len(torch_dataset)}')
     print(f'Torch sample example shapes: {[x.shape for x in torch_dataset[5][:-1]]}')

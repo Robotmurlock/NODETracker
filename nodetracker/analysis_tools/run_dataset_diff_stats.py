@@ -31,7 +31,7 @@ def main(cfg: DictConfig):
         path=dataset_train_path,
         history_len=cfg.dataset.history_len,
         future_len=cfg.dataset.future_len,
-        postprocess=transforms.BboxFirstOrderDifferenceTransform()
+        transform=transforms.BboxFirstOrderDifferenceTransform()
     )
 
     sum_bbox = torch.zeros(4, dtype=torch.float32)  # Used to calculate mean and std

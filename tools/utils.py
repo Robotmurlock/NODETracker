@@ -35,14 +35,15 @@ def create_mot20_dataloader(
         path=dataset_path,
         history_len=cfg.dataset.history_len,
         future_len=cfg.dataset.future_len,
-        postprocess=postprocess_transform
+        transform=postprocess_transform
     )
 
-    batch_size = cfg.train.batch_size if train else cfg.eval.batch_size
+    if batch_size is None:
+        batch_size = cfg.train.batch_size if train else cfg.eval.batch_size
     return DataLoader(
         dataset=dataset,
         collate_fn=ode_dataloader_collate_func,
-        batch_size=cfg.train.batch_size if batch_size is None else batch_size,
+        batch_size=batch_size,
         num_workers=cfg.resources.num_workers,
         shuffle=shuffle
     )
