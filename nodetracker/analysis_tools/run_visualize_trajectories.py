@@ -168,7 +168,7 @@ def main(cfg: DictConfig):
     data_loader = create_mot20_dataloader(
         dataset_path=dataset_path,
         cfg=cfg,
-        postprocess_transform=None,  # Preprocessing and postprocessing are applied manually
+        transform=None,  # Preprocessing and postprocessing are applied manually
         shuffle=True,
         train=False
     )

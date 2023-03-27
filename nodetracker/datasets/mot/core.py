@@ -455,11 +455,11 @@ class TorchMOTTrajectoryDataset(Dataset):
 
         self._augmentation_before_transform = augmentation_before_transform
         if self._augmentation_before_transform is None:
-            self._augmentation_before_transform = augmentations.create_identity_augmentation()
+            self._augmentation_before_transform = augmentations.IdentityAugmentation()
 
         self._augmentation_after_transform = augmentation_after_transform
         if self._augmentation_after_transform is None:
-            self._augmentation_after_transform = augmentations.create_identity_augmentation()
+            self._augmentation_after_transform = augmentations.IdentityAugmentation()
 
     @property
     def dataset(self) -> MOTDataset:

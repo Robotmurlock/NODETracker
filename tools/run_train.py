@@ -32,9 +32,11 @@ def main(cfg: DictConfig):
     train_loader = create_mot20_dataloader(
         dataset_path=dataset_train_path,
         cfg=cfg,
-        postprocess_transform=postprocess_transform,
+        transform=postprocess_transform,
         shuffle=True,
-        train=True
+        train=True,
+        augmentation_before_transform=cfg.augmentations.before_transform,
+        augmentation_after_transform=cfg.augmentations.after_transform
     )
 
     # Load val dataset
@@ -43,7 +45,7 @@ def main(cfg: DictConfig):
     val_loader = create_mot20_dataloader(
         dataset_path=dataset_val_path,
         cfg=cfg,
-        postprocess_transform=postprocess_transform,
+        transform=postprocess_transform,
         shuffle=False,
         train=False
     )

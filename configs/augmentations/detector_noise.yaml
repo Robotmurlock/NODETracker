@@ -1,4 +1,4 @@
-before_transform:
-  - _target_: nodetracker.datasets.augmentations.trajectory.DetectorNoiseAugmentation
-    sigma: 0.05
-after_transform: []
+before_transform_config:
+  _target_: nodetracker.datasets.augmentations.trajectory.DetectorNoiseAugmentation
+  sigma: 0.05
+after_transform_config: null

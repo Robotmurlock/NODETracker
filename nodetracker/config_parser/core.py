@@ -7,8 +7,10 @@ Config structure. Config should be loaded as dictionary and parsed into GlobalCo
 from dataclasses import dataclass, asdict, field
 from pathlib import Path
 from typing import Optional, List, Union, Tuple
-from nodetracker.datasets.augmentations import TrajectoryAugmentation, create_identity_augmentation
+from nodetracker.datasets.augmentations import create_identity_augmentation_config, TrajectoryAugmentation
 from nodetracker.utils.serialization import serialize_json
+from hydra.utils import instantiate
+from omegaconf import OmegaConf
 
 import dacite
 import yaml
@@ -76,8 +78,41 @@ class AugmentationsConfig:
     - before_transform: Composition of augmentations applied before transform function.
     - after_transform: Composition of augmentations applied after transform function.
     """
-    before_transform: TrajectoryAugmentation
-    after_transform: TrajectoryAugmentation
+    before_transform_config: Optional[dict]
+    after_transform_config: Optional[dict]
+
+    def __post_init__(self):
+        """
+        Validation: Check augmentation object instantiation
+        """
+        self.before_transform_config = create_identity_augmentation_config() \
+            if self.before_transform is None else self.before_transform_config
+        self.after_transform_config = create_identity_augmentation_config() \
+            if self.after_transform_config is None else self.after_transform_config
+
+        _, _ = self.before_transform, self.after_transform
+
+    @property
+    def before_transform(self) -> TrajectoryAugmentation:
+        """
+        Instantiates augmentation `before_transform` from config.
+
+        Returns:
+            Instantiated augmentations.
+        """
+        cfg = OmegaConf.create(self.before_transform_config)
+        return instantiate(cfg)
+
+    @property
+    def after_transform(self) -> TrajectoryAugmentation:
+        """
+        Instantiates augmentation `after_transform` from config.
+
+        Returns:
+            Instantiated augmentations.
+        """
+        cfg = OmegaConf.create(self.after_transform_config)
+        return instantiate(cfg)
 
     @classmethod
     def default(cls) -> 'AugmentationsConfig':
@@ -88,8 +123,8 @@ class AugmentationsConfig:
             Default augmentations
         """
         return cls(
-            before_transform=create_identity_augmentation(),
-            after_transform=create_identity_augmentation()
+            before_transform_config=create_identity_augmentation_config(),
+            after_transform_config=create_identity_augmentation_config()
         )
 
 
