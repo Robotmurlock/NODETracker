@@ -3,6 +3,7 @@ Implementation of trajectory augmentations
 """
 from abc import abstractmethod, ABC
 from typing import Tuple, List
+import random
 
 import torch
 
@@ -74,15 +75,22 @@ class DetectorNoiseAugmentation(TrajectoryAugmentation):
     """
     Add Gaussian noise based on the bbox width and height.
     """
-    def __init__(self, sigma: float = 0.05):
+    def __init__(self, sigma: float = 0.05, proba: float = 0.5):
         """
         Args:
             sigma: Noise multiplier
+            proba: Probability to apply this augmentation
         """
         self._sigma = sigma
+        self._proba = proba
 
-    def apply(self, x_obs: torch.Tensor, t_obs: torch.Tensor, x_unobs: torch.Tensor, t_unobs: torch.Tensor) -> Tuple[
-        torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    def apply(self, x_obs: torch.Tensor, t_obs: torch.Tensor, x_unobs: torch.Tensor, t_unobs: torch.Tensor) \
+            -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        r = random.uniform(0, 1)
+        if r > self._proba:
+            # Skip augmentation
+            return x_obs, t_obs, x_unobs, t_unobs
+
         x_obs_noise = self._sigma * torch.randn_like(x_obs)
         if len(x_obs.shape) == 3:  # Batch operation
             x_obs_noise[:, :, 0] *= x_obs[:, :, 2]  # `x` noise is proportional to the `h`
