@@ -7,7 +7,9 @@ from nodetracker.datasets.transforms import (
     IdentityTransform,
     BboxFirstOrderDifferenceTransform,
     BBoxStandardizationTransform,
-    BBoxStandardizedFirstOrderDifferenceTransform
+    BBoxStandardizedFirstOrderDifferenceTransform,
+    BBoxRelativeToLastObsTransform,
+    BBoxStandardizedRelativeToLastObsTransform
 )
 from typing import Union
 
@@ -27,7 +29,9 @@ def transform_factory(name: str, params: dict) -> Union[InvertibleTransform, Inv
         'identity': IdentityTransform,
         'first_difference': BboxFirstOrderDifferenceTransform,
         'standardization': BBoxStandardizationTransform,
-        'standardized_first_difference': BBoxStandardizedFirstOrderDifferenceTransform
+        'standardized_first_difference': BBoxStandardizedFirstOrderDifferenceTransform,
+        'relative_to_last_obs_with_noise': BBoxRelativeToLastObsTransform,
+        'standardized_relative_to_last_obs_with_noise': BBoxStandardizedRelativeToLastObsTransform
     }
 
     cls = catalog[name]

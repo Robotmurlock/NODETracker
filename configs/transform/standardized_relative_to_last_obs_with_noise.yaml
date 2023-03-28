@@ -1,5 +1,5 @@
 # All bbox coordinates are standardizes separately
-name: 'standardized_first_difference'
+name: 'standardized_relative_to_last_obs_with_noise'
 params:
   # Acquired from analysis_tools/run_dataset_diff_stats.py
   mean: [0.0007548918947577477, -0.002222316572442651, 4.563947004498914e-05, -3.306450253148796e-06]

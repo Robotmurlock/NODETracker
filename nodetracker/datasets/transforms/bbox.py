@@ -168,18 +168,18 @@ class BBoxRelativeToLastObsTransform(InvertibleTransformWithStd):
         super().__init__(name='relative_to_last_obs')
 
     def apply(self, data: TensorCollection, shallow: bool = True) -> TensorCollection:
-        bbox_obs, bbox_unobs, *other = data
+        bbox_obs, bbox_unobs, ts_obs, *other = data
         last_obs = bbox_obs[-1:]
 
         if not shallow:
             bbox_obs = bbox_obs.clone()
             bbox_unobs = bbox_unobs.clone()
 
-        bbox_obs = bbox_obs[:-1]  # Last element becomes redundant
+        bbox_obs, ts_obs = bbox_obs[:-1], ts_obs[:-1]  # Last element becomes redundant
         bbox_obs = last_obs.expand_as(bbox_obs) - bbox_obs
         bbox_unobs = bbox_unobs - last_obs.expand_as(bbox_unobs)
 
-        return bbox_obs, bbox_unobs, *other
+        return bbox_obs, bbox_unobs, ts_obs, *other
 
     def inverse(self, data: TensorCollection, shallow: bool = True) -> TensorCollection:
         orig_bbox_obs, bbox_hat, *other = data
