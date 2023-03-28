@@ -5,7 +5,6 @@ BBox transformations. Contains
 - BBox trajectory standardized first order difference transformation
 """
 
-import math
 from typing import Union, List, Optional
 
 import torch
@@ -173,11 +172,11 @@ class BBoxRelativeToLastObsTransform(InvertibleTransformWithStd):
 
         if not shallow:
             bbox_obs = bbox_obs.clone()
-            bbox_unobs = bbox_unobs.clone()
+            bbox_unobs = bbox_unobs.clone() if bbox_unobs is not None else None
 
         bbox_obs, ts_obs = bbox_obs[:-1], ts_obs[:-1]  # Last element becomes redundant
         bbox_obs = last_obs.expand_as(bbox_obs) - bbox_obs
-        bbox_unobs = bbox_unobs - last_obs.expand_as(bbox_unobs)
+        bbox_unobs = bbox_unobs - last_obs.expand_as(bbox_unobs) if bbox_unobs is not None else None
 
         return bbox_obs, bbox_unobs, ts_obs, *other
 
