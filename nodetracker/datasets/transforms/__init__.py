@@ -10,6 +10,8 @@ from nodetracker.datasets.transforms.base import (
 from nodetracker.datasets.transforms.bbox import (
     BboxFirstOrderDifferenceTransform,
     BBoxStandardizationTransform,
-    BBoxStandardizedFirstOrderDifferenceTransform
+    BBoxStandardizedFirstOrderDifferenceTransform,
+    BBoxRelativeToLastObsTransform,
+    BBoxStandardizedRelativeToLastObsTransform
 )
 from nodetracker.datasets.transforms.factory import transform_factory

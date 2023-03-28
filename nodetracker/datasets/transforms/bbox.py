@@ -155,6 +155,83 @@ class BBoxStandardizedFirstOrderDifferenceTransform(InvertibleTransformWithStd):
         return std
 
 
+class BBoxRelativeToLastObsTransform(InvertibleTransformWithStd):
+    """
+    * For all observed coordinates:
+    Y[i] = X[-1] - X[i]
+    Y[-1] is removed
+
+    * For all unobserved coordinates:
+    Y[i] = X[i] - X[-1]
+    """
+    def __init__(self):
+        super().__init__(name='relative_to_last_obs')
+
+    def apply(self, data: TensorCollection, shallow: bool = True) -> TensorCollection:
+        bbox_obs, bbox_unobs, *other = data
+        last_obs = bbox_obs[-1:]
+
+        if not shallow:
+            bbox_obs = bbox_obs.clone()
+            bbox_unobs = bbox_unobs.clone()
+
+        bbox_obs = bbox_obs[:-1]  # Last element becomes redundant
+        bbox_obs = last_obs.expand_as(bbox_obs) - bbox_obs
+        bbox_unobs = bbox_unobs - last_obs.expand_as(bbox_unobs)
+
+        return bbox_obs, bbox_unobs, *other
+
+    def inverse(self, data: TensorCollection, shallow: bool = True) -> TensorCollection:
+        orig_bbox_obs, bbox_hat, *other = data
+        last_obs = orig_bbox_obs[-1:]
+
+        if not shallow:
+            bbox_hat = bbox_hat.clone()
+
+        bbox_hat = bbox_hat + last_obs.expand_as(bbox_hat)
+
+        return orig_bbox_obs, bbox_hat, *other
+
+    def inverse_std(self, t_std: torch.Tensor, additional_data: Optional[TensorCollection] = None, shallow: bool = True) -> TensorCollection:
+        return t_std  # It's assumed that last observed element has variance equal to 0
+
+
+# noinspection DuplicatedCode
+class BBoxStandardizedRelativeToLastObsTransform(InvertibleTransformWithStd):
+    """
+    Step 1: Applies first difference transformation:
+    * For all observed coordinates:
+    Y[i] = X[-1] - X[i]
+    Y[-1] is removed
+
+    * For all unobserved coordinates:
+    Y[i] = X[i] - X[-1]
+
+    Step 2: Applies standardization transformation:
+    Z[i] = (Y[i] - mean(Y)) / std(Y)
+    """
+    def __init__(self, mean: float, std: float):
+        super().__init__(name='standardized_relative_to_last_obs')
+        self._relative_to_last_obs = BBoxRelativeToLastObsTransform()
+        self._standardization = BBoxStandardizationTransform(mean=mean, std=std)
+
+    def apply(self, data: TensorCollection, shallow: bool = True) -> TensorCollection:
+        data = self._relative_to_last_obs.apply(data, shallow=shallow)
+        data = self._standardization.apply(data, shallow=False)
+        return data
+
+    def inverse(self, data: TensorCollection, shallow: bool = True, n_samples: int = 1) -> TensorCollection:
+        data = self._standardization.inverse(data, shallow=shallow, n_samples=n_samples)
+        data = self._relative_to_last_obs.inverse(data, shallow=False)
+        return data
+
+    def inverse_std(self, t_std: torch.Tensor, additional_data: Optional[TensorCollection] = None, shallow: bool = True) \
+            -> TensorCollection:
+        std = self._standardization.inverse_std(t_std, additional_data, shallow=shallow)
+        std = self._relative_to_last_obs.inverse_std(std, additional_data, shallow=shallow)
+        return std
+
+
 # noinspection DuplicatedCode
 def run_test_first_difference() -> None:
     bbox_obs = torch.randn(2, 2, 4)
@@ -203,7 +280,41 @@ def run_test_standardized_first_difference() -> None:
     assert torch.abs(inv_transformed_bbox_unobs - bbox_unobs).sum().item() < 1e-3
 
 
+def run_test_relative_to_last_obs() -> None:
+    bbox_obs = torch.randn(2, 2, 4)
+    bbox_unobs = torch.randn(3, 2, 4)
+    ts_obs = torch.randn(2, 2, 1)
+    ts_unobs = torch.randn(3, 2, 1)
+    first_diff = BBoxRelativeToLastObsTransform()
+
+    transformed_bbox_obs, transformed_bbox_unobs, _, _ = \
+        first_diff.apply([bbox_obs, bbox_unobs, ts_obs, ts_unobs], shallow=False)
+    assert transformed_bbox_obs.shape == (1, 2, 4)
+    assert transformed_bbox_unobs.shape == (3, 2, 4)
+
+    _, inv_transformed_bbox_unobs = first_diff.inverse([bbox_obs, transformed_bbox_unobs])
+    assert torch.abs(inv_transformed_bbox_unobs - bbox_unobs).sum().item() < 1e-3
+
+
+def run_test_standardized_relative_to_last_obs() -> None:
+    bbox_obs = torch.randn(2, 2, 4)
+    bbox_unobs = torch.randn(3, 2, 4)
+    ts_obs = torch.randn(2, 2, 1)
+    ts_unobs = torch.randn(3, 2, 1)
+    first_diff = BBoxStandardizedRelativeToLastObsTransform(1, 2.0)
+
+    transformed_bbox_obs, transformed_bbox_unobs, _, _ = \
+        first_diff.apply([bbox_obs, bbox_unobs, ts_obs, ts_unobs], shallow=False)
+    assert transformed_bbox_obs.shape == (1, 2, 4)
+    assert transformed_bbox_unobs.shape == (3, 2, 4)
+
+    _, inv_transformed_bbox_unobs = first_diff.inverse([bbox_obs, transformed_bbox_unobs])
+    assert torch.abs(inv_transformed_bbox_unobs - bbox_unobs).sum().item() < 1e-3
+
+
 if __name__ == '__main__':
     run_test_first_difference()
     run_standardization()
     run_test_standardized_first_difference()
+    run_test_relative_to_last_obs()
+    run_test_standardized_relative_to_last_obs()
