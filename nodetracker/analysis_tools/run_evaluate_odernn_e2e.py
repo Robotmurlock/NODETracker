@@ -180,6 +180,8 @@ def main(cfg: DictConfig):
                     posterior_iou_score = calc_iou(mean, measurement_no_noise)
                     sample_metrics[f'posterior-Accuracy'].append(posterior_iou_score)
 
+            break
+
     metrics = aggregate_metrics(sample_metrics)
 
     # Save metrics

@@ -496,13 +496,21 @@ def run_test() -> None:
     configure_logging(logging.DEBUG)
 
     dataset_path = os.path.join(ASSETS_PATH, 'MOT20', 'train')
-    dataset = MOTDataset(dataset_path, history_len=4, future_len=4)
+    dataset = MOTDataset(
+        path=dataset_path,
+        history_len=4,
+        future_len=4
+    )
 
     print(f'Dataset size: {len(dataset)}')
     print(f'Sample example: {dataset[5]}')
 
-    torch_dataset = TorchMOTTrajectoryDataset(dataset_path, history_len=4, future_len=4,
-                                              transform=transforms.BboxFirstOrderDifferenceTransform())
+    torch_dataset = TorchMOTTrajectoryDataset(
+        path=dataset_path,
+        history_len=4,
+        future_len=4,
+        transform=transforms.BBoxStandardizedFirstOrderDifferenceTransform(mean=-8.65566333861711e-05, std=0.0009227107879355021)
+    )
 
     print(f'Torch Dataset size: {len(torch_dataset)}')
     print(f'Torch sample example shapes: {[x.shape for x in torch_dataset[5][:-1]]}')
@@ -515,6 +523,16 @@ def run_test() -> None:
         print('Torch batch metadata', metadata)
 
         break
+
+    torch_dataset_with_noise = TorchMOTTrajectoryDataset(
+        path=dataset_path,
+        history_len=4,
+        future_len=4,
+        transform=transforms.BBoxStandardizedFirstOrderDifferenceTransform(mean=-8.65566333861711e-05, std=0.0009227107879355021),
+        augmentation_before_transform=augmentations.DetectorNoiseAugmentation(sigma=0.05, proba=1.0)
+    )
+
+    print(f'Torch sample with noise example: {torch_dataset_with_noise[5]}')
 
 
 if __name__ == '__main__':

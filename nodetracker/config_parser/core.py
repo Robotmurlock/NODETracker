@@ -86,33 +86,12 @@ class AugmentationsConfig:
         Validation: Check augmentation object instantiation
         """
         self.before_transform_config = create_identity_augmentation_config() \
-            if self.before_transform is None else self.before_transform_config
+            if self.before_transform_config is None else self.before_transform_config
         self.after_transform_config = create_identity_augmentation_config() \
             if self.after_transform_config is None else self.after_transform_config
 
-        _, _ = self.before_transform, self.after_transform
-
-    @property
-    def before_transform(self) -> TrajectoryAugmentation:
-        """
-        Instantiates augmentation `before_transform` from config.
-
-        Returns:
-            Instantiated augmentations.
-        """
-        cfg = OmegaConf.create(self.before_transform_config)
-        return instantiate(cfg)
-
-    @property
-    def after_transform(self) -> TrajectoryAugmentation:
-        """
-        Instantiates augmentation `after_transform` from config.
-
-        Returns:
-            Instantiated augmentations.
-        """
-        cfg = OmegaConf.create(self.after_transform_config)
-        return instantiate(cfg)
+        self.before_transform = instantiate(OmegaConf.create(self.before_transform_config))
+        self.after_transform = instantiate(OmegaConf.create(self.after_transform_config))
 
     @classmethod
     def default(cls) -> 'AugmentationsConfig':
@@ -126,7 +105,6 @@ class AugmentationsConfig:
             before_transform_config=create_identity_augmentation_config(),
             after_transform_config=create_identity_augmentation_config()
         )
-
 
 @dataclass
 class ModelConfig:

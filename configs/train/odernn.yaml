@@ -1,5 +1,5 @@
-experiment: 'ODERNN-iter03-exp03-um-AdamW-detector-noise'
-description: 'ODERNN with uncertainty modeling and AdamW optimizer with added detector noise augmentations'
+experiment: 'ODERNN-iter03-exp07-um-AdamW-detector-noise-updated-transform-stats'
+description: 'ODERNN with uncertainty modeling and AdamW optimizer with added detector noise augmentations (p=0.5) - updated stats'
 batch_size: 32
 learning_rate: 1e-3
 max_epochs: 15

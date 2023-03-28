@@ -1,0 +1,6 @@
+# All bbox coordinates are standardizes separately
+name: 'standardized_first_difference'
+params:
+  # Acquired from analysis_tools/run_dataset_diff_stats.py
+  mean: [0.00017630791990086436, -0.0005186384660191834, 1.2180816156615037e-05, 1.3246053640614264e-06]
+  std: [0.002193701919168234, 0.006821592804044485, 0.0020089277531951666, 0.0067518712021410465]
