@@ -6,7 +6,7 @@ import logging
 import os
 from collections import defaultdict
 from pathlib import Path
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 
 import hydra
 import torch
@@ -29,7 +29,8 @@ logger = logging.getLogger('ODERNN_E2E_EVAL')
 N_STEPS = 5
 N_HIST = 10
 DETECTION_NOISE_SIGMA = 0.05
-DETECTION_STD = 1e-3 * torch.tensor([1.0, 1.0, 1.0, 1.0])
+DETECTION_NOISE = 4 * DETECTION_NOISE_SIGMA * torch.ones(4, dtype=torch.float32)
+N_MAX_OBJS: Optional[int] = None
 
 
 class ODETorchTensorBuffer:
@@ -131,6 +132,8 @@ def main(cfg: DictConfig):
     ode_filter = ODERNNFilter(model=model, transform=transform_func, accelerator=cfg.resources.accelerator)
     n_pred_steps = N_STEPS
 
+    n_finished_objs = 0
+
     scene_names = dataset.scenes
     for scene_name in scene_names:
         object_ids = dataset.get_scene_object_ids(scene_name)
@@ -144,16 +147,14 @@ def main(cfg: DictConfig):
                 measurement_no_noise = torch.tensor(measurement, dtype=torch.float32)
                 measurement = add_measurement_noise(measurement, prev_measurement, DETECTION_NOISE_SIGMA)
 
-                # Save data
-                prev_measurement = measurement
-
                 measurement = torch.tensor(measurement, dtype=torch.float32)
                 buffer.push(measurement.clone())
 
                 if buffer.has_input:
                     x_obs, ts_obs, ts_unobs = buffer.get_input(n_pred_steps)
                     x_mean_hat, x_std_hat = ode_filter.predict(x_obs, ts_obs, ts_unobs)
-                    mean, covariance = ode_filter.update(x_mean_hat, x_std_hat, measurement, DETECTION_STD)
+                    detection_noise = torch.tensor(prev_measurement) * DETECTION_NOISE
+                    mean, covariance = ode_filter.update(x_mean_hat, x_std_hat, measurement, detection_noise)
 
                     total_mse = 0.0
                     total_iou = 0.0
@@ -180,7 +181,12 @@ def main(cfg: DictConfig):
                     posterior_iou_score = calc_iou(mean, measurement_no_noise)
                     sample_metrics[f'posterior-Accuracy'].append(posterior_iou_score)
 
-            break
+                # Save data
+                prev_measurement = measurement.detach().cpu().numpy().tolist()
+
+            n_finished_objs += 1
+            if N_MAX_OBJS is not None and n_finished_objs >= N_MAX_OBJS:
+                break
 
     metrics = aggregate_metrics(sample_metrics)
 
