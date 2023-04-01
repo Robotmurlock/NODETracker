@@ -32,7 +32,7 @@ N_HIST: int = 10
 DETECTION_NOISE_SIGMA: float = 0.05
 DETECTION_NOISE: int = 4 * DETECTION_NOISE_SIGMA * torch.ones(4, dtype=torch.float32)
 N_MAX_OBJS: Optional[int] = None
-DET_SKIP_PROBA: float = 0.8
+DET_SKIP_PROBA: float = 0.0
 
 
 class ODETorchTensorBuffer:
@@ -116,7 +116,8 @@ def main(cfg: DictConfig):
     sample_metrics = defaultdict(list)
 
     Path(OUTPUTS_PATH).mkdir(parents=True, exist_ok=True)
-    metrics_path = os.path.join(OUTPUTS_PATH, 'odernn_metrics.json')
+    metrics_path = os.path.join(OUTPUTS_PATH,
+                                f'odernn_metrics_noise{DETECTION_NOISE_SIGMA}_skip{DET_SKIP_PROBA}.json')
     logger.info('Evaluating ODERNN filter')
 
     checkpoint_path = conventions.get_checkpoint_path(experiment_path, cfg.eval.checkpoint) \
@@ -141,32 +142,35 @@ def main(cfg: DictConfig):
         object_ids = dataset.get_scene_object_ids(scene_name)
         for object_id in tqdm(object_ids, unit='track', desc=f'Evaluating tracker on {scene_name}'):
             buffer = ODETorchTensorBuffer(N_HIST, min_size=10, dtype=torch.float32)
-            prev_measurement = None
+            prev_measurement, x_mean_hat, x_std_hat, mean, covariance = None, None, None, None, None
 
             n_data_points = dataset.get_object_data_length(object_id)
             for index in range(n_data_points-n_pred_steps):
                 measurement = dataset.get_object_data_label(object_id, index)['bbox']
                 measurement_no_noise = torch.tensor(measurement, dtype=torch.float32)
                 measurement = simulate_detector_noise(measurement, prev_measurement, DETECTION_NOISE_SIGMA)
-                skip_detection = simulate_detector_false_positive(DET_SKIP_PROBA, first_frame=prev_measurement is None)
+                skip_detection = simulate_detector_false_positive(DET_SKIP_PROBA, first_frame=not buffer.has_input)
 
                 measurement = torch.tensor(measurement, dtype=torch.float32)
-                buffer.push(measurement.clone())
 
                 if buffer.has_input:
                     x_obs, ts_obs, ts_unobs = buffer.get_input(n_pred_steps)
                     x_mean_hat, x_std_hat = ode_filter.predict(x_obs, ts_obs, ts_unobs)
                     detection_noise = torch.tensor(prev_measurement) * DETECTION_NOISE
+                    x_mean_hat_first, x_std_hat_first = x_mean_hat[0, 0, :], x_std_hat[0, 0, :]
+
                     if skip_detection:
-                        mean, covariance = x_mean_hat, x_std_hat
+                        mean, covariance = x_mean_hat_first, x_std_hat_first
                     else:
-                        mean, covariance = ode_filter.update(x_mean_hat, x_std_hat, measurement, detection_noise)
+                        mean, covariance = ode_filter.update(x_mean_hat_first, x_std_hat_first,
+                                                             measurement, detection_noise)
 
                     total_mse = 0.0
                     total_iou = 0.0
-                    for p_index in range(1, n_pred_steps+1):
-                        pred = x_mean_hat[p_index-1, 0]
-                        gt = torch.tensor(dataset.get_object_data_label(object_id, index + p_index)['bbox'], dtype=torch.float32)
+                    for p_index in range(n_pred_steps):
+                        pred = x_mean_hat[p_index, 0]
+                        gt = torch.tensor(dataset.get_object_data_label(object_id, index + p_index)['bbox'],
+                                          dtype=torch.float32)
 
                         # Calculate MSE
                         mse = ((gt - pred) ** 2).mean().item()
@@ -181,11 +185,15 @@ def main(cfg: DictConfig):
                     sample_metrics['prior-MSE'].append(total_mse / n_pred_steps)
                     sample_metrics['prior-Accuracy'].append(total_iou / n_pred_steps)
 
-                    mean = mean[0, 0, :]  # Taking only first prediction
                     posterior_mse = ((mean - measurement_no_noise) ** 2).mean().item()
                     sample_metrics[f'posterior-MSE'].append(posterior_mse)
                     posterior_iou_score = calc_iou(mean, measurement_no_noise)
                     sample_metrics[f'posterior-Accuracy'].append(posterior_iou_score)
+
+                if skip_detection:
+                    buffer.push(mean.clone())
+                else:
+                    buffer.push(measurement.clone())
 
                 # Save data
                 prev_measurement = measurement.detach().cpu().numpy().tolist()

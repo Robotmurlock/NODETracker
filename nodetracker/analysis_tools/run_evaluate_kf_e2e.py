@@ -204,11 +204,11 @@ def kf_trak_eval(
             else:
                 mean, covariance = kf.update(mean_hat, covariance_hat, measurement)  # Posterior
 
-
             total_mse = 0.0
             total_iou = 0.0
-            for p_index in range(1, n_pred_steps + 1):
-                prior, _ = kf.project(mean_hat, covariance_hat)  # KF Prediction is before update
+            forward_mean_hat, forward_covariance_hat = mean_hat, covariance_hat
+            for p_index in range(n_pred_steps):
+                prior, _ = kf.project(forward_mean_hat, forward_covariance_hat)  # KF Prediction is before update
 
                 gt = np.array(measurements[index + p_index], dtype=np.float32)
 
@@ -222,7 +222,7 @@ def kf_trak_eval(
                 sample_metrics[f'prior-Accuracy-{p_index}'].append(iou_score)
                 total_iou += iou_score
 
-                mean_hat, covariance_hat = kf.predict(mean_hat, covariance_hat)
+                forward_mean_hat, forward_covariance_hat = kf.predict(forward_mean_hat, forward_covariance_hat)
 
             sample_metrics['prior-MSE'].append(total_mse / n_pred_steps)
             sample_metrics['prior-Accuracy'].append(total_iou / n_pred_steps)
