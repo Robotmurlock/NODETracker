@@ -13,44 +13,44 @@ class TrajectoryAugmentation(ABC):
     Abstract augmentation - defines interface
     """
     @abstractmethod
-    def apply(self, x_obs: torch.Tensor, t_obs: torch.Tensor, x_unobs: torch.Tensor, t_unobs: torch.Tensor) \
+    def apply(self, x_obs: torch.Tensor, x_unobs: torch.Tensor, t_obs: torch.Tensor, t_unobs: torch.Tensor) \
         -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Args:
             x_obs: Observed bboxes data
-            t_obs: Observed time points
             x_unobs: Unobserved bboxes data
+            t_obs: Observed time points
             t_unobs: Unobserved time points
 
         Returns:
-            augmented (x_obs, t_obs, x_unobs, t_unobs)
+            augmented (x_obs, x_unobs, t_obs, t_unobs)
         """
         pass
 
-    def __call__(self, x_obs: torch.Tensor, t_obs: torch.Tensor, x_unobs: torch.Tensor, t_unobs: torch.Tensor) \
+    def __call__(self, x_obs: torch.Tensor, x_unobs: torch.Tensor, t_obs: torch.Tensor, t_unobs: torch.Tensor) \
         -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Alias for `apply` function.
 
         Args:
             x_obs: Observed bboxes data
-            t_obs: Observed time points
             x_unobs: Unobserved bboxes data
+            t_obs: Observed time points
             t_unobs: Unobserved time points
 
         Returns:
             augmented (x_obs, t_obs, x_unobs, t_unobs)
         """
-        return self.apply(x_obs, t_obs, x_unobs, t_unobs)
+        return self.apply(x_obs, x_unobs, t_obs, t_unobs)
 
 
 class IdentityAugmentation(TrajectoryAugmentation):
     """
     Performs no transformations (identity).
     """
-    def apply(self, x_obs: torch.Tensor, t_obs: torch.Tensor, x_unobs: torch.Tensor, t_unobs: torch.Tensor) -> Tuple[
+    def apply(self, x_obs: torch.Tensor, x_unobs: torch.Tensor, t_obs: torch.Tensor, t_unobs: torch.Tensor) -> Tuple[
         torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-        return x_obs, t_obs, x_unobs, t_unobs
+        return x_obs, x_unobs, t_obs, t_unobs
 
 
 class CompositionAugmentation(TrajectoryAugmentation):
@@ -64,11 +64,11 @@ class CompositionAugmentation(TrajectoryAugmentation):
         """
         self._augs = augs
 
-    def apply(self, x_obs: torch.Tensor, t_obs: torch.Tensor, x_unobs: torch.Tensor, t_unobs: torch.Tensor) -> Tuple[
+    def apply(self, x_obs: torch.Tensor, x_unobs: torch.Tensor, t_obs: torch.Tensor, t_unobs: torch.Tensor) -> Tuple[
         torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         for aug in self._augs:
-            x_obs, t_obs, x_unobs, t_unobs = aug.apply(x_obs, t_obs, x_unobs, t_unobs)
-        return x_obs, t_obs, x_unobs, t_unobs
+            x_obs, x_unobs, t_obs, t_unobs = aug.apply(x_obs, t_obs, x_unobs, t_unobs)
+        return x_obs, x_unobs, t_obs, t_unobs
 
 
 class DetectorNoiseAugmentation(TrajectoryAugmentation):
@@ -84,12 +84,12 @@ class DetectorNoiseAugmentation(TrajectoryAugmentation):
         self._sigma = sigma
         self._proba = proba
 
-    def apply(self, x_obs: torch.Tensor, t_obs: torch.Tensor, x_unobs: torch.Tensor, t_unobs: torch.Tensor) \
+    def apply(self, x_obs: torch.Tensor, x_unobs: torch.Tensor, t_obs: torch.Tensor, t_unobs: torch.Tensor) \
             -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         r = random.uniform(0, 1)
         if r > self._proba:
             # Skip augmentation
-            return x_obs, t_obs, x_unobs, t_unobs
+            return x_obs, x_unobs, t_obs, t_unobs
 
         x_obs_noise = self._sigma * torch.randn_like(x_obs)
         if len(x_obs.shape) == 3:  # Batch operation
@@ -106,7 +106,7 @@ class DetectorNoiseAugmentation(TrajectoryAugmentation):
             raise AssertionError(f'DetectorNoiseAugmentation supports tensors 2D and 3D tensors only. Got {x_obs.shape}')
 
         x_obs += x_obs_noise
-        return x_obs, t_obs, x_unobs, t_unobs
+        return x_obs, x_unobs, t_obs, t_unobs
 
 class ShortenTrajectoryAugmentation(TrajectoryAugmentation):
     """
@@ -123,23 +123,23 @@ class ShortenTrajectoryAugmentation(TrajectoryAugmentation):
         self._min_length = min_length
         self._proba = proba
 
-    def apply(self, x_obs: torch.Tensor, t_obs: torch.Tensor, x_unobs: torch.Tensor, t_unobs: torch.Tensor) \
+    def apply(self, x_obs: torch.Tensor, x_unobs: torch.Tensor, t_obs: torch.Tensor, t_unobs: torch.Tensor) \
             -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         r = random.uniform(0, 1)
         if r > self._proba:
             # Skip augmentation
-            return x_obs, t_obs, x_unobs, t_unobs
+            return x_obs, x_unobs, t_obs, t_unobs
 
         traj_length = x_obs.shape[0]
         if traj_length <= self._min_length:
-            return x_obs, t_obs, x_unobs, t_unobs
+            return x_obs, x_unobs, t_obs, t_unobs
 
         new_traj_length = round(random.uniform(self._min_length, traj_length))
         traj_start = traj_length - new_traj_length
         x_obs = x_obs[traj_start:, ...]
         t_obs = t_obs[traj_start:, ...]
 
-        return x_obs, t_obs, x_unobs, t_unobs
+        return x_obs, x_unobs, t_obs, t_unobs
 
 
 def create_identity_augmentation_config() -> dict:
@@ -150,4 +150,3 @@ def create_identity_augmentation_config() -> dict:
     return {
         '_target_': 'nodetracker.datasets.augmentations.trajectory.IdentityAugmentation',
     }
-

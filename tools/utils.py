@@ -9,7 +9,7 @@ from nodetracker.config_parser import GlobalConfig
 from nodetracker.datasets.augmentations import TrajectoryAugmentation
 from nodetracker.datasets.mot import TorchMOTTrajectoryDataset
 from nodetracker.datasets.transforms import InvertibleTransform
-from nodetracker.datasets.utils import create_ode_dataloader_collate_func
+from nodetracker.datasets.utils import OdeDataloaderCollateFunctional
 
 
 def create_mot20_dataloader(
@@ -52,7 +52,7 @@ def create_mot20_dataloader(
     if batch_size is None:
         batch_size = cfg.train.batch_size if train else cfg.eval.batch_size
 
-    collate_func = create_ode_dataloader_collate_func(augmentation=augmentation_after_batch_collate)
+    collate_func = OdeDataloaderCollateFunctional(augmentation=augmentation_after_batch_collate)
     return DataLoader(
         dataset=dataset,
         collate_fn=collate_func,

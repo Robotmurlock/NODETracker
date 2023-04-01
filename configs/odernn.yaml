@@ -6,5 +6,5 @@ defaults:
   - train: odernn.yaml
   - eval: odernn.yaml
   - visualize: default.yaml
-  - augmentations: detector_noise.yaml
+  - augmentations: detector_noise_var_traj_length.yaml
   - _self_

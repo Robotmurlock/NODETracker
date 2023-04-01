@@ -1,7 +1,7 @@
 """
 Dataset utils
 """
-from typing import List, Tuple, Optional, Callable
+from typing import List, Tuple, Optional
 
 import torch
 from torch.utils.data import default_collate
@@ -9,21 +9,25 @@ from torch.utils.data import default_collate
 from nodetracker.datasets.augmentations.trajectory import TrajectoryAugmentation, IdentityAugmentation
 
 
-def create_ode_dataloader_collate_func(augmentation: Optional[TrajectoryAugmentation] = None) \
-    -> Callable[[List[torch.Tensor]], Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, dict]]:
+class OdeDataloaderCollateFunctional:
     """
-    Creates `ode_dataloader_collate_func` by adding the augmentations after collate function
-
-    Args:
-        augmentation: Augmentation applied after collate function is applied (optional)
-
-    Returns:
-        `ode_dataloader_collate_func` with (optional) augmentations.
+    ODE Dataloader collate func wrapper that supports configurable augmentations.
     """
-    if augmentation is None:
-        augmentation = IdentityAugmentation()
+    def __init__(self, augmentation: Optional[TrajectoryAugmentation] = None):
+        """
+        Creates `ode_dataloader_collate_func` wrapper by adding the augmentations after collate function
 
-    def ode_dataloader_collate_func(items: List[torch.Tensor], ) \
+        Args:
+            augmentation: Augmentation applied after collate function is applied (optional)
+
+        Returns:
+            `ode_dataloader_collate_func` with (optional) augmentations.
+        """
+        self._augmentation = augmentation
+        if self._augmentation is None:
+            self._augmentation = IdentityAugmentation()
+
+    def __call__(self, items: List[torch.Tensor]) \
             -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, dict]:
         """
         ODE's collate func: Standard way to batch sequences of dimension (T, *shape)
@@ -42,11 +46,9 @@ def create_ode_dataloader_collate_func(augmentation: Optional[TrajectoryAugmenta
         metadata = default_collate(metadata)
 
         # Apply augmentations at batch level (optional)
-        x_obs, t_obs, x_unobs, t_unobs = augmentation(x_obs, t_obs, x_unobs, t_unobs)
+        x_obs, t_obs, x_unobs, t_unobs = self._augmentation(x_obs, t_obs, x_unobs, t_unobs)
 
         return x_obs, t_obs, x_unobs, t_unobs, metadata
-
-    return ode_dataloader_collate_func
 
 
 def preprocess_batch(batch: tuple) -> tuple:
