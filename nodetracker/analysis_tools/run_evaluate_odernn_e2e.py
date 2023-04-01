@@ -32,7 +32,7 @@ N_HIST: int = 10
 DETECTION_NOISE_SIGMA: float = 0.05
 DETECTION_NOISE: int = 4 * DETECTION_NOISE_SIGMA * torch.ones(4, dtype=torch.float32)
 N_MAX_OBJS: Optional[int] = None
-DET_SKIP_PROBA: float = 0.0
+DET_SKIP_PROBA: float = 0.2
 
 
 class ODETorchTensorBuffer:

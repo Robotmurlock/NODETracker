@@ -108,6 +108,40 @@ class DetectorNoiseAugmentation(TrajectoryAugmentation):
         x_obs += x_obs_noise
         return x_obs, t_obs, x_unobs, t_unobs
 
+class ShortenTrajectoryAugmentation(TrajectoryAugmentation):
+    """
+    Shortens the input trajectory.
+    """
+    def __init__(self, min_length: int, proba: float):
+        """
+
+        Args:
+            min_length: Min Trajectory length
+                - Augmented trajectory can't be shortened
+                  if it already has length `min_length` or less
+            proba: Probability to apply
+        """
+        self._min_length = min_length
+        self._proba = proba
+
+    def apply(self, x_obs: torch.Tensor, t_obs: torch.Tensor, x_unobs: torch.Tensor, t_unobs: torch.Tensor) \
+            -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        r = random.uniform(0, 1)
+        if r > self._proba:
+            # Skip augmentation
+            return x_obs, t_obs, x_unobs, t_unobs
+
+        traj_length = x_obs.shape[0]
+        if traj_length <= self._min_length:
+            return x_obs, t_obs, x_unobs, t_unobs
+
+        new_traj_length = round(random.uniform(self._min_length, traj_length))
+        traj_start = traj_length - new_traj_length
+        x_obs = x_obs[traj_start:, ...]
+        t_obs = t_obs[traj_start:, ...]
+
+        return x_obs, t_obs, x_unobs, t_unobs
+
 
 def create_identity_augmentation_config() -> dict:
     """
