@@ -114,7 +114,6 @@ class ShortenTrajectoryAugmentation(TrajectoryAugmentation):
     """
     def __init__(self, min_length: int, proba: float):
         """
-
         Args:
             min_length: Min Trajectory length
                 - Augmented trajectory can't be shortened

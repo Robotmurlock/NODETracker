@@ -19,7 +19,7 @@ from tqdm import tqdm
 from nodetracker.common import conventions
 from nodetracker.common.project import CONFIGS_PATH
 from nodetracker.datasets import TorchMOTTrajectoryDataset, transforms
-from nodetracker.datasets.utils import ode_dataloader_collate_func
+from nodetracker.datasets.utils import create_ode_dataloader_collate_func
 from nodetracker.library.cv import BBox
 from nodetracker.node import load_or_create_model
 from nodetracker.utils import pipeline
@@ -242,7 +242,7 @@ def main(cfg: DictConfig):
 
     data_loader = DataLoader(
         dataset=dataset,
-        collate_fn=ode_dataloader_collate_func,
+        collate_fn=create_ode_dataloader_collate_func(augmentation=None),
         batch_size=cfg.eval.batch_size,
         num_workers=cfg.resources.num_workers,
         shuffle=True

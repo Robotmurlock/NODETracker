@@ -80,18 +80,19 @@ class AugmentationsConfig:
     """
     before_transform_config: Optional[dict]
     after_transform_config: Optional[dict]
+    after_batch_collate_config: Optional[dict]
 
     def __post_init__(self):
         """
         Validation: Check augmentation object instantiation
         """
-        self.before_transform_config = create_identity_augmentation_config() \
-            if self.before_transform_config is None else self.before_transform_config
-        self.after_transform_config = create_identity_augmentation_config() \
-            if self.after_transform_config is None else self.after_transform_config
+        self.before_transform_config, self.after_transform_config, self.after_batch_collate_config = \
+            [create_identity_augmentation_config() if cfg is None else cfg
+             for cfg in [self.before_transform_config, self.after_transform_config, self.after_batch_collate_config]]
 
         self.before_transform = instantiate(OmegaConf.create(self.before_transform_config))
         self.after_transform = instantiate(OmegaConf.create(self.after_transform_config))
+        self.after_batch_collate = instantiate(OmegaConf.create(self.after_batch_collate_config))
 
     @classmethod
     def default(cls) -> 'AugmentationsConfig':
@@ -103,7 +104,8 @@ class AugmentationsConfig:
         """
         return cls(
             before_transform_config=create_identity_augmentation_config(),
-            after_transform_config=create_identity_augmentation_config()
+            after_transform_config=create_identity_augmentation_config(),
+            after_batch_collate_config=create_identity_augmentation_config()
         )
 
 @dataclass

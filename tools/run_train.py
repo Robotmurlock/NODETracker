@@ -36,7 +36,8 @@ def main(cfg: DictConfig):
         shuffle=True,
         train=True,
         augmentation_before_transform=cfg.augmentations.before_transform,
-        augmentation_after_transform=cfg.augmentations.after_transform
+        augmentation_after_transform=cfg.augmentations.after_transform,
+        augmentation_after_batch_collate=cfg.augmentations.after_batch_collate
     )
 
     # Load val dataset

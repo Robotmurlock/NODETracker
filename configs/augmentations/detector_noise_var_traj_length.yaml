@@ -3,4 +3,7 @@ before_transform_config:
   sigma: 0.05
   proba: 0.5
 after_transform_config: null
-after_batch_collate: null
+after_batch_collate:
+  _target_: nodetracker.datasets.augmentations.trajectory.ShortenTrajectoryAugmentation
+  min_length: 2
+  proba: 0.1

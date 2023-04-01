@@ -21,7 +21,7 @@ from tqdm import tqdm
 
 from nodetracker.datasets import transforms
 from nodetracker.datasets import augmentations
-from nodetracker.datasets.utils import ode_dataloader_collate_func
+from nodetracker.datasets.utils import create_ode_dataloader_collate_func
 from nodetracker.utils.logging import configure_logging
 
 
@@ -528,7 +528,7 @@ def run_test() -> None:
     print(f'Torch sample example shapes: {[x.shape for x in torch_dataset[5][:-1]]}')
     print(f'Torch sample example: {torch_dataset[5]}')
 
-    torch_dataloader = DataLoader(torch_dataset, batch_size=4, collate_fn=ode_dataloader_collate_func)
+    torch_dataloader = DataLoader(torch_dataset, batch_size=4, collate_fn=create_ode_dataloader_collate_func())
     for bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, metadata in torch_dataloader:
         print(f'Torch batch sample example shapes: bboxes_obs={bboxes_obs.shape}, bboxes_unobs={bboxes_unobs.shape}, '
               f'ts_obs={ts_obs.shape}, ts_unobs={ts_unobs.shape}')

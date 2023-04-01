@@ -1,30 +1,52 @@
 """
 Dataset utils
 """
-from typing import List, Tuple
+from typing import List, Tuple, Optional, Callable
 
 import torch
 from torch.utils.data import default_collate
 
+from nodetracker.datasets.augmentations.trajectory import TrajectoryAugmentation, IdentityAugmentation
 
-def ode_dataloader_collate_func(items: List[torch.Tensor]) \
-        -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, dict]:
+
+def create_ode_dataloader_collate_func(augmentation: Optional[TrajectoryAugmentation] = None) \
+    -> Callable[[List[torch.Tensor]], Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, dict]]:
     """
-    ODE's collate func: Standard way to batch sequences of dimension (T, *shape)
-    where T is time dimension and shape is feature dimension is to create batch
-    of size (B, T, *shape) but for NODE it makes more sense to do it as (T, B, *shape)
-    which requires custom collate_func
+    Creates `ode_dataloader_collate_func` by adding the augmentations after collate function
 
     Args:
-        items: Items gathered from WeatherDataset
+        augmentation: Augmentation applied after collate function is applied (optional)
 
     Returns:
-        collated tensors
+        `ode_dataloader_collate_func` with (optional) augmentations.
     """
-    xs, x_ts, ys, y_ts, metadata = zip(*items)
-    x, t_x, y, t_y = [torch.stack(v, dim=1) for v in [xs, x_ts, ys, y_ts]]
-    metadata = default_collate(metadata)
-    return x, t_x, y, t_y, metadata
+    if augmentation is None:
+        augmentation = IdentityAugmentation()
+
+    def ode_dataloader_collate_func(items: List[torch.Tensor], ) \
+            -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, dict]:
+        """
+        ODE's collate func: Standard way to batch sequences of dimension (T, *shape)
+        where T is time dimension and shape is feature dimension is to create batch
+        of size (B, T, *shape) but for NODE it makes more sense to do it as (T, B, *shape)
+        which requires custom collate_func
+
+        Args:
+            items: Items gathered from WeatherDataset
+
+        Returns:
+            collated tensors
+        """
+        x_obss, t_obss, x_unobss, t_unobss, metadata = zip(*items)
+        x_obs, t_obs, x_unobs, t_unobs = [torch.stack(v, dim=1) for v in [x_obss, t_obss, x_unobss, t_unobss]]
+        metadata = default_collate(metadata)
+
+        # Apply augmentations at batch level (optional)
+        x_obs, t_obs, x_unobs, t_unobs = augmentation(x_obs, t_obs, x_unobs, t_unobs)
+
+        return x_obs, t_obs, x_unobs, t_unobs, metadata
+
+    return ode_dataloader_collate_func
 
 
 def preprocess_batch(batch: tuple) -> tuple:
