@@ -2,12 +2,15 @@
 Evaluate Kalman Filter
 """
 import argparse
+import functools
 import json
 import logging
 import os
+import random
 from collections import defaultdict
+from multiprocessing import Pool
 from pathlib import Path
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union, Iterable
 
 import numpy as np
 import torch
@@ -22,18 +25,7 @@ from nodetracker.utils.logging import configure_logging
 logger = logging.getLogger('MotTools')
 
 
-def aggregate_metrics(sample_metrics: Dict[str, List[float]]) -> Dict[str, float]:
-    """
-    Aggregates dictionary of sample metrics (list of values) to dictionary of metrics.
-    All metrics should be "mean-friendly".
-
-    Args:
-        sample_metrics: Sample metrics
-
-    Returns:
-        Aggregated metrics.
-    """
-    return {k: sum(v) / len(v) for k, v in sample_metrics.items()}
+Vector = Union[List[float], np.ndarray, torch.Tensor]
 
 
 def parse_args() -> argparse.Namespace:
@@ -51,10 +43,54 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--steps', type=int, required=False, default=1, help='Number of forecast steps.')
     parser.add_argument('--noise-sigma', type=float, required=False, default=0.05,
                         help='Add noise for posterior evaluation. Set 0 to disable.')
+    parser.add_argument('--skip-det-proba', type=float, required=False, default=0.0, help='Probability to skip detection.')
+    parser.add_argument('--n-workers', type=int, required=False, default=8, help='Number of workers for faster evaluation.')
     return parser.parse_args()
 
 
-def add_measurement_noise(
+def aggregate_metrics(sample_metrics: Dict[str, List[float]]) -> Dict[str, float]:
+    """
+    Aggregates dictionary of sample metrics (list of values) to dictionary of metrics.
+    All metrics should be "mean-friendly".
+
+    Args:
+        sample_metrics: Sample metrics
+
+    Returns:
+        Aggregated metrics.
+    """
+    return {k: sum(v) / len(v) for k, v in sample_metrics.items()}
+
+
+def merge_metrics(global_metrics: Optional[Dict[str, List[float]]], metrics: Optional[Dict[str, List[float]]]) -> Dict[str, List[float]]:
+    """
+    Adds aggregated metrics to global metrics dictionary.
+    If global dictionary is empty then aggregated dictionary is taken as the global one.
+    if added metrics are None then global metrics is returned instead.
+
+    Args:
+        global_metrics: Global metrics data
+        metrics: Aggregated metrics data (can be empty)
+
+    Returns:
+        Merged (global) metrics
+    """
+    if metrics is None:
+        return global_metrics
+
+    if global_metrics is None:
+        return metrics
+
+    metric_names = set(global_metrics.keys())
+    assert metric_names == set(metrics.keys()), f'Metric keys do not match: {metric_names} != {set(metrics.keys())}'
+
+    for name in metric_names:
+        global_metrics[name].extend(metrics[name])
+
+    return global_metrics
+
+
+def simulate_detector_noise(
     measurement: List[float],
     prev_measurement: Optional[List[float]],
     sigma: float
@@ -104,9 +140,125 @@ def calc_iou(pred: Union[List[float], np.ndarray, torch.Tensor], gt: Union[List[
     return float(gt_bbox.iou(pred_bbox))
 
 
+def simulate_detector_false_positive(proba: float, first_frame: bool) -> bool:
+    """
+    "Deletes" measurement with some probability. First frame can't be skipped.
+
+    Args:
+        proba: Probability to skip detection
+        first_frame: Is it first frame for the object
+
+    Returns:
+        True if detection is skipped else False
+    """
+    if first_frame:
+        return False
+
+    r = random.uniform(0, 1)
+    return r < proba
+
+
+def kf_trak_eval(
+    measurements: List[List[float]],
+    det_noise_sigma: float,
+    det_skip_proba: float,
+    n_pred_steps: int,
+) -> Optional[Dict[str, List[float]]]:
+    """
+    Evaluates Kalman filter on SOT tracking.
+
+    Args:
+        measurements: List of measurements
+        det_noise_sigma: Detection noise (sigma)
+        det_skip_proba: Detection skip probability
+        n_pred_steps: Number of forward inference steps
+
+    Returns:
+        Metrics for each tracker step.
+    """
+    kf = BotSortKalmanFilter()  # Create KF for new track
+    mean, covariance, mean_hat, covariance_hat, prev_measurement = None, None, None, None, None
+    sample_metrics = defaultdict(list)
+
+    n_data_points = len(measurements)
+    n_inf_steps = n_data_points - n_pred_steps
+    if n_inf_steps <= 0:
+        return None
+
+    for index in range(n_inf_steps):
+        measurement = measurements[index]
+        measurement_no_noise = measurement
+        measurement = simulate_detector_noise(measurement, prev_measurement, det_noise_sigma)
+        skip_detection = simulate_detector_false_positive(det_skip_proba, first_frame=prev_measurement is None)
+
+        if mean is None:
+            # First KF iteration
+            mean, covariance = kf.initiate(measurement)
+            prior, _ = kf.project(mean, covariance)
+            # Nothing to compare in first iteration
+        else:
+            # Perform prediction
+            mean_hat, covariance_hat = kf.predict(mean, covariance)  # Prior
+            if skip_detection:
+                mean, covariance = mean_hat, covariance_hat
+            else:
+                mean, covariance = kf.update(mean_hat, covariance_hat, measurement)  # Posterior
+
+
+            total_mse = 0.0
+            total_iou = 0.0
+            for p_index in range(1, n_pred_steps + 1):
+                prior, _ = kf.project(mean_hat, covariance_hat)  # KF Prediction is before update
+
+                gt = np.array(measurements[index + p_index], dtype=np.float32)
+
+                # Calculate MSE
+                mse = ((gt - prior) ** 2).mean()
+                sample_metrics[f'prior-MSE-{p_index}'].append(mse)
+                total_mse += mse
+
+                # Calculate IOU (Accuracy)
+                iou_score = calc_iou(prior, gt)
+                sample_metrics[f'prior-Accuracy-{p_index}'].append(iou_score)
+                total_iou += iou_score
+
+                mean_hat, covariance_hat = kf.predict(mean_hat, covariance_hat)
+
+            sample_metrics['prior-MSE'].append(total_mse / n_pred_steps)
+            sample_metrics['prior-Accuracy'].append(total_iou / n_pred_steps)
+
+            posterior, _ = kf.project(mean, covariance)
+            gt = np.array(measurement_no_noise, dtype=np.float32)
+
+            posterior_mse = ((posterior - gt) ** 2).mean()
+            sample_metrics[f'posterior-MSE'].append(posterior_mse)
+            posterior_iou_score = calc_iou(posterior, gt)
+            sample_metrics[f'posterior-Accuracy'].append(posterior_iou_score)
+
+            # Save data
+            prev_measurement = measurement
+
+    return sample_metrics
+
+
+def create_object_id_iterator(dataset: MOTDataset, scene_name: str) -> Iterable[List[List[float]]]:
+    object_ids = dataset.get_scene_object_ids(scene_name)
+    for object_id in object_ids:
+        n_data_points = dataset.get_object_data_length(object_id)
+        measurements = [dataset.get_object_data_label(object_id, index)['bbox']
+                        for index in range(n_data_points)]
+        yield measurements
+
+
 def main(args: argparse.Namespace) -> None:
     dataset_path = os.path.join(args.input_path, args.dataset_name, args.split)
-    n_pred_steps = args.steps
+
+    # Parameters
+    n_pred_steps: int = args.steps
+    det_skip_proba: float = args.skip_det_proba
+    det_noise_sigma: float = args.noise_sigma
+    n_workers: int = args.n_workers
+
     logger.info(f'Loading dataset from path "{dataset_path}"')
     dataset = MOTDataset(
         path=dataset_path,
@@ -115,72 +267,31 @@ def main(args: argparse.Namespace) -> None:
         label_type=LabelType.GROUND_TRUTH
     )
 
-    sample_metrics = defaultdict(list)
-
     Path(args.output_path).mkdir(parents=True, exist_ok=True)
-    metrics_path = os.path.join(args.output_path, 'kf_metrics.json')
+    metrics_path = os.path.join(args.output_path, f'kf_metrics_noise{det_noise_sigma}_skip{det_skip_proba}.json')
     logger.info('Evaluating Kalman Filter')
 
+    global_metrics = None
     scene_names = dataset.scenes
     for scene_name in scene_names:
-        object_ids = dataset.get_scene_object_ids(scene_name)
-        for object_id in tqdm(object_ids, unit='track', desc=f'Evaluating tracker on {scene_name}'):
-            kf = BotSortKalmanFilter()  # Create KF for new track
-            mean, covariance, mean_hat, covariance_hat, prev_measurement = None, None, None, None, None
+        object_id_iterator = create_object_id_iterator(dataset, scene_name)
+        n_object_ids = dataset.get_scene_number_of_object_ids(scene_name)
+        with Pool(n_workers) as pool:
+            method = functools.partial(
+                kf_trak_eval,
+                det_skip_proba=det_skip_proba,
+                det_noise_sigma=det_noise_sigma,
+                n_pred_steps=n_pred_steps
+            )
 
-            n_data_points = dataset.get_object_data_length(object_id)
-            for index in range(n_data_points-n_pred_steps):
-                measurement = dataset.get_object_data_label(object_id, index)['bbox']
-                measurement_no_noise = measurement
-                measurement = add_measurement_noise(measurement, prev_measurement, args.noise_sigma)
+            for sample_metrics in tqdm(pool.imap_unordered(method, object_id_iterator),
+                                       unit='track', desc=f'Evaluating tracker on {scene_name}', total=n_object_ids):
+                global_metrics = merge_metrics(global_metrics, sample_metrics)
 
-                if mean is None:
-                    # First KF iteration
-                    mean, covariance = kf.initiate(measurement)
-                    prior, _ = kf.project(mean, covariance)
-                    # Nothing to compare in first iteration
-                else:
-                    # Perform prediction
-                    mean_hat, covariance_hat = kf.predict(mean, covariance)  # Prior
-                    mean, covariance = kf.update(mean_hat, covariance_hat, measurement)  # Posterior
-
-                    total_mse = 0.0
-                    total_iou = 0.0
-                    for p_index in range(1, n_pred_steps+1):
-                        prior, _ = kf.project(mean_hat, covariance_hat)  # KF Prediction is before update
-
-                        gt = np.array(dataset.get_object_data_label(object_id, index + p_index)['bbox'], dtype=np.float32)
-
-                        # Calculate MSE
-                        mse = ((gt - prior) ** 2).mean()
-                        sample_metrics[f'prior-MSE-{p_index}'].append(mse)
-                        total_mse += mse
-
-                        # Calculate IOU (Accuracy)
-                        iou_score = calc_iou(prior, gt)
-                        sample_metrics[f'prior-Accuracy-{p_index}'].append(iou_score)
-                        total_iou += iou_score
-
-                        mean_hat, covariance_hat = kf.predict(mean_hat, covariance_hat)
-
-                    sample_metrics['prior-MSE'].append(total_mse / n_pred_steps)
-                    sample_metrics['prior-Accuracy'].append(total_iou / n_pred_steps)
-
-                    posterior, _ = kf.project(mean, covariance)
-                    gt = np.array(measurement_no_noise, dtype=np.float32)
-
-                    posterior_mse = ((posterior - gt) ** 2).mean()
-                    sample_metrics[f'posterior-MSE'].append(posterior_mse)
-                    posterior_iou_score = calc_iou(posterior, gt)
-                    sample_metrics[f'posterior-Accuracy'].append(posterior_iou_score)
-
-                    # Save data
-                    prev_measurement = measurement
-
-    metrics = aggregate_metrics(sample_metrics)
+    metrics = aggregate_metrics(global_metrics)
 
     # Save metrics
-    logger.info(f'Metrics: \n{json.dumps(metrics, indent=2)}')
+    logger.info(f'Metrics:\n{json.dumps(metrics, indent=2)}')
     with open(metrics_path, 'w', encoding='utf-8') as f:
         json.dump(metrics, f, indent=2)
 

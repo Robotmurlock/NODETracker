@@ -13,7 +13,8 @@ import torch
 from omegaconf import DictConfig
 from tqdm import tqdm
 
-from nodetracker.analysis_tools.run_evaluate_kf_e2e import aggregate_metrics, calc_iou, add_measurement_noise
+from nodetracker.analysis_tools.run_evaluate_kf_e2e import aggregate_metrics, calc_iou, \
+    simulate_detector_noise, simulate_detector_false_positive
 from nodetracker.common import conventions
 from nodetracker.common.project import CONFIGS_PATH
 from nodetracker.common.project import OUTPUTS_PATH
@@ -26,11 +27,12 @@ logger = logging.getLogger('ODERNN_E2E_EVAL')
 
 
 # Improvisation
-N_STEPS = 5
-N_HIST = 10
-DETECTION_NOISE_SIGMA = 0.05
-DETECTION_NOISE = 4 * DETECTION_NOISE_SIGMA * torch.ones(4, dtype=torch.float32)
+N_STEPS: int = 5
+N_HIST: int = 10
+DETECTION_NOISE_SIGMA: float = 0.05
+DETECTION_NOISE: int = 4 * DETECTION_NOISE_SIGMA * torch.ones(4, dtype=torch.float32)
 N_MAX_OBJS: Optional[int] = None
+DET_SKIP_PROBA: float = 0.8
 
 
 class ODETorchTensorBuffer:
@@ -145,7 +147,8 @@ def main(cfg: DictConfig):
             for index in range(n_data_points-n_pred_steps):
                 measurement = dataset.get_object_data_label(object_id, index)['bbox']
                 measurement_no_noise = torch.tensor(measurement, dtype=torch.float32)
-                measurement = add_measurement_noise(measurement, prev_measurement, DETECTION_NOISE_SIGMA)
+                measurement = simulate_detector_noise(measurement, prev_measurement, DETECTION_NOISE_SIGMA)
+                skip_detection = simulate_detector_false_positive(DET_SKIP_PROBA, first_frame=prev_measurement is None)
 
                 measurement = torch.tensor(measurement, dtype=torch.float32)
                 buffer.push(measurement.clone())
@@ -154,7 +157,10 @@ def main(cfg: DictConfig):
                     x_obs, ts_obs, ts_unobs = buffer.get_input(n_pred_steps)
                     x_mean_hat, x_std_hat = ode_filter.predict(x_obs, ts_obs, ts_unobs)
                     detection_noise = torch.tensor(prev_measurement) * DETECTION_NOISE
-                    mean, covariance = ode_filter.update(x_mean_hat, x_std_hat, measurement, detection_noise)
+                    if skip_detection:
+                        mean, covariance = x_mean_hat, x_std_hat
+                    else:
+                        mean, covariance = ode_filter.update(x_mean_hat, x_std_hat, measurement, detection_noise)
 
                     total_mse = 0.0
                     total_iou = 0.0

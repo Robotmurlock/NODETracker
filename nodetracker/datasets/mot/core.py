@@ -130,6 +130,18 @@ class MOTDataset:
         assert scene_name in self.scenes, f'Unknown scene "{scene_name}". Dataset scenes: {self.scenes}.'
         return [d for d in self._data_labels if d.startswith(scene_name)]
 
+    def get_scene_number_of_object_ids(self, scene_name: str) -> int:
+        """
+        Gets number of unique objects in the scene.
+
+        Args:
+            scene_name: Scene name
+
+        Returns:
+            Number of objects in the scene
+        """
+        return len(self.get_scene_object_ids(scene_name))
+
     def get_object_data_length(self, object_id: str) -> int:
         """
         Gets total number of data points for given `object_id` for .
