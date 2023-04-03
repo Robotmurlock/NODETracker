@@ -1,5 +1,5 @@
-experiment: 'RNNODE-iter03-exp01'
-description: 'RNNODE - initial'
+experiment: 'MLPODE-iter03-exp01'
+description: 'MLPODE - initial'
 batch_size: 32
 learning_rate: 1e-3
 max_epochs: 15

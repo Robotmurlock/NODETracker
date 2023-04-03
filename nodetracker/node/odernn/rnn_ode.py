@@ -1,6 +1,6 @@
 """
-ODE-RNN implementation
-https://arxiv.org/pdf/1907.03907.pdf
+Custom model: RNN-ODE
+Like ODE-RNN but without ODE in encoder
 """
 from typing import Optional, Tuple
 
