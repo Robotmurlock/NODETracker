@@ -25,6 +25,8 @@ class ODERNNEncoder(nn.Module):
             hidden_dim: int,
             n_node_mlp_layers: int = 2,
 
+            n_rnn_layers: int = 1,
+
             solver_name: Optional[str] = None,
             solver_params: Optional[dict] = None
     ):
@@ -33,6 +35,11 @@ class ODERNNEncoder(nn.Module):
             observable_dim: Data dimension
             hidden_dim: Hidden dimension (additional dimension between observable and hidden)
             n_node_mlp_layers: Number NODE MLP layers
+
+            n_rnn_layers: Number of RNN layers
+
+            solver_name: ODE solver name
+            solver_params: ODE solver params
         """
         super().__init__()
         assert n_node_mlp_layers >= 1, f'Minimum number of NODE MLP layers is 1 but found {n_node_mlp_layers}.'
@@ -51,15 +58,16 @@ class ODERNNEncoder(nn.Module):
         self._rnn = nn.GRU(
             input_size=hidden_dim,
             hidden_size=hidden_dim,
-            num_layers=1,
+            num_layers=n_rnn_layers,
             batch_first=False
         )
+        self._n_rnn_layers = n_rnn_layers
 
     def forward(self, xs: torch.Tensor) -> torch.Tensor:
         time_len, batch_size, _ = xs.shape
 
         hs = self._obs2hidden(xs)
-        prev_h0 = torch.zeros(1, batch_size, self._hidden_dim).to(hs)
+        prev_h0 = torch.zeros(self._n_rnn_layers, batch_size, self._hidden_dim).to(hs)
 
         h0 = None
         for i in range(time_len):
@@ -80,13 +88,14 @@ class ODERNN(nn.Module):
     """
     ODE-RNN
     """
-
     def __init__(
         self,
         observable_dim: int,
         hidden_dim: int,
 
         model_gaussian: bool = False,
+
+        n_encoder_rnn_layers: int = 1,
 
         solver_name: Optional[str] = None,
         solver_params: Optional[dict] = None
@@ -97,7 +106,8 @@ class ODERNN(nn.Module):
             observable_dim=observable_dim + 1,  # time is additional obs dimension
             hidden_dim=hidden_dim,
             solver_name=solver_name,
-            solver_params=solver_params
+            solver_params=solver_params,
+            n_rnn_layers=n_encoder_rnn_layers
         )
         self._decoder = NODEDecoder(
             latent_dim=hidden_dim,
@@ -127,6 +137,8 @@ class LightningODERNN(LightningModuleForecaster):
 
         model_gaussian: bool = False,
 
+        n_encoder_rnn_layers: int = 1,
+
         solver_name: Optional[str] = None,
         solver_params: Optional[dict] = None,
 
@@ -137,7 +149,8 @@ class LightningODERNN(LightningModuleForecaster):
             hidden_dim=hidden_dim,
             model_gaussian=model_gaussian,
             solver_name=solver_name,
-            solver_params=solver_params
+            solver_params=solver_params,
+            n_encoder_rnn_layers=n_encoder_rnn_layers
         )
         loss_func = nn.GaussianNLLLoss() if model_gaussian else nn.MSELoss()
         super().__init__(train_config=train_config, model=model, loss_func=loss_func, model_gaussian=model_gaussian)
