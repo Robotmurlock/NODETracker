@@ -11,7 +11,8 @@ from nodetracker.library.building_blocks import MLP
 from nodetracker.node.core.odevae import MLPODEF, NODEDecoder
 from nodetracker.node.core.original import NeuralODE
 from nodetracker.node.core.solver import ode_solver_factory
-from nodetracker.node.utils import LightningTrainConfig, LightningModuleForecaster
+from nodetracker.node.odernn.utils import LightningGaussianModel, run_simple_lightning_guassian_model_test
+from nodetracker.node.utils import LightningTrainConfig
 
 
 class ODERNNEncoder(nn.Module):
@@ -126,7 +127,7 @@ class ODERNN(nn.Module):
         return x_hat, z_hat
 
 
-class LightningODERNN(LightningModuleForecaster):
+class LightningODERNN(LightningGaussianModel):
     """
     PytorchLightning wrapper for ODERNN model
     """
@@ -152,84 +153,20 @@ class LightningODERNN(LightningModuleForecaster):
             solver_params=solver_params,
             n_encoder_rnn_layers=n_encoder_rnn_layers
         )
-        loss_func = nn.GaussianNLLLoss() if model_gaussian else nn.MSELoss()
-        super().__init__(train_config=train_config, model=model, loss_func=loss_func, model_gaussian=model_gaussian)
+        super().__init__(
+            train_config=train_config,
+            model=model,
+            model_gaussian=model_gaussian
+        )
 
         self._is_modeling_gaussian = model_gaussian
 
-    @property
-    def is_modeling_gaussian(self) -> bool:
-        """
-        Checks if model estimates Gaussian or not.
-
-        Returns:
-            True if model estimates Gaussian
-            else False (model just predicts values)
-        """
-        return self._is_modeling_gaussian
-
-    @staticmethod
-    def extract_mean_and_std(bboxes_unobs_hat: torch.Tensor) \
-        -> Tuple[torch.Tensor, torch.Tensor]:
-        """
-        Helper function for Gaussian model postprocess
-
-        Args:
-            bboxes_unobs_hat: Prediction
-
-        Returns:
-            bboxes_hat_mean, bboxes_hat_std
-        """
-        bboxes_unobs_hat = bboxes_unobs_hat.view(*bboxes_unobs_hat.shape[:-1], -1, 2)
-        bboxes_unobs_hat_mean = bboxes_unobs_hat[..., 0]
-        bboxes_unobs_hat_log_var = bboxes_unobs_hat[..., 1]
-        bboxes_unobs_hat_var = torch.exp(bboxes_unobs_hat_log_var)
-        bboxes_unobs_hat_std = torch.sqrt(bboxes_unobs_hat_var)
-
-        return bboxes_unobs_hat_mean, bboxes_unobs_hat_std
-
-    def inference(self, x: torch.Tensor, t_obs: torch.Tensor, t_unobs: Optional[torch.Tensor] = None) -> Tuple[torch.Tensor, ...]:
-        x_hat, *other = self._model(x, t_obs, t_unobs)
-
-        if self._model_gaussian:
-            x_hat_mean, x_hat_std = self.extract_mean_and_std(x_hat)
-            return x_hat_mean, x_hat_std, *other
-
-        return x_hat, *other
-
-
-def run_test():
-    # Test ODERNNVAE
-    xs = torch.randn(4, 3, 7)
-    ts_obs = torch.randn(4, 3, 1)
-    ts_unobs = torch.randn(2, 3, 1)
-    expected_shape = (2, 3, 7)
-
-    # Test standard ODERNN
-    odernn = LightningODERNN(
-        observable_dim=7,
-        hidden_dim=5
-    )
-
-    output, _ = odernn(xs, ts_obs, ts_unobs)
-    assert output.shape == expected_shape, f'Expected shape {expected_shape} but found {output.shape}!'
-
-    # Test ODERNN with gaussian modeling
-    odernn = LightningODERNN(
-        observable_dim=7,
-        hidden_dim=5,
-        model_gaussian=True
-    )
-
-    expected_shape = (2, 3, 14)
-    output, _ = odernn(xs, ts_obs, ts_unobs)
-    assert output.shape == expected_shape, f'Expected shape {expected_shape} but found {output.shape}!'
-
-    expected_shapes = [(2, 3, 7), (2, 3, 7)]
-    output = odernn.extract_mean_and_std(output)
-    output_shapes = [o.shape for o in output]
-    assert output_shapes == expected_shapes, f'Expected shape {expected_shape} but found {output_shapes}!'
-
 
 if __name__ == '__main__':
-    run_test()
+    run_simple_lightning_guassian_model_test(
+        model_class=LightningODERNN,
+        params={
+            'observable_dim': 7,
+            'hidden_dim': 4
+        }
+    )

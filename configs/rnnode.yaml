@@ -1,0 +1,10 @@
+defaults:
+  - resources: cuda.yaml
+  - dataset: mot.yaml
+  - transform: standardized_relative_to_last_obs_with_noise.yaml
+  - model: rnnode.yaml
+  - train: rnnode.yaml
+  - eval: rnnode.yaml
+  - visualize: default.yaml
+  - augmentations: detector_noise_var_traj_length.yaml
+  - _self_

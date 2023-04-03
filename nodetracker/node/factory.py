@@ -8,7 +8,7 @@ from pytorch_lightning import LightningModule
 
 from nodetracker.node.core.odevae import LightningODEVAE
 from nodetracker.node.kalman_filter import TorchConstantVelocityODKalmanFilter
-from nodetracker.node.odernn import LightningODERNN, LightningODERNNVAE
+from nodetracker.node.odernn import LightningODERNN, LightningODERNNVAE, LightningRNNODE
 from nodetracker.standard.rnn import LightningRNNSeq2Seq, LightningARRNN, LightningSingleStepRNN
 from nodetracker.standard.mlp import LightningMLPForecaster
 from nodetracker.node.utils.training import LightningModuleForecaster
@@ -25,6 +25,7 @@ class ModelType(enum.Enum):
     ARRNN = 'arrnn'
     SINGLE_STEP_RNN = 'single-step-rnn'
     RNN = 'rnn'
+    RNNODE = 'rnnode'
     MLP = 'mlp'
     KALMAN_FILTER = 'kf'
 
@@ -72,6 +73,7 @@ def load_or_create_model(
     catalog = {
         ModelType.ODEVAE: LightningODEVAE,
         ModelType.ODERNN: LightningODERNN,
+        ModelType.RNNODE: LightningRNNODE,
         ModelType.ODERNNVAE: LightningODERNNVAE,
         ModelType.ARRNN: LightningARRNN,
         ModelType.RNN: LightningRNNSeq2Seq,

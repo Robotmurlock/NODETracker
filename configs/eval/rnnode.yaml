@@ -1,0 +1,7 @@
+experiment: '${train.experiment}'
+split: 'val'
+batch_size: 320
+num_workers: 20
+
+inference_name: 'initial'
+checkpoint: 'last.ckpt'
