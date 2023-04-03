@@ -1,6 +1,6 @@
-type: 'rnnode'
+type: 'mlpode'
 params:
-  observable_steps: '${dataset.history_len}',
+  observable_steps: '${dataset.history_len}'
   observable_dim: 4
   hidden_dim: 32
 

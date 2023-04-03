@@ -7,8 +7,8 @@ from typing import Optional, Tuple
 import torch
 from torch import nn
 
-from library.building_blocks.mlp import MLP
-from library.building_blocks.resnet import ResnetMLPBlock
+from nodetracker.library.building_blocks.mlp import MLP
+from nodetracker.library.building_blocks.resnet import ResnetMLPBlock
 from nodetracker.node.core.odevae import NODEDecoder
 from nodetracker.node.odernn.utils import LightningGaussianModel, run_simple_lightning_guassian_model_test
 from nodetracker.node.utils import LightningTrainConfig
