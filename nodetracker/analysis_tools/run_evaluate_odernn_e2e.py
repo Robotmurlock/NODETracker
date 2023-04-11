@@ -20,7 +20,7 @@ from nodetracker.common.project import CONFIGS_PATH
 from nodetracker.common.project import OUTPUTS_PATH
 from nodetracker.datasets import transforms
 from nodetracker.datasets.mot.core import MOTDataset, LabelType
-from nodetracker.node import load_or_create_model, LightningODERNN
+from nodetracker.node import load_or_create_model, LightningGaussianModel
 from nodetracker.utils import pipeline
 
 logger = logging.getLogger('ODERNN_E2E_EVAL')
@@ -32,7 +32,7 @@ N_HIST: int = 10
 DETECTION_NOISE_SIGMA: float = 0.05
 DETECTION_NOISE: int = 4 * DETECTION_NOISE_SIGMA * torch.ones(4, dtype=torch.float32)
 N_MAX_OBJS: Optional[int] = None
-DET_SKIP_PROBA: float = 0.2
+DET_SKIP_PROBA: float = 0.0
 
 
 class ODETorchTensorBuffer:
@@ -64,7 +64,7 @@ class ODETorchTensorBuffer:
 
 
 class ODERNNFilter:
-    def __init__(self, model: LightningODERNN, transform: transforms.InvertibleTransformWithStd, accelerator: str):
+    def __init__(self, model: LightningGaussianModel, transform: transforms.InvertibleTransformWithStd, accelerator: str):
         self._model = model
         self._transform = transform
 
@@ -127,7 +127,8 @@ def main(cfg: DictConfig):
         params=cfg.model.params,
         checkpoint_path=checkpoint_path
     )
-    assert isinstance(model, LightningODERNN), 'Uncertainty measurement is only available for ODERNN!'
+    assert isinstance(model, LightningGaussianModel), \
+        'Uncertainty measurement is only available for ODERNN, RNNODE and MLPODE (instances of LightningGaussianModel)!'
     assert model.is_modeling_gaussian, 'Uncertainty measurement is only available for ODERNN trained with GaussianNLLLoss!'
     accelerator = cfg.resources.accelerator
     model.to(accelerator)

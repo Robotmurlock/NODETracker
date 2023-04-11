@@ -1,5 +1,5 @@
-experiment: 'RNNODE-iter03-exp01'
-description: 'RNNODE - initial'
+experiment: 'RNNODE-iter03-exp03-double-params'
+description: 'RNNODE (from exp01) - double parameters'
 batch_size: 32
 learning_rate: 1e-3
 max_epochs: 15

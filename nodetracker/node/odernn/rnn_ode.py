@@ -49,8 +49,7 @@ class RNNODE(nn.Module):
     def forward(self, x: torch.Tensor, t_obs: torch.Tensor, t_unobs: Optional[torch.Tensor] = None) \
             -> Tuple[torch.Tensor, torch.Tensor]:
         z0 = self._encoder(x, t_obs)
-        assert z0.shape[0] == 1, f'Expected temporal dimension to be equal to 1 but got: {z0.shape}!'
-        z0 = z0[0]  # Removing temporal dim
+        z0 = z0[-1]  # Removing temporal dim
         x_hat, z_hat = self._decoder(z0, t_unobs)
         return x_hat, z_hat
 
@@ -95,6 +94,8 @@ if __name__ == '__main__':
         model_class=LightningRNNODE,
         params={
             'observable_dim': 7,
-            'hidden_dim': 4
+            'hidden_dim': 4,
+
+            'n_encoder_rnn_layers': 2
         }
     )
