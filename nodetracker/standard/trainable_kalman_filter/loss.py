@@ -1,5 +1,6 @@
 import torch
 from torch import nn
+import torch.linalg as LA
 
 
 class LinearGaussianEnergyFunction(nn.Module):
@@ -13,7 +14,7 @@ class LinearGaussianEnergyFunction(nn.Module):
             https://pytorch.org/docs/stable/generated/torch.nn.GaussianNLLLoss.html
             Note: Pytorch implementation supports only diagonal covariance matrix
     """
-    def __init__(self, eps: float = 1e-6, reduction: str = 'none'):
+    def __init__(self, eps: float = 1e-6, reduction: str = 'mean'):
         """
         Args:
             eps: Clamping variance for stability.
@@ -28,7 +29,8 @@ class LinearGaussianEnergyFunction(nn.Module):
 
     def forward(self, innovation: torch.Tensor, P: torch.Tensor) -> torch.Tensor:
         P = torch.clamp(P, min=self._eps)
-        loss = (1 / 2) * torch.log(2 * torch.pi * P) + (1 / 2) * innovation.T @ torch.inverse(P) @ innovation
+        innovation_T = torch.transpose(innovation, dim0=-2, dim1=-1)
+        loss = (1 / 2) * torch.log(2 * torch.pi * P) + (1 / 2) * torch.bmm(torch.bmm(innovation_T, LA.pinv(P)), innovation)
 
         if self._reduction == 'mean':
             return loss.mean()

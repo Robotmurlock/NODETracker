@@ -127,7 +127,7 @@ class ResourcesConfig:
     - accelerator: gpu/cpu
     - num_workers: cpu workers
     """
-    gpus: int
+    devices: Union[str, List[str], int]
     accelerator: str
     num_workers: int
 

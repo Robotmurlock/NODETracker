@@ -1,0 +1,3 @@
+gpus: 1
+accelerator: 'cuda'
+num_workers: 8

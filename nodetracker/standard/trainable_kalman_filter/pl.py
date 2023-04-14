@@ -78,11 +78,12 @@ class LightningAdaptiveKalmanFilter(LightningModuleBase):
 
         for i in range(1, n_steps):
             z = zs[i]
+            z_expanded = z.unsqueeze(-1)
 
             # Predict and calculate loss
             x_hat, P_hat = self._model.predict(x, P)
-            x_proj, P_proj = self._model.project(x_hat, P_hat)
-            innovation = z - x_proj
+            x_proj, P_proj = self._model.project(x_hat, P_hat, flatten=False)
+            innovation = z_expanded - x_proj
             total_loss += self._loss(innovation, P_proj)
 
             # Update
@@ -107,8 +108,8 @@ class LightningAdaptiveKalmanFilter(LightningModuleBase):
 
 def run_takf_test():
     model = LightningAdaptiveKalmanFilter()
-    zs = torch.randn(32, 4)
-    loss = model.forward_loss_step(zs)
+    zs = torch.randn(10, 32, 4)
+    _ = model.forward_loss_step(zs)
 
 
 if __name__ == '__main__':

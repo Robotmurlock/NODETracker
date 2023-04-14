@@ -62,7 +62,7 @@ def main(cfg: DictConfig):
     tb_logger = TensorBoardLogger(save_dir=experiment_path, name=conventions.TENSORBOARD_DIRNAME)
     checkpoint_path = conventions.get_checkpoints_dirpath(experiment_path)
     trainer = Trainer(
-        gpus=cfg.resources.gpus,
+        devices=cfg.resources.devices,
         accelerator=cfg.resources.accelerator,
         max_epochs=cfg.train.max_epochs,
         logger=tb_logger,
@@ -74,15 +74,15 @@ def main(cfg: DictConfig):
                 save_last=True,
                 save_top_k=1
             )
-        ],
-        resume_from_checkpoint=cfg.train.checkpoint_cfg.resume_from if cfg.train.checkpoint_cfg.resume_from
-            and os.path.exists(cfg.train.checkpoint_cfg.resume_from) else None
+        ]
     )
 
     trainer.fit(
         model=model,
         train_dataloaders=train_loader,
-        val_dataloaders=val_loader
+        val_dataloaders=val_loader,
+        ckpt_path=cfg.train.checkpoint_cfg.resume_from if cfg.train.checkpoint_cfg.resume_from
+            and os.path.exists(cfg.train.checkpoint_cfg.resume_from) else None
     )
 
 

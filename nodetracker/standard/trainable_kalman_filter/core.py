@@ -213,7 +213,7 @@ class TrainableAdaptiveKalmanFilter(nn.Module):
 
         diag = torch.tensor([4 * [self._sigma_p * self._sigma_p_init_mult]
                              + 4 * [self._sigma_v * self._sigma_v_init_mult] for _ in range(batch_size)])
-        P = self._create_diag_cov_matrix(diag)
+        P = self._create_diag_cov_matrix(diag).to(z)
 
         return x, P
 
@@ -229,12 +229,17 @@ class TrainableAdaptiveKalmanFilter(nn.Module):
             - x_hat (Predicted vector state)
             - P_hat (Predicted covariance matrix)
         """
+        batch_size, *_ = x.shape
+        A = self._A.to(x)
+        A_expanded = A.unsqueeze(0).expand(batch_size, *A.shape)
+        AT_expanded = torch.transpose(A_expanded, dim0=-2, dim1=-1)
+
         # Predict state
-        x_hat = self._A @ x  # 8x1
+        x_hat = torch.bmm(A_expanded, x)  # 8x1
 
         # Predict uncertainty
-        Q = self._estimate_process_noise_heuristic(x)
-        P_hat = self._A @ P @ self._A.T + Q  # 8x8
+        Q = self._estimate_process_noise_heuristic(x).to(x)
+        P_hat = torch.bmm(torch.bmm(A_expanded, P), AT_expanded) + Q  # 8x8
 
         return x_hat, P_hat
 
@@ -278,8 +283,11 @@ class TrainableAdaptiveKalmanFilter(nn.Module):
 
         # Update state
         x_proj, P_proj = self.project(x_hat, P_hat, flatten=False)
-        H_expanded = self._H.unsqueeze(0).expand(batch_size, *self._H.shape)
+
+        H = self._H.to(z)
+        H_expanded = H.unsqueeze(0).expand(batch_size, *H.shape)
         HT_expanded = torch.transpose(H_expanded, dim0=-2, dim1=-1)
+
         K = torch.bmm(torch.bmm(P_hat, HT_expanded), torch.inverse(P_proj))  # 8x4
 
         # validation: (8x8 @ 8x4) @ inv(4x8 @ 8x8 @ 8x4) = 8x4 @ 4x4 = 8x4
@@ -288,7 +296,8 @@ class TrainableAdaptiveKalmanFilter(nn.Module):
         # validation: 8x1 + 8x4 @ 4x1 = 8x1 + 8x1
 
         # Update uncertainty
-        I_expanded = self._I.unsqueeze(0).expand(batch_size, *self._I.shape)
+        I = self._I.to(z)
+        I_expanded = I.unsqueeze(0).expand(batch_size, *I.shape)
         P = torch.bmm(I_expanded - torch.bmm(K, H_expanded), P_hat)  # 8x8
         # validation: (8x8 - 8x4 @ 4x8) @ 8x8 = 8x8 @ 8x8 = 8x8
 
@@ -308,8 +317,9 @@ class TrainableAdaptiveKalmanFilter(nn.Module):
         """
         batch_size, *_ = x.shape
 
-        R = self._estimate_measurement_noise_heuristic(x)
-        H_expanded = self._H.unsqueeze(0).expand(batch_size, *self._H.shape)
+        R = self._estimate_measurement_noise_heuristic(x).to(x)
+        H = self._H.to(x)
+        H_expanded = H.unsqueeze(0).expand(batch_size, *H.shape)
         HT_expanded = torch.transpose(H_expanded, dim0=-2, dim1=-1)
 
         x_proj = torch.bmm(H_expanded, x)
