@@ -1,5 +1,5 @@
 """
-Trainable Kalman Filter using SGD
+Trainable Kalman Filter using SGD that supports batch operations
 
 1. Measurement vector: z = [x, y, h, w]
 2. Measurement noise covariance matrix (learnable): R = [
@@ -19,19 +19,18 @@ Initial state:
 - State vector (learnable)
 - State covariance (learnable)
 """
-from typing import Tuple, List
+import enum
+from typing import Tuple
 
 import torch
-import torch.linalg as LA
 from torch import nn
-import enum
 
 
 class TrainingAKFMode(enum.Enum):
-    FROZEN = enum.auto()  # Parameters are frozen
-    MOTION = enum.auto()  # Uncertainty parameters are frozen
-    UNCERTAINTY = enum.auto()  # Motion parameters are frozen
-    ALL = enum.auto()  # All parameters are unfrozen
+    FROZEN = 'frozen'  # Parameters are frozen
+    MOTION = 'motion' # Uncertainty parameters are frozen
+    UNCERTAINTY = 'uncertainty'  # Motion parameters are frozen
+    ALL = 'all'  # All parameters are unfrozen
 
     @property
     def flags(self) -> Tuple[bool, bool]:
@@ -50,6 +49,22 @@ class TrainingAKFMode(enum.Enum):
 
         raise AssertionError('Invalid Program State!')
 
+    @classmethod
+    def from_str(cls, value: str) -> 'TrainingAKFMode':
+        """
+        Creates training mode from string
+
+        Args:
+            value: String (raw)
+
+        Returns:
+            Training mode
+        """
+        for item in cls:
+            if item.value.lower() == value.lower():
+                return item
+
+        raise ValueError(f'Can\'t deduce mode from "{value}"!')
 
 class TrainableAdaptiveKalmanFilter(nn.Module):
     def __init__(self,
@@ -132,7 +147,7 @@ class TrainableAdaptiveKalmanFilter(nn.Module):
         self._training_mode = mode
 
     # noinspection PyMethodMayBeStatic
-    def _create_diag_cov_matrix(self, diag: List[float]) -> torch.Tensor:
+    def _create_diag_cov_matrix(self, diag: torch.Tensor) -> torch.Tensor:
         """
         Creates diagonal covariance matrix given list of stds.
 
@@ -142,9 +157,8 @@ class TrainableAdaptiveKalmanFilter(nn.Module):
         Returns:
             Covariance matrix
         """
-        diag = torch.tensor(diag, dtype=torch.float32)
         diag = torch.square(diag)
-        return torch.diag(diag)
+        return torch.diag_embed(diag)
 
     def _estimate_process_noise_heuristic(self, x: torch.Tensor) -> torch.Tensor:
         """
@@ -156,13 +170,14 @@ class TrainableAdaptiveKalmanFilter(nn.Module):
         Returns:
             Process noise (Q) matrix
         """
-        h, w = x[2], x[3]
+        h, w = x[:, 2, 0], x[:, 3, 0]
         x_weight = h * self._sigma_p
         y_weight = w * self._sigma_p
         xv_weight = h * self._sigma_v
         yv_weight = w * self._sigma_v
-        return self._create_diag_cov_matrix([x_weight, y_weight, x_weight, y_weight,
-                                             xv_weight, yv_weight, xv_weight, yv_weight])
+        diag = torch.stack([x_weight, y_weight, x_weight, y_weight,
+                            xv_weight, yv_weight, xv_weight, yv_weight]).T
+        return self._create_diag_cov_matrix(diag)
 
     def _estimate_measurement_noise_heuristic(self, x_hat: torch.Tensor) -> torch.Tensor:
         """
@@ -174,10 +189,11 @@ class TrainableAdaptiveKalmanFilter(nn.Module):
         Returns:
             Measurement noise (Q) matrix
         """
-        h, w = x_hat[2], x_hat[3]
+        h, w = x_hat[:, 2, 0], x_hat[:, 3, 0]
         x_weight = h * self._sigma_p
         y_weight = w * self._sigma_p
-        return self._create_diag_cov_matrix([x_weight, y_weight, x_weight, y_weight])
+        diag = torch.stack([x_weight, y_weight, x_weight, y_weight]).T
+        return self._create_diag_cov_matrix(diag)
 
     def initiate(self, z: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """
@@ -189,9 +205,15 @@ class TrainableAdaptiveKalmanFilter(nn.Module):
         Returns:
             Initialized vector and covariance matrix
         """
+        assert len(z.shape) == 2, f'Expected measurement shape is (batch_size, dim) but found: {z.shape}'
+        batch_size, n_dim = z.shape
+        z = z.unsqueeze(-1)
+
         x = torch.hstack([z, torch.zeros_like(z, dtype=torch.float32)])
-        P = self._create_diag_cov_matrix(4 * [self._sigma_p * self._sigma_p_init_mult]
-                                         + 4 * [self._sigma_v * self._sigma_v_init_mult])
+
+        diag = torch.tensor([4 * [self._sigma_p * self._sigma_p_init_mult]
+                             + 4 * [self._sigma_v * self._sigma_v_init_mult] for _ in range(batch_size)])
+        P = self._create_diag_cov_matrix(diag)
 
         return x, P
 
@@ -215,6 +237,9 @@ class TrainableAdaptiveKalmanFilter(nn.Module):
         P_hat = self._A @ P @ self._A.T + Q  # 8x8
 
         return x_hat, P_hat
+
+    def forward(self, x: torch.Tensor, P: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        return self.predict(x, P)
 
     def multistep_predict(self, x: torch.Tensor, P: torch.Tensor, n_steps: int) -> Tuple[torch.Tensor, torch.Tensor]:
         """
@@ -248,35 +273,51 @@ class TrainableAdaptiveKalmanFilter(nn.Module):
         Returns:
             Updated object bbox coordinates and uncertainty for those coordinates
         """
+        batch_size, *_ = x_hat.shape
+        z = z.unsqueeze(-1)
 
         # Update state
-        R = self._estimate_measurement_noise_heuristic(x_hat)
-        K = (P_hat @ self._H.T) @ LA.inv(self._H @ P_hat @ self._H.T + R)  # 8x4
+        x_proj, P_proj = self.project(x_hat, P_hat, flatten=False)
+        H_expanded = self._H.unsqueeze(0).expand(batch_size, *self._H.shape)
+        HT_expanded = torch.transpose(H_expanded, dim0=-2, dim1=-1)
+        K = torch.bmm(torch.bmm(P_hat, HT_expanded), torch.inverse(P_proj))  # 8x4
 
         # validation: (8x8 @ 8x4) @ inv(4x8 @ 8x8 @ 8x4) = 8x4 @ 4x4 = 8x4
-        z_hat = self._H @ x_hat  # 4x1
-        innovation = z - z_hat  # 4x1
-        x = x_hat + K @ innovation  # 8x1
+        innovation = z - x_proj  # 4x1
+        x = x_hat + torch.bmm(K, innovation)  # 8x1
         # validation: 8x1 + 8x4 @ 4x1 = 8x1 + 8x1
 
         # Update uncertainty
-        P = (self._I - K @ self._H) @ P_hat  # 8x8
+        I_expanded = self._I.unsqueeze(0).expand(batch_size, *self._I.shape)
+        P = torch.bmm(I_expanded - torch.bmm(K, H_expanded), P_hat)  # 8x8
         # validation: (8x8 - 8x4 @ 4x8) @ 8x8 = 8x8 @ 8x8 = 8x8
 
         return x, P
 
-    def project(self, x: torch.Tensor, P: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+    def project(self, x: torch.Tensor, P: torch.Tensor, flatten: bool = True) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Projects state vector to measurement space.
 
         Args:
             x: State vector
             P: State uncertainty covariance matrix
+            flatten: Flatten state vector `x`
 
         Returns:
             Projected state vector, projected uncertain covariance matrix
         """
-        return self._H @ x, self._H @ P @ self._H.T
+        batch_size, *_ = x.shape
+
+        R = self._estimate_measurement_noise_heuristic(x)
+        H_expanded = self._H.unsqueeze(0).expand(batch_size, *self._H.shape)
+        HT_expanded = torch.transpose(H_expanded, dim0=-2, dim1=-1)
+
+        x_proj = torch.bmm(H_expanded, x)
+        if flatten:
+            x_proj = x_proj.squeeze(-1)
+        P_proj = torch.bmm(torch.bmm(H_expanded, P), HT_expanded) + R
+
+        return x_proj, P_proj
 
 
 # noinspection DuplicatedCode
@@ -296,18 +337,19 @@ def run_kf_test():
     dt = 1.0
     noise_std = 1e-3
 
-    kf_preds = []
-    kf_ests = []
-    ground_truth = []
-    ts = []
+    kf_preds1, kf_preds2 = [], []
+    kf_ests1, kf_ests2 = [], []
+    ground_truth1, ground_truth2 = [], []
 
     # KF prediction: A -> B
     first_iteration = True
     x_hat, P_hat, x, P = None, None, None, None
     for i in range(time_len):
         t = dt*i
-        gt = (1 - t/time_len) * state_A + t/time_len * state_B
-        measurement = gt + torch.randn(*gt.shape) * noise_std
+        gt1 = ((1 - t/time_len) * state_A + t/time_len * state_B)
+        gt2 = ((1 - t / time_len) * state_B + t / time_len * state_C)
+        gt = torch.stack([gt1, gt2])
+        measurement = gt + torch.randn_like(gt) * noise_std
         if first_iteration:
             x, P = kf.initiate(measurement)
             first_iteration = False
@@ -322,37 +364,24 @@ def run_kf_test():
             est, _ = kf.project(x, P)
             est = pred.clone()
 
-        ts.append(dt*i)
-        ground_truth.append(gt)
-        kf_preds.append(pred)
-        kf_ests.append(est)
+        ground_truth1.append(gt[0])
+        kf_preds1.append(pred[0])
+        kf_ests1.append(est[0])
 
-    # KF prediction: B -> C
-    for i in range(time_len):
-        t = dt*i
-        gt = (1 - t/time_len) * state_B + t/time_len * state_C
-        measurement = gt + torch.randn(*gt.shape) * noise_std
-
-        x_hat, P_hat = kf.predict(x, P)
-        x, P = kf.update(x_hat, P_hat, measurement)
-        pred, _ = kf.project(x_hat, P_hat)
-        pred = pred.clone()
-        est, _ = kf.project(x, P)
-        est = pred.clone()
-
-        ts.append(dt*i)
-        ground_truth.append(gt)
-        kf_preds.append(pred)
-        kf_ests.append(est)
+        ground_truth2.append(gt[1])
+        kf_preds2.append(pred[1])
+        kf_ests2.append(est[1])
 
     # noinspection PyUnresolvedReferences
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
     SIZE = 200
     mp4_path = os.path.join(OUTPUTS_PATH, 'tkf_simulation.mp4')
 
-    print('Path:', mp4_path)
     # noinspection PyUnresolvedReferences
     mp4_writer = cv2.VideoWriter(mp4_path, fourcc, 5, (SIZE, SIZE))
+
+    kf_preds = kf_preds1 + kf_preds2
+    ground_truth = ground_truth1 + ground_truth2
 
     for kf_pred, gt in zip(kf_preds, ground_truth):
         kf_x, kf_y, kf_w, kf_h = [float(v) for v in kf_pred]
