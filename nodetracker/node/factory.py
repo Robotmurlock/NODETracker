@@ -9,10 +9,11 @@ from pytorch_lightning import LightningModule
 from nodetracker.node.core.odevae import LightningODEVAE
 from nodetracker.node.kalman_filter import TorchConstantVelocityODKalmanFilter
 from nodetracker.node.odernn import LightningODERNN, LightningODERNNVAE, LightningRNNODE, LightningMLPODE
-from nodetracker.standard.rnn import LightningRNNSeq2Seq, LightningARRNN, LightningSingleStepRNN
-from nodetracker.standard.mlp import LightningMLPForecaster
-from nodetracker.node.utils.training import LightningModuleForecaster
 from nodetracker.node.utils import LightningTrainConfig
+from nodetracker.node.utils.training import LightningModuleForecaster
+from nodetracker.standard.mlp import LightningMLPForecaster
+from nodetracker.standard.rnn import LightningRNNSeq2Seq, LightningARRNN, LightningSingleStepRNN
+from nodetracker.standard.trainable_kalman_filter import LightningAdaptiveKalmanFilter
 
 
 class ModelType(enum.Enum):
@@ -29,11 +30,12 @@ class ModelType(enum.Enum):
     MLP = 'mlp'
     MLPODE = 'mlpode'
     KALMAN_FILTER = 'kf'
+    TAKF = 'takf'
 
     @classmethod
     def from_str(cls, value: str) -> 'ModelType':
         for v in cls:
-            if v.value == value:
+            if v.value.lower() == value.lower():
                 return v
 
         raise ValueError(f'Can\'t create ModelType from "{value}". Possible values: {list(cls)}')
@@ -81,7 +83,8 @@ def load_or_create_model(
         ModelType.SINGLE_STEP_RNN: LightningSingleStepRNN,
         ModelType.MLP: LightningMLPForecaster,
         ModelType.MLPODE: LightningMLPODE,
-        ModelType.KALMAN_FILTER: TorchConstantVelocityODKalmanFilter
+        ModelType.KALMAN_FILTER: TorchConstantVelocityODKalmanFilter,
+        ModelType.TAKF: LightningAdaptiveKalmanFilter
     }
 
     model_cls = catalog[model_type]

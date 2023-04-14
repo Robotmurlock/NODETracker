@@ -1,0 +1,10 @@
+defaults:
+  - resources: cuda.yaml
+  - dataset: mot.yaml
+  - transform: identity.yaml
+  - model: takf.yaml
+  - train: takf.yaml
+  - eval: takf.yaml
+  - visualize: default.yaml
+  - augmentations: default.yaml
+  - _self_
