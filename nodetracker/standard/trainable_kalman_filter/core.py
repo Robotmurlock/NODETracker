@@ -45,7 +45,7 @@ class TrainingAKFMode(enum.Enum):
         if self == TrainingAKFMode.UNCERTAINTY:
             return False, True
         if self == TrainingAKFMode.ALL:
-            return False, False
+            return True, True
 
         raise AssertionError('Invalid Program State!')
 
@@ -66,6 +66,7 @@ class TrainingAKFMode(enum.Enum):
 
         raise ValueError(f'Can\'t deduce mode from "{value}"!')
 
+
 class TrainableAdaptiveKalmanFilter(nn.Module):
     def __init__(self,
         sigma_p: float = 0.05,
@@ -76,7 +77,10 @@ class TrainableAdaptiveKalmanFilter(nn.Module):
         sigma_q: float = 1.0,
         dt: float = 1.0,
 
-        training_mode: TrainingAKFMode = TrainingAKFMode.FROZEN
+        training_mode: TrainingAKFMode = TrainingAKFMode.FROZEN,
+        positive_motion_mat: bool = True,
+        triu_motion_mat: bool = True,
+        first_principles_motion_mat: bool = True
     ):
         """
         Args:
@@ -94,6 +98,10 @@ class TrainableAdaptiveKalmanFilter(nn.Module):
         self._training_mode = training_mode
         train_motion_parameters, train_uncertainty_parameters = training_mode.flags
 
+        self._positive_motion_mat = positive_motion_mat
+        self._triu_motion_mat = triu_motion_mat
+        self._first_principles_motion_mat = first_principles_motion_mat
+
         self._sigma_p = nn.Parameter(torch.tensor(sigma_p, dtype=torch.float32),
                                      requires_grad=train_uncertainty_parameters)
         self._sigma_p_init_mult = nn.Parameter(torch.tensor(sigma_p_init_mult, dtype=torch.float32),
@@ -108,16 +116,13 @@ class TrainableAdaptiveKalmanFilter(nn.Module):
                                      requires_grad=train_uncertainty_parameters)
         self._dt = dt
 
-        self._A = nn.Parameter(torch.tensor([
-            [1, 0, 0, 0, dt, 0, 0, 0],
-            [0, 1, 0, 0, 0, dt, 0, 0],
-            [0, 0, 1, 0, 0, 0, dt, 0],
-            [0, 0, 0, 1, 0, 0, 0, dt],
-            [0, 0, 0, 0, 1, 0, 0, 0],
-            [0, 0, 0, 0, 0, 1, 0, 0],
-            [0, 0, 0, 0, 0, 0, 1, 0],
-            [0, 0, 0, 0, 0, 0, 0, 1]
-        ], dtype=torch.float32), requires_grad=train_motion_parameters)
+        self._initialize_motion_matrix(
+            dt=dt,
+            train_motion_parameters=train_motion_parameters,
+            first_principles_motion_mat=first_principles_motion_mat,
+            positive_motion_mat=positive_motion_mat,
+            triu_motion_mat=triu_motion_mat
+        )
 
         self._H = nn.Parameter(torch.tensor([
             [1, 0, 0, 0, 0, 0, 0, 0],
@@ -127,6 +132,65 @@ class TrainableAdaptiveKalmanFilter(nn.Module):
         ], dtype=torch.float32), requires_grad=False)
 
         self._I = nn.Parameter(torch.eye(8, dtype=torch.float32), requires_grad=False)
+
+
+    def _initialize_motion_matrix(
+        self,
+        dt: float,
+        train_motion_parameters: bool,
+        first_principles_motion_mat: bool,
+        positive_motion_mat: bool,
+        triu_motion_mat: bool
+    ) -> None:
+        """
+        Initializes motion matrix
+
+        Args:
+            dt: Velocity time step hyperparameter
+            train_motion_parameters: Set `requires_grad=True` for motion matrix
+            first_principles_motion_mat: Use heuristic to initialize motion matrix
+            positive_motion_mat: Initialize motion matrix to be positive
+            triu_motion_mat: All element of motion matrix below diagonal are zeros
+        """
+        assert dt >= 0, f'Parameter `dt` can\'t be negative! Got {dt}.'
+
+        if first_principles_motion_mat:
+            A = torch.tensor([
+                [1, 0, 0, 0, dt, 0, 0, 0],
+                [0, 1, 0, 0, 0, dt, 0, 0],
+                [0, 0, 1, 0, 0, 0, dt, 0],
+                [0, 0, 0, 1, 0, 0, 0, dt],
+                [0, 0, 0, 0, 1, 0, 0, 0],
+                [0, 0, 0, 0, 0, 1, 0, 0],
+                [0, 0, 0, 0, 0, 0, 1, 0],
+                [0, 0, 0, 0, 0, 0, 0, 1]
+            ], dtype=torch.float32)
+        else:
+            A = torch.zeros(8, 8, dtype=torch.float32)
+            nn.init.xavier_normal_(A)
+
+        if positive_motion_mat:
+            A = torch.relu(A)
+        if triu_motion_mat:
+            A = torch.relu(A)
+
+        self._A = nn.Parameter(A, requires_grad=train_motion_parameters)
+
+    def get_motion_matrix(self) -> torch.Tensor:
+        """
+        Preprocess motion matrix.
+
+        Returns:
+            Processed motion matrix
+        """
+        A = self._A
+
+        if self._positive_motion_mat:
+            A = torch.relu(A)
+        if self._triu_motion_mat:
+            A = torch.triu(A)
+
+        return A
 
     @property
     def training_mode(self) -> TrainingAKFMode:
@@ -230,7 +294,7 @@ class TrainableAdaptiveKalmanFilter(nn.Module):
             - P_hat (Predicted covariance matrix)
         """
         batch_size, *_ = x.shape
-        A = self._A.to(x)
+        A = self.get_motion_matrix()
         A_expanded = A.unsqueeze(0).expand(batch_size, *A.shape)
         AT_expanded = torch.transpose(A_expanded, dim0=-2, dim1=-1)
 
@@ -288,6 +352,7 @@ class TrainableAdaptiveKalmanFilter(nn.Module):
         H_expanded = H.unsqueeze(0).expand(batch_size, *H.shape)
         HT_expanded = torch.transpose(H_expanded, dim0=-2, dim1=-1)
 
+        # TODO: Use Cholesky batch matrix decomposition instead of `torch.inverse` for better numerical stability
         K = torch.bmm(torch.bmm(P_hat, HT_expanded), torch.inverse(P_proj))  # 8x4
 
         # validation: (8x8 @ 8x4) @ inv(4x8 @ 8x8 @ 8x4) = 8x4 @ 4x4 = 8x4

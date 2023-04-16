@@ -1,3 +1,8 @@
 type: 'takf'
 params:
-  training_mode: 'motion'
+  training_mode: 'all'
+
+  positive_motion_mat: True
+  triu_motion_mat: False
+  first_principles_motion_mat: False
+  optimize_likelihood: True
