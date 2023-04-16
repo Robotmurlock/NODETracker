@@ -1,5 +1,5 @@
-experiment: 'TAKF-iter04-exp01-motion-from-zero-train-all'
-description: 'Training all KF parameters with random motion matrix'
+experiment: 'TAKF-iter04-exp03-motion-from-zero-train-motion-only'
+description: 'Training motion KF parameters with random motion matrix initialization'
 batch_size: 128
 learning_rate: 1e-3
 max_epochs: 10

@@ -17,6 +17,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from nodetracker.common import conventions
+from nodetracker.config_parser import GlobalConfig
 from nodetracker.common.project import CONFIGS_PATH
 from nodetracker.datasets import TorchMOTTrajectoryDataset, transforms
 from nodetracker.datasets.utils import OdeDataloaderCollateFunctional
@@ -226,9 +227,28 @@ def save_inference(
             f.write(f'\n{scene_name},{object_id},{frame_range},{metric_values_str}')
 
 
+def update_parameters_for_eval(cfg: GlobalConfig) -> GlobalConfig:
+    """
+    Update config parameters.
+
+    Args:
+        cfg: Config
+
+    Returns:
+        Updated config for inference (evaluation)
+    """
+    if cfg.eval.dataset_future_len is not None:
+        logger.warning('Overriding dataset configs with evaluation configs: '
+                       f'{cfg.dataset.future_len} -> {cfg.eval.dataset_future_len}')
+        cfg.dataset.future_len = cfg.eval.dataset_future_len
+
+    return cfg
+
+
 @hydra.main(config_path=CONFIGS_PATH, config_name='default', version_base='1.1')
 def main(cfg: DictConfig):
     cfg, experiment_path = pipeline.preprocess(cfg, name='inference')
+    cfg = update_parameters_for_eval(cfg)
 
     dataset_path = os.path.join(cfg.path.assets, cfg.dataset.get_split_path(cfg.eval.split))
     logger.info(f'Dataset {cfg.eval.split} path: "{dataset_path}".')

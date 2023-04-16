@@ -328,10 +328,17 @@ class TrainableAdaptiveKalmanFilter(nn.Module):
         """
         x_hat, P_hat = x, P
 
+        x_preds, P_preds = [], []
         for _ in range(n_steps):
             x_hat, P_hat = self.predict(x_hat, P_hat)
+            x_proj, P_proj = self.project(x_hat, P_hat)
+            x_preds.append(x_proj)
+            P_preds.append(P_proj)
 
-        return x_hat, P_hat
+        x_preds = torch.stack(x_preds)
+        P_preds = torch.stack(P_preds)
+
+        return x_preds, P_preds
 
     def update(self, x_hat: torch.Tensor, P_hat: torch.Tensor, z: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """

@@ -7,15 +7,19 @@ Config structure. Config should be loaded as dictionary and parsed into GlobalCo
 from dataclasses import dataclass, asdict, field
 from pathlib import Path
 from typing import Optional, List, Union, Tuple
-from nodetracker.datasets.augmentations import create_identity_augmentation_config, TrajectoryAugmentation
-from nodetracker.utils.serialization import serialize_json
-from hydra.utils import instantiate
-from omegaconf import OmegaConf
+import logging
 
 import dacite
 import yaml
+from hydra.utils import instantiate
+from omegaconf import OmegaConf
 
 from nodetracker.common import project
+from nodetracker.datasets.augmentations import create_identity_augmentation_config
+from nodetracker.utils.serialization import serialize_json
+
+
+logger = logging.getLogger('ConfigParser')
 
 
 @dataclass
@@ -201,6 +205,9 @@ class EvalConfig:
     # Autoregressive configs
     autoregressive: bool = field(default=False)
     autoregressive_keep_history: bool = field(default=False)
+
+    # Override dataset configs
+    dataset_future_len: Optional[int] = field(default=None)
 
 
 @dataclass
