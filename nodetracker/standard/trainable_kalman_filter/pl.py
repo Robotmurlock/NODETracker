@@ -38,11 +38,21 @@ class LightningAdaptiveKalmanFilter(LightningModuleBase):
             sigma_q: Process noise multiplier (matrix Q)
             dt: Step period
 
+            positive_motion_mat: Use positive motion matrix `A >= 0` (non-negative)
+            triu_motion_mat: Use upper triangular motion matrix
+            first_principles_motion_mat: Use first principles motion matrix as initial parameters
+
             training_mode: Model training mode
+            optimize_likelihood: Optimize negative log likelihood instead of MSE
+            train_config: Training configuration
         """
         super().__init__(train_config=train_config)
         training_mode = TrainingAKFMode.from_str(training_mode)
-        assert training_mode != TrainingAKFMode.FROZEN, 'Can\'t train a model with frozen parameters!'
+        if train_config is not None:
+            assert training_mode != TrainingAKFMode.FROZEN, 'Can\'t train a model with frozen parameters!'
+            assert training_mode != TrainingAKFMode.MOTION or not optimize_likelihood, \
+                'Can\'t train uncertainty parameters with MSE loss!'
+
 
         self._model = TrainableAdaptiveKalmanFilter(
             sigma_p=sigma_p,

@@ -93,6 +93,9 @@ class TrainableAdaptiveKalmanFilter(nn.Module):
             dt: Step period
 
             training_mode: Model training mode
+            positive_motion_mat: Use positive motion matrix `A >= 0` (non-negative)
+            triu_motion_mat: Use upper triangular motion matrix
+            first_principles_motion_mat: Use first principles motion matrix as initial parameters
         """
         super().__init__()
         self._training_mode = training_mode
