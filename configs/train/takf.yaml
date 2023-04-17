@@ -1,5 +1,5 @@
-experiment: 'TAKF-iter04-exp03-motion-from-zero-train-motion-only'
-description: 'Training motion KF parameters with random motion matrix initialization'
+experiment: 'TAKF-iter04-exp08-motion-first-principles-triu-motion-only-frozen-diag'
+description: 'Training motion KF parameters with first principles matrix initialization (triu constraint, frozen diag)'
 batch_size: 128
 learning_rate: 1e-3
 max_epochs: 10

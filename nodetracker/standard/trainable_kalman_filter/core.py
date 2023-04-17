@@ -80,7 +80,8 @@ class TrainableAdaptiveKalmanFilter(nn.Module):
         training_mode: TrainingAKFMode = TrainingAKFMode.FROZEN,
         positive_motion_mat: bool = True,
         triu_motion_mat: bool = True,
-        first_principles_motion_mat: bool = True
+        first_principles_motion_mat: bool = True,
+        freeze_eye_diagonal_motion_mat: bool = False
     ):
         """
         Args:
@@ -96,6 +97,7 @@ class TrainableAdaptiveKalmanFilter(nn.Module):
             positive_motion_mat: Use positive motion matrix `A >= 0` (non-negative)
             triu_motion_mat: Use upper triangular motion matrix
             first_principles_motion_mat: Use first principles motion matrix as initial parameters
+            freeze_eye_diagonal_motion_mat: Diagonal motion matrix has all ones fixes
         """
         super().__init__()
         self._training_mode = training_mode
@@ -104,6 +106,7 @@ class TrainableAdaptiveKalmanFilter(nn.Module):
         self._positive_motion_mat = positive_motion_mat
         self._triu_motion_mat = triu_motion_mat
         self._first_principles_motion_mat = first_principles_motion_mat
+        self._freeze_eye_diagonal_motion_mat = freeze_eye_diagonal_motion_mat
 
         self._sigma_p = nn.Parameter(torch.tensor(sigma_p, dtype=torch.float32),
                                      requires_grad=train_uncertainty_parameters)
@@ -119,14 +122,6 @@ class TrainableAdaptiveKalmanFilter(nn.Module):
                                      requires_grad=train_uncertainty_parameters)
         self._dt = dt
 
-        self._initialize_motion_matrix(
-            dt=dt,
-            train_motion_parameters=train_motion_parameters,
-            first_principles_motion_mat=first_principles_motion_mat,
-            positive_motion_mat=positive_motion_mat,
-            triu_motion_mat=triu_motion_mat
-        )
-
         self._H = nn.Parameter(torch.tensor([
             [1, 0, 0, 0, 0, 0, 0, 0],
             [0, 1, 0, 0, 0, 0, 0, 0],
@@ -136,6 +131,14 @@ class TrainableAdaptiveKalmanFilter(nn.Module):
 
         self._I = nn.Parameter(torch.eye(8, dtype=torch.float32), requires_grad=False)
 
+        self._initialize_motion_matrix(
+            dt=dt,
+            train_motion_parameters=train_motion_parameters,
+            first_principles_motion_mat=first_principles_motion_mat,
+            positive_motion_mat=positive_motion_mat,
+            triu_motion_mat=triu_motion_mat,
+            freeze_eye_diagonal_motion_mat=freeze_eye_diagonal_motion_mat
+        )
 
     def _initialize_motion_matrix(
         self,
@@ -143,7 +146,8 @@ class TrainableAdaptiveKalmanFilter(nn.Module):
         train_motion_parameters: bool,
         first_principles_motion_mat: bool,
         positive_motion_mat: bool,
-        triu_motion_mat: bool
+        triu_motion_mat: bool,
+        freeze_eye_diagonal_motion_mat: bool
     ) -> None:
         """
         Initializes motion matrix
@@ -156,6 +160,8 @@ class TrainableAdaptiveKalmanFilter(nn.Module):
             triu_motion_mat: All element of motion matrix below diagonal are zeros
         """
         assert dt >= 0, f'Parameter `dt` can\'t be negative! Got {dt}.'
+        assert not freeze_eye_diagonal_motion_mat or triu_motion_mat, \
+            f'Freezing eye diagonal requires `triu_motion_mat=True`'
 
         if first_principles_motion_mat:
             A = torch.tensor([
@@ -175,7 +181,10 @@ class TrainableAdaptiveKalmanFilter(nn.Module):
         if positive_motion_mat:
             A = torch.relu(A)
         if triu_motion_mat:
-            A = torch.relu(A)
+            if freeze_eye_diagonal_motion_mat:
+                A = torch.triu(A, diagonal=1) + self._I
+            else:
+                A = torch.triu(A)
 
         self._A = nn.Parameter(A, requires_grad=train_motion_parameters)
 
@@ -191,7 +200,10 @@ class TrainableAdaptiveKalmanFilter(nn.Module):
         if self._positive_motion_mat:
             A = torch.relu(A)
         if self._triu_motion_mat:
-            A = torch.triu(A)
+            if self._freeze_eye_diagonal_motion_mat:
+                A = torch.triu(A, diagonal=1) + self._I
+            else:
+                A = torch.triu(A)
 
         return A
 

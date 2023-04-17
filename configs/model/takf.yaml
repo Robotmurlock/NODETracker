@@ -3,6 +3,7 @@ params:
   training_mode: 'motion'
 
   positive_motion_mat: True
-  triu_motion_mat: False
-  first_principles_motion_mat: False
+  triu_motion_mat: True
+  first_principles_motion_mat: True
   optimize_likelihood: False
+  freeze_eye_diagonal_motion_mat: True

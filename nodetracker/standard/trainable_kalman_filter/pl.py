@@ -23,6 +23,7 @@ class LightningAdaptiveKalmanFilter(LightningModuleBase):
         positive_motion_mat: bool = True,
         triu_motion_mat: bool = True,
         first_principles_motion_mat: bool = True,
+        freeze_eye_diagonal_motion_mat: bool = False,
 
         training_mode: str = 'all',
         optimize_likelihood: bool = True,
@@ -53,7 +54,6 @@ class LightningAdaptiveKalmanFilter(LightningModuleBase):
             assert training_mode != TrainingAKFMode.MOTION or not optimize_likelihood, \
                 'Can\'t train uncertainty parameters with MSE loss!'
 
-
         self._model = TrainableAdaptiveKalmanFilter(
             sigma_p=sigma_p,
             sigma_p_init_mult=sigma_p_init_mult,
@@ -66,7 +66,8 @@ class LightningAdaptiveKalmanFilter(LightningModuleBase):
             training_mode=training_mode,
             positive_motion_mat=positive_motion_mat,
             triu_motion_mat=triu_motion_mat,
-            first_principles_motion_mat=first_principles_motion_mat
+            first_principles_motion_mat=first_principles_motion_mat,
+            freeze_eye_diagonal_motion_mat=freeze_eye_diagonal_motion_mat
         )
         self._loss = LinearGaussianEnergyFunction(optimize_likelihood=optimize_likelihood)
 
