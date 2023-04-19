@@ -41,6 +41,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--split', type=str, required=False, default='val', help='Dataset split name.')
     parser.add_argument('--dataset-name', type=str, required=True, help='Dataset name.')
     parser.add_argument('--steps', type=int, required=False, default=1, help='Number of forecast steps.')
+    parser.add_argument('--optimal-kf', action='store_true', help='Use optimal KF motion matrix.')
     parser.add_argument('--noise-sigma', type=float, required=False, default=0.05,
                         help='Add noise for posterior evaluation. Set 0 to disable.')
     parser.add_argument('--skip-det-proba', type=float, required=False, default=0.0, help='Probability to skip detection.')
@@ -163,20 +164,23 @@ def kf_trak_eval(
     det_noise_sigma: float,
     det_skip_proba: float,
     n_pred_steps: int,
+    use_optimal_motion_mat: bool = False
 ) -> Optional[Dict[str, List[float]]]:
     """
     Evaluates Kalman filter on SOT tracking.
 
     Args:
+
         measurements: List of measurements
         det_noise_sigma: Detection noise (sigma)
         det_skip_proba: Detection skip probability
         n_pred_steps: Number of forward inference steps
+        use_optimal_motion_mat: Use optimal (fine-tuned) KF
 
     Returns:
         Metrics for each tracker step.
     """
-    kf = BotSortKalmanFilter()  # Create KF for new track
+    kf = BotSortKalmanFilter(use_optimal_motion_mat=use_optimal_motion_mat)  # Create KF for new track
     mean, covariance, mean_hat, covariance_hat, prev_measurement = None, None, None, None, None
     sample_metrics = defaultdict(list)
 
@@ -281,7 +285,8 @@ def main(args: argparse.Namespace) -> None:
                 kf_trak_eval,
                 det_skip_proba=det_skip_proba,
                 det_noise_sigma=det_noise_sigma,
-                n_pred_steps=n_pred_steps
+                n_pred_steps=n_pred_steps,
+                use_optimal_motion_mat=args.optimal_kf
             )
 
             for sample_metrics in tqdm(pool.imap_unordered(method, object_id_iterator),

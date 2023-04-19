@@ -7,3 +7,4 @@ params:
   first_principles_motion_mat: True
   optimize_likelihood: False
   freeze_eye_diagonal_motion_mat: True
+  first_principles_add_jitter_motion_mat: False

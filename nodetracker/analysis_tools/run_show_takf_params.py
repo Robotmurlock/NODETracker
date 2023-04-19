@@ -5,6 +5,7 @@ import logging
 import os
 
 import hydra
+import torch
 from omegaconf import DictConfig
 
 from nodetracker.common import conventions
@@ -15,6 +16,10 @@ from nodetracker.utils import pipeline
 
 logger = logging.getLogger('ShowTAKFParameters')
 
+torch.set_printoptions(sci_mode=False, precision=5, linewidth=160)
+
+
+# noinspection PyProtectedMember
 @hydra.main(config_path=CONFIGS_PATH, config_name='default', version_base='1.1')
 def main(cfg: DictConfig):
     cfg, experiment_path = pipeline.preprocess(cfg, name='inference')

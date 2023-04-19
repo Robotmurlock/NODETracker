@@ -24,6 +24,7 @@ class LightningAdaptiveKalmanFilter(LightningModuleBase):
         triu_motion_mat: bool = True,
         first_principles_motion_mat: bool = True,
         freeze_eye_diagonal_motion_mat: bool = False,
+        first_principles_add_jitter_motion_mat: bool = False,
 
         training_mode: str = 'all',
         optimize_likelihood: bool = True,
@@ -42,6 +43,7 @@ class LightningAdaptiveKalmanFilter(LightningModuleBase):
             positive_motion_mat: Use positive motion matrix `A >= 0` (non-negative)
             triu_motion_mat: Use upper triangular motion matrix
             first_principles_motion_mat: Use first principles motion matrix as initial parameters
+            first_principles_add_jitter_motion_mat: Add jitter to first principles motion matrix
 
             training_mode: Model training mode
             optimize_likelihood: Optimize negative log likelihood instead of MSE
@@ -67,6 +69,7 @@ class LightningAdaptiveKalmanFilter(LightningModuleBase):
             positive_motion_mat=positive_motion_mat,
             triu_motion_mat=triu_motion_mat,
             first_principles_motion_mat=first_principles_motion_mat,
+            first_principles_add_jitter_motion_mat=first_principles_add_jitter_motion_mat,
             freeze_eye_diagonal_motion_mat=freeze_eye_diagonal_motion_mat
         )
         self._loss = LinearGaussianEnergyFunction(optimize_likelihood=optimize_likelihood)

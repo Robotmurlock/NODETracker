@@ -1,13 +1,13 @@
-experiment: 'TAKF-iter04-exp08-motion-first-principles-triu-motion-only-frozen-diag'
-description: 'Training motion KF parameters with first principles matrix initialization (triu constraint, frozen diag)'
+experiment: 'TAKF-iter04-exp1`-motion-first-principles-triu-motion-only-frozen-diag-longer-train'
+description: 'Training motion KF parameters with first principles matrix initialization (triu constraint, jitter, longer-train)'
 batch_size: 128
 learning_rate: 1e-3
-max_epochs: 10
+max_epochs: 15
 
 train_params:
   learning_rate: 1e-3
   sched_lr_gamma: 0.1
-  sched_lr_step: 3
+  sched_lr_step: 4
 
 resume_from_checkpoint: null
 

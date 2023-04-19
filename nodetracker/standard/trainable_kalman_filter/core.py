@@ -81,6 +81,7 @@ class TrainableAdaptiveKalmanFilter(nn.Module):
         positive_motion_mat: bool = True,
         triu_motion_mat: bool = True,
         first_principles_motion_mat: bool = True,
+        first_principles_add_jitter_motion_mat: bool = False,
         freeze_eye_diagonal_motion_mat: bool = False
     ):
         """
@@ -97,6 +98,7 @@ class TrainableAdaptiveKalmanFilter(nn.Module):
             positive_motion_mat: Use positive motion matrix `A >= 0` (non-negative)
             triu_motion_mat: Use upper triangular motion matrix
             first_principles_motion_mat: Use first principles motion matrix as initial parameters
+            first_principles_add_jitter_motion_mat: Add jitter to first principles motion matrix
             freeze_eye_diagonal_motion_mat: Diagonal motion matrix has all ones fixes
         """
         super().__init__()
@@ -135,6 +137,7 @@ class TrainableAdaptiveKalmanFilter(nn.Module):
             dt=dt,
             train_motion_parameters=train_motion_parameters,
             first_principles_motion_mat=first_principles_motion_mat,
+            first_principles_add_jitter_motion_mat=first_principles_add_jitter_motion_mat,
             positive_motion_mat=positive_motion_mat,
             triu_motion_mat=triu_motion_mat,
             freeze_eye_diagonal_motion_mat=freeze_eye_diagonal_motion_mat
@@ -145,6 +148,7 @@ class TrainableAdaptiveKalmanFilter(nn.Module):
         dt: float,
         train_motion_parameters: bool,
         first_principles_motion_mat: bool,
+        first_principles_add_jitter_motion_mat: bool,
         positive_motion_mat: bool,
         triu_motion_mat: bool,
         freeze_eye_diagonal_motion_mat: bool
@@ -156,6 +160,7 @@ class TrainableAdaptiveKalmanFilter(nn.Module):
             dt: Velocity time step hyperparameter
             train_motion_parameters: Set `requires_grad=True` for motion matrix
             first_principles_motion_mat: Use heuristic to initialize motion matrix
+            first_principles_add_jitter_motion_mat: Add jitter to first principles motion matrix
             positive_motion_mat: Initialize motion matrix to be positive
             triu_motion_mat: All element of motion matrix below diagonal are zeros
         """
@@ -174,6 +179,10 @@ class TrainableAdaptiveKalmanFilter(nn.Module):
                 [0, 0, 0, 0, 0, 0, 1, 0],
                 [0, 0, 0, 0, 0, 0, 0, 1]
             ], dtype=torch.float32)
+
+            if first_principles_add_jitter_motion_mat:
+                A = A + 0.1 * torch.triu(torch.randn_like(A), diagonal=1)
+
         else:
             A = torch.zeros(8, 8, dtype=torch.float32)
             nn.init.xavier_normal_(A)
