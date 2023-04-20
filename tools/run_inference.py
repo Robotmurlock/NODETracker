@@ -17,15 +17,15 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from nodetracker.common import conventions
-from nodetracker.config_parser import GlobalConfig
 from nodetracker.common.project import CONFIGS_PATH
-from nodetracker.datasets import TorchMOTTrajectoryDataset, transforms
+from nodetracker.config_parser import GlobalConfig
+from nodetracker.datasets import transforms, dataset_factory, TorchTrajectoryDataset
 from nodetracker.datasets.utils import OdeDataloaderCollateFunctional
 from nodetracker.library.cv import BBox
 from nodetracker.node import load_or_create_model
-from nodetracker.utils import pipeline
 from nodetracker.node.utils.autoregressive import AutoregressiveForecasterDecorator
 from nodetracker.node.utils.training import LightningModuleForecaster
+from nodetracker.utils import pipeline
 
 logger = logging.getLogger('InferenceScript')
 
@@ -254,10 +254,14 @@ def main(cfg: DictConfig):
     logger.info(f'Dataset {cfg.eval.split} path: "{dataset_path}".')
 
     postprocess_transform = transforms.transform_factory(cfg.transform.name, cfg.transform.params)
-    dataset = TorchMOTTrajectoryDataset(
-        path=dataset_path,
-        history_len=cfg.dataset.history_len,
-        future_len=cfg.dataset.future_len
+    dataset = TorchTrajectoryDataset(
+        dataset_factory(
+            name=cfg.dataset.name,
+            path=dataset_path,
+            history_len=cfg.dataset.history_len,
+            future_len=cfg.dataset.future_len,
+            additional_params=cfg.dataset.additional_params
+        )
     )
 
     data_loader = DataLoader(

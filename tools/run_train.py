@@ -15,7 +15,7 @@ from nodetracker.common.project import CONFIGS_PATH
 from nodetracker.datasets import transforms
 from nodetracker.node import load_or_create_model, ModelType
 from nodetracker.utils import pipeline
-from tools.utils import create_mot20_dataloader
+from tools.utils import create_dataloader
 
 logger = logging.getLogger('TrainScript')
 
@@ -29,7 +29,7 @@ def main(cfg: DictConfig):
     # Load train dataset
     dataset_train_path = os.path.join(cfg.path.assets, cfg.dataset.train_path)
     logger.info(f'Dataset train path: "{dataset_train_path}".')
-    train_loader = create_mot20_dataloader(
+    train_loader = create_dataloader(
         dataset_path=dataset_train_path,
         cfg=cfg,
         transform=postprocess_transform,
@@ -43,7 +43,7 @@ def main(cfg: DictConfig):
     # Load val dataset
     dataset_val_path = os.path.join(cfg.path.assets, cfg.dataset.val_path)
     logger.info(f'Dataset val path: "{dataset_val_path}".')
-    val_loader = create_mot20_dataloader(
+    val_loader = create_dataloader(
         dataset_path=dataset_val_path,
         cfg=cfg,
         transform=postprocess_transform,

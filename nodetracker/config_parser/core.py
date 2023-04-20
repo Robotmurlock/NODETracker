@@ -6,7 +6,7 @@ Config structure. Config should be loaded as dictionary and parsed into GlobalCo
 """
 from dataclasses import dataclass, asdict, field
 from pathlib import Path
-from typing import Optional, List, Union, Tuple
+from typing import Optional, List, Union, Tuple, Dict, Any
 import logging
 
 import dacite
@@ -39,6 +39,8 @@ class DatasetConfig:
     test_path: str
     history_len: int
     future_len: int
+
+    additional_params: Optional[Dict[str, Any]] = field(default_factory=dict)
 
     def get_split_path(self, split: str) -> str:
         """

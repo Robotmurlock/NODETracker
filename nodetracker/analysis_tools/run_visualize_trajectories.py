@@ -22,7 +22,7 @@ from nodetracker.node import LightningODERNN, LightningODERNNVAE
 from nodetracker.node import load_or_create_model
 from nodetracker.node.utils.autoregressive import AutoregressiveForecasterDecorator
 from nodetracker.utils import pipeline
-from tools.utils import create_mot20_dataloader
+from tools.utils import create_dataloader
 
 logger = logging.getLogger('VisualizeTrajectories')
 
@@ -165,7 +165,7 @@ def main(cfg: DictConfig):
     # Load dataset for visualization
     dataset_path = os.path.join(cfg.path.assets, cfg.dataset.get_split_path(cfg.eval.split))
     logger.info(f'Dataset {cfg.eval.split} path: "{dataset_path}".')
-    data_loader = create_mot20_dataloader(
+    data_loader = create_dataloader(
         dataset_path=dataset_path,
         cfg=cfg,
         transform=None,  # Preprocessing and postprocessing are applied manually

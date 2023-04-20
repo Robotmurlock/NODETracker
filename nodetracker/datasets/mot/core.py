@@ -69,7 +69,8 @@ class MOTDataset(TrajectoryDataset):
         future_len: int,
         label_type: LabelType = LabelType.GROUND_TRUTH,
         scene_filter: Optional[List[str]] = None,
-        fast_loading: bool = True
+        fast_loading: bool = True,
+        **kwargs
     ) -> None:
         """
         Args:
@@ -80,7 +81,7 @@ class MOTDataset(TrajectoryDataset):
             fast_loading: Cache metadata (faster loading)
 
         """
-        super().__init__(history_len=history_len, future_len=future_len)
+        super().__init__(history_len=history_len, future_len=future_len, **kwargs)
 
         self._path = path
         self._label_type = label_type

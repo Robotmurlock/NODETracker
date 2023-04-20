@@ -1,7 +1,10 @@
-from typing import Optional, Tuple, Dict, Any
+"""
+Torch dataset support. Any Dataset that implements `TrajectoryDataset` interface can be used for training and evaluation.
+"""
 from abc import abstractmethod, ABC
-import numpy as np
+from typing import Optional, Tuple, Dict, Any
 
+import numpy as np
 import torch
 from torch.utils.data import Dataset
 
@@ -12,7 +15,7 @@ class TrajectoryDataset(ABC):
     """
     Defines interface for TrajectoryDataset.
     """
-    def __init__(self, history_len: int, future_len: int):
+    def __init__(self, history_len: int, future_len: int, **kwargs):
         self._history_len = history_len
         self._future_len = future_len
 

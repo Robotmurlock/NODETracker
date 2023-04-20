@@ -1,3 +1,6 @@
+"""
+LaSOT dataset. More information: https://paperswithcode.com/dataset/lasot
+"""
 import logging
 import os
 from dataclasses import dataclass
@@ -42,13 +45,17 @@ SequenceInfoIndex = Dict[str, Dict[str, SequenceInfo]]  # Category -> (SequenceN
 TrajectoryIndex = List[Tuple[str, str, int, int]]
 
 class LaSOTDataset(TrajectoryDataset):
+    """
+    Indexes and loads LaSOT data.
+    """
     def __init__(
         self,
         path: str,
         history_len: int,
-        future_len: int
+        future_len: int,
+        **kwargs
     ):
-        super().__init__(history_len=history_len, future_len=future_len)
+        super().__init__(history_len=history_len, future_len=future_len, **kwargs)
 
         self._sequence_index = self._create_dataset_index(path)
         self._trajectory_index = self._create_trajectory_index(self._sequence_index, history_len, future_len)
@@ -111,7 +118,7 @@ class LaSOTDataset(TrajectoryDataset):
     # noinspection PyMethodMayBeStatic
     def _create_trajectory_index(self, sequence_index: SequenceInfoIndex, history_len: int, future_len: int) -> TrajectoryIndex:
         """
-        Creates trajectory index (using indices
+        Creates trajectory index (using indices).
 
         Args:
             sequence_index: Sequence info index
@@ -127,7 +134,7 @@ class LaSOTDataset(TrajectoryDataset):
         for category, category_data in tqdm(sequence_index.items(), total=len(sequence_index), unit='category', desc='Creating trajectory index'):
             for sequence_name, sequence_info in category_data.items():
                 for i in range(sequence_info.length - trajectory_len + 1):
-                    traj_index.append((category, sequence_info.name, i, i + trajectory_len))
+                    traj_index.append((category, sequence_name, i, i + trajectory_len))
 
         return traj_index
 

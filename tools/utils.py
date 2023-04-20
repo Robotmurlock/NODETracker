@@ -6,13 +6,13 @@ from typing import Optional
 from torch.utils.data import DataLoader
 
 from nodetracker.config_parser import GlobalConfig
+from nodetracker.datasets import TorchTrajectoryDataset, dataset_factory
 from nodetracker.datasets.augmentations import TrajectoryAugmentation
-from nodetracker.datasets.mot import TorchMOTTrajectoryDataset
 from nodetracker.datasets.transforms import InvertibleTransform
 from nodetracker.datasets.utils import OdeDataloaderCollateFunctional
 
 
-def create_mot20_dataloader(
+def create_dataloader(
     dataset_path: str,
     cfg: GlobalConfig,
     train: bool,
@@ -40,10 +40,14 @@ def create_mot20_dataloader(
     Returns:
         Dataloader for MOT20 dataset.
     """
-    dataset = TorchMOTTrajectoryDataset(
-        path=dataset_path,
-        history_len=cfg.dataset.history_len,
-        future_len=cfg.dataset.future_len,
+    dataset = TorchTrajectoryDataset(
+        dataset=dataset_factory(
+            name=cfg.dataset.name,
+            path=dataset_path,
+            history_len=cfg.dataset.history_len,
+            future_len=cfg.dataset.future_len,
+            additional_params=cfg.dataset.additional_params
+        ),
         transform=transform,
         augmentation_before_transform=augmentation_before_transform,
         augmentation_after_transform=augmentation_after_transform
