@@ -1,6 +1,6 @@
 defaults:
   - resources: cuda.yaml
-  - dataset: mot.yaml
+  - dataset: lasot.yaml
   - transform: standardized_relative_to_last_obs_with_noise.yaml
   - model: rnnode.yaml
   - train: rnnode.yaml

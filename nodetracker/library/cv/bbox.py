@@ -170,7 +170,11 @@ class BBox:
         if intersection is None:
             return 0.0
 
-        return intersection.area / (self.area + other.area - intersection.area)
+        union_area = self.area + other.area - intersection.area
+        if union_area == 0.0:
+            return 0.0
+
+        return intersection.area / union_area
 
     def max_iou(self, others: List['BBox']) -> Tuple[float, int]:
         """

@@ -151,9 +151,10 @@ class LaSOTDataset(TrajectoryDataset):
         bboxes = np.array(sequence_info.bboxes[traj_start:traj_end], dtype=np.float32)
 
         # Metadata
+        # scene == object for SOT but data is duplicated for MOT compatability
         metadata = {
-            'category': category,
-            'name': sequence_name,
+            'scene_name': sequence_name,
+            'object_id': sequence_name,
             'frame_ids': frame_ids,
             'image_paths': image_paths
         }
