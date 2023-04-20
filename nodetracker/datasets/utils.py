@@ -3,6 +3,7 @@ Dataset utils
 """
 from typing import List, Tuple, Optional
 
+import numpy as np
 import torch
 from torch.utils.data import default_collate
 
@@ -65,3 +66,34 @@ def preprocess_batch(batch: tuple) -> tuple:
     ts_all = torch.cat([ts_obs, ts_unobs], dim=0)
     bboxes_all = torch.cat([bboxes_obs, bboxes_unobs], dim=0)
     return bboxes_obs, bboxes_unobs, bboxes_all, ts_obs, ts_unobs, ts_all, metadata
+
+
+def split_trajectory_observed_unobserved(frame_ids: List[int], bboxes: np.ndarray, history_len: int):
+    """
+    Splits trajectory time points and bboxes int observed (input) trajectory
+    and unobserved (ground truth) trajectory.
+
+    Args:
+        frame_ids: Full trajectory frame ids
+        bboxes: Full trajectory bboxes
+        history_len: Observed trajectory length
+
+    Returns:
+        - Observed trajectory bboxes
+        - Unobserved trajectory bboxes
+        - Observed trajectory time points
+        - Unobserved trajectory time points
+    """
+
+    # Time points
+    frame_ts = np.array(frame_ids, dtype=np.float32)
+    frame_ts = frame_ts - frame_ts[0] + 1  # Transforming to relative time values
+    frame_ts = np.expand_dims(frame_ts, -1)
+
+    # Observed - Unobserved
+    bboxes_obs = bboxes[:history_len]
+    bboxes_unobs = bboxes[history_len:]
+    frame_ts_obs = frame_ts[:history_len]
+    frame_ts_unobs = frame_ts[history_len:]
+
+    return bboxes_obs, bboxes_unobs, frame_ts_obs, frame_ts_unobs

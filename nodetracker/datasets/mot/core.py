@@ -14,14 +14,11 @@ from typing import Dict, Tuple, List, Any, Union, Optional
 
 import numpy as np
 import pandas as pd
-import torch
-from torch.utils.data import DataLoader
-from torch.utils.data import Dataset
 from tqdm import tqdm
 
-from nodetracker.datasets import augmentations
-from nodetracker.datasets import transforms
-from nodetracker.datasets.utils import OdeDataloaderCollateFunctional
+from nodetracker.datasets.torch import TrajectoryDataset
+from nodetracker.datasets.torch import run_dataset_test
+from nodetracker.datasets.utils import split_trajectory_observed_unobserved
 from nodetracker.utils.logging import configure_logging
 
 
@@ -61,7 +58,7 @@ SceneInfoIndex = Dict[str, SceneInfo]
 logger = logging.getLogger('MOTDataset')
 
 
-class MOTDataset:
+class MOTDataset(TrajectoryDataset):
     """
     Parses MOT dataset in given format
     """
@@ -83,9 +80,9 @@ class MOTDataset:
             fast_loading: Cache metadata (faster loading)
 
         """
+        super().__init__(history_len=history_len, future_len=future_len)
+
         self._path = path
-        self._history_len = history_len
-        self._future_len = future_len
         self._label_type = label_type
         self._scene_filter = scene_filter
 
@@ -382,7 +379,6 @@ class MOTDataset:
         Returns:
             Trajectory index
         """
-
         trajectory_len = history_len + future_len
         traj_index = []
 
@@ -417,135 +413,18 @@ class MOTDataset:
         bboxes[:, [0, 2]] /= scene_info.imwidth
         bboxes[:, [1, 3]] /= scene_info.imheight
 
-        # Time points
-        frame_ts = np.array(frame_ids, dtype=np.float32)
-        frame_ts = frame_ts - frame_ts[0] + 1  # Transforming to relative time values
-        frame_ts = np.expand_dims(frame_ts, -1)
-
-        # Observed - Unobserved
-        bboxes_obs = bboxes[:self._history_len]
-        bboxes_unobs = bboxes[self._history_len:]
-        frame_ts_obs = frame_ts[:self._history_len]
-        frame_ts_unobs = frame_ts[self._history_len:]
-
+        bboxes_obs, bboxes_unobs, frame_ts_obs, frame_ts_unobs = split_trajectory_observed_unobserved(frame_ids, bboxes, self._history_len)
         return bboxes_obs, bboxes_unobs, frame_ts_obs, frame_ts_unobs, metadata
 
 
-class TorchMOTTrajectoryDataset(Dataset):
-    """
-    PyTorch wrapper for MOT dataset
-    """
-    def __init__(
-        self,
-        path: str,
-        history_len: int,
-        future_len: int,
-        label_type: LabelType = LabelType.GROUND_TRUTH,
-        transform: Optional[transforms.InvertibleTransform] = None,
-        augmentation_before_transform: Optional[augmentations.TrajectoryAugmentation] = None,
-        augmentation_after_transform: Optional[augmentations.TrajectoryAugmentation] = None
-    ) -> None:
-        """
-        Args:
-            path: Path to dataset
-            history_len: Number of observed data points
-            future_len: Number of unobserved data points
-            label_type: Label Type
-            transform: Item postprocess
-        """
-        super().__init__()
-        self._dataset = MOTDataset(
-            path=path,
-            history_len=history_len,
-            future_len=future_len,
-            label_type=label_type
-        )
-
-        self._transform = transform
-        if self._transform is None:
-            self._transform = transforms.IdentityTransform()
-
-        self._augmentation_before_transform = augmentation_before_transform
-        if self._augmentation_before_transform is None:
-            self._augmentation_before_transform = augmentations.IdentityAugmentation()
-
-        self._augmentation_after_transform = augmentation_after_transform
-        if self._augmentation_after_transform is None:
-            self._augmentation_after_transform = augmentations.IdentityAugmentation()
-
-    @property
-    def dataset(self) -> MOTDataset:
-        """
-        Returns: MOT core dataset class object.
-        """
-        return self._dataset
-
-    def __len__(self) -> int:
-        return len(self._dataset)
-
-    def __getitem__(self, index: int) -> Tuple[torch.tensor, torch.Tensor, torch.Tensor, torch.Tensor, dict]:
-        bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, metadata = self._dataset[index]
-        bboxes_obs = torch.from_numpy(bboxes_obs)
-        bboxes_unobs = torch.from_numpy(bboxes_unobs)
-        ts_obs = torch.from_numpy(ts_obs)
-        ts_unobs = torch.from_numpy(ts_unobs)
-
-        # Trajectory transformations
-        bboxes_obs, bboxes_unobs, ts_obs, ts_unobs = \
-            self._augmentation_before_transform(bboxes_obs, bboxes_unobs, ts_obs, ts_unobs)
-
-        bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, metadata = \
-            self._transform([bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, metadata])
-
-        bboxes_obs, bboxes_unobs, ts_obs, ts_unobs = \
-            self._augmentation_after_transform(bboxes_obs, bboxes_unobs, ts_obs, ts_unobs)
-
-        return bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, metadata
-
-
-def run_test() -> None:
+if __name__ == '__main__':
     from nodetracker.common.project import ASSETS_PATH
     configure_logging(logging.DEBUG)
 
-    dataset_path = os.path.join(ASSETS_PATH, 'MOT20', 'train')
     dataset = MOTDataset(
-        path=dataset_path,
+        path=os.path.join(ASSETS_PATH, 'MOT20', 'train'),
         history_len=4,
         future_len=4
     )
 
-    print(f'Dataset size: {len(dataset)}')
-    print(f'Sample example: {dataset[5]}')
-
-    torch_dataset = TorchMOTTrajectoryDataset(
-        path=dataset_path,
-        history_len=4,
-        future_len=4,
-        transform=transforms.BBoxStandardizedFirstOrderDifferenceTransform(mean=-8.65566333861711e-05, std=0.0009227107879355021)
-    )
-
-    print(f'Torch Dataset size: {len(torch_dataset)}')
-    print(f'Torch sample example shapes: {[x.shape for x in torch_dataset[5][:-1]]}')
-    print(f'Torch sample example: {torch_dataset[5]}')
-
-    torch_dataloader = DataLoader(torch_dataset, batch_size=4, collate_fn=OdeDataloaderCollateFunctional())
-    for bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, metadata in torch_dataloader:
-        print(f'Torch batch sample example shapes: bboxes_obs={bboxes_obs.shape}, bboxes_unobs={bboxes_unobs.shape}, '
-              f'ts_obs={ts_obs.shape}, ts_unobs={ts_unobs.shape}')
-        print('Torch batch metadata', metadata)
-
-        break
-
-    torch_dataset_with_noise = TorchMOTTrajectoryDataset(
-        path=dataset_path,
-        history_len=4,
-        future_len=4,
-        transform=transforms.BBoxStandardizedFirstOrderDifferenceTransform(mean=-8.65566333861711e-05, std=0.0009227107879355021),
-        augmentation_before_transform=augmentations.DetectorNoiseAugmentation(sigma=0.05, proba=1.0)
-    )
-
-    print(f'Torch sample with noise example: {torch_dataset_with_noise[5]}')
-
-
-if __name__ == '__main__':
-    run_test()
+    run_dataset_test(dataset)
