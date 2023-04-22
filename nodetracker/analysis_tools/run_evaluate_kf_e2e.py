@@ -17,7 +17,7 @@ import torch
 from tqdm import tqdm
 
 from nodetracker.common.project import ASSETS_PATH, OUTPUTS_PATH
-from nodetracker.datasets.mot.core import MOTDataset, LabelType
+from nodetracker.datasets import dataset_factory, TrajectoryDataset
 from nodetracker.library.cv.bbox import BBox
 from nodetracker.library.kalman_filter.botsort_kf import BotSortKalmanFilter
 from nodetracker.utils.logging import configure_logging
@@ -46,6 +46,7 @@ def parse_args() -> argparse.Namespace:
                         help='Add noise for posterior evaluation. Set 0 to disable.')
     parser.add_argument('--skip-det-proba', type=float, required=False, default=0.0, help='Probability to skip detection.')
     parser.add_argument('--n-workers', type=int, required=False, default=8, help='Number of workers for faster evaluation.')
+    parser.add_argument('--dataset-type', type=str, required=False, default='MOT20', help='Supported: MOT20, LaSOT')
     return parser.parse_args()
 
 
@@ -245,7 +246,7 @@ def kf_trak_eval(
     return sample_metrics
 
 
-def create_object_id_iterator(dataset: MOTDataset, scene_name: str) -> Iterable[List[List[float]]]:
+def create_object_id_iterator(dataset: TrajectoryDataset, scene_name: str) -> Iterable[List[List[float]]]:
     object_ids = dataset.get_scene_object_ids(scene_name)
     for object_id in object_ids:
         n_data_points = dataset.get_object_data_length(object_id)
@@ -264,11 +265,11 @@ def main(args: argparse.Namespace) -> None:
     n_workers: int = args.n_workers
 
     logger.info(f'Loading dataset from path "{dataset_path}"')
-    dataset = MOTDataset(
+    dataset = dataset_factory(
+        name=args.dataset_type,
         path=dataset_path,
         history_len=1,  # Not relevant
-        future_len=1,  # not relevant
-        label_type=LabelType.GROUND_TRUTH
+        future_len=1  # not relevant
     )
 
     Path(args.output_path).mkdir(parents=True, exist_ok=True)

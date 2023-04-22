@@ -2,7 +2,7 @@
 Torch dataset support. Any Dataset that implements `TrajectoryDataset` interface can be used for training and evaluation.
 """
 from abc import abstractmethod, ABC
-from typing import Optional, Tuple, Dict, Any
+from typing import Optional, Tuple, Dict, Any, List
 
 import numpy as np
 import torch
@@ -26,6 +26,106 @@ class TrajectoryDataset(ABC):
     @abstractmethod
     def __len__(self) -> int:
         pass
+
+    @property
+    @abstractmethod
+    def scenes(self) -> List[str]:
+        """
+        Returns:
+            List of scenes in dataset.
+        """
+
+    @abstractmethod
+    def parse_object_id(self, object_id: str) -> Tuple[str, str]:
+        """
+        Parses and validates object id.
+
+        Object id convention is `{scene_name}_{scene_object_id}` and is unique over all scenes.
+
+        For MOT {scene_name} represents one video sequence.
+        For SOT {scene_name} does not need to be unique for the sequence
+        but `{scene_name}_{scene_object_id}` is always unique
+
+        Args:
+            object_id: Object id
+
+        Returns:
+            scene name, scene object id
+        """
+
+    @abstractmethod
+    def get_scene_object_ids(self, scene_name: str) -> List[str]:
+        """
+        Gets object ids for given scene name
+
+        Args:
+            scene_name: Scene name
+
+        Returns:
+            Scene objects
+        """
+
+    def get_scene_number_of_object_ids(self, scene_name: str) -> int:
+        """
+        Gets number of unique objects in the scene.
+
+        Args:
+            scene_name: Scene name
+
+        Returns:
+            Number of objects in the scene
+        """
+        return len(self.get_scene_object_ids(scene_name))
+
+    @abstractmethod
+    def get_object_data_length(self, object_id: str) -> int:
+        """
+        Gets total number of data points for given `object_id` for .
+
+        Args:
+            object_id: Object id
+
+        Returns:
+            Number of data points
+        """
+
+    @abstractmethod
+    def get_object_data_label(self, object_id: str, index: int, relative_bbox_coords: bool = True) -> dict:
+        """
+        Get object data point index.
+
+        Args:
+            object_id: Object id
+            index: Index
+            relative_bbox_coords: Scale bbox coords to [0, 1]
+
+        Returns:
+            Data point.
+        """
+
+    def get_scene_info(self, scene_name: str) -> Any:
+        """
+        Get scene metadata by name.
+
+        Args:
+            scene_name: Scene name
+
+        Returns:
+            Scene metadata
+        """
+
+    @abstractmethod
+    def get_scene_image_path(self, scene_name: str, frame_id: int) -> str:
+        """
+        Get image (frame) path for given scene and frame id.
+
+        Args:
+            scene_name: scene name
+            frame_id: frame id
+
+        Returns:
+            Frame path
+        """
 
 
 class TorchTrajectoryDataset(Dataset):

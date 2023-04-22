@@ -92,78 +92,32 @@ class MOTDataset(TrajectoryDataset):
         self._trajectory_index = self._create_trajectory_index(self._data_labels, self._history_len, self._future_len)
 
     @property
+    def label_type(self) -> LabelType:
+        """
+        Returns: LabelType
+        """
+        return self._label_type
+
+    @property
     def scenes(self) -> List[str]:
-        """
-        Returns:
-            List of scenes in dataset.
-        """
         return list(self._scene_info_index.keys())
 
     def parse_object_id(self, object_id: str) -> Tuple[str, str]:
-        """
-        Parses and validates object id.
-
-        Object id convention is `{scene_name}_{scene_object_id}` and is unique over all scene.
-
-        Args:
-            object_id: Object id
-
-        Returns:
-            scene name, scene object id
-        """
         assert object_id in self._data_labels, f'Unknown object id "{object_id}".'
         scene_name, scene_object_id = object_id.split('_')
         return scene_name, scene_object_id
 
     def get_scene_object_ids(self, scene_name: str) -> List[str]:
-        """
-        Gets object ids for given scene name
-
-        Args:
-            scene_name: Scene name
-
-        Returns:
-            Scene objects
-        """
         assert scene_name in self.scenes, f'Unknown scene "{scene_name}". Dataset scenes: {self.scenes}.'
         return [d for d in self._data_labels if d.startswith(scene_name)]
 
     def get_scene_number_of_object_ids(self, scene_name: str) -> int:
-        """
-        Gets number of unique objects in the scene.
-
-        Args:
-            scene_name: Scene name
-
-        Returns:
-            Number of objects in the scene
-        """
         return len(self.get_scene_object_ids(scene_name))
 
     def get_object_data_length(self, object_id: str) -> int:
-        """
-        Gets total number of data points for given `object_id` for .
-
-        Args:
-            object_id: Object id
-
-        Returns:
-            Number of data points
-        """
         return len(self._data_labels[object_id])
 
     def get_object_data_label(self, object_id: str, index: int, relative_bbox_coords: bool = True) -> dict:
-        """
-        Get object data point index.
-
-        Args:
-            object_id: Object id
-            index: Index
-            relative_bbox_coords: Scale bbox coords to [0, 1]
-
-        Returns:
-            Data point.
-        """
         data = copy.deepcopy(self._data_labels[object_id][index])
 
         if relative_bbox_coords:
@@ -180,23 +134,7 @@ class MOTDataset(TrajectoryDataset):
 
         return data
 
-    @property
-    def label_type(self) -> LabelType:
-        """
-        Returns: LabelType
-        """
-        return self._label_type
-
     def get_scene_info(self, scene_name: str) -> SceneInfo:
-        """
-        Get scene metadata by name.
-
-        Args:
-            scene_name: Scene name
-
-        Returns:
-            Scene metadata
-        """
         return self._scene_info_index[scene_name]
 
     @staticmethod
@@ -214,16 +152,6 @@ class MOTDataset(TrajectoryDataset):
         return os.path.join(scene_info.dirpath, scene_info.imdir, f'{frame_id:06d}{scene_info.imext}')
 
     def get_scene_image_path(self, scene_name: str, frame_id: int) -> str:
-        """
-        Get image (frame) path for given scene and frame id.
-
-        Args:
-            scene_name: scene name
-            frame_id: frame id
-
-        Returns:
-            Frame path
-        """
         scene_info = self._scene_info_index[scene_name]
         return self._get_image_path(scene_info, frame_id)
 

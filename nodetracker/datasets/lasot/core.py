@@ -97,7 +97,7 @@ class LaSOTDataset(TrajectoryDataset):
                 with open(gt_path, 'r', encoding='utf-8') as f:
                     lines = f.readlines()
                     bboxes = [[int(v) for v in line.split(',')] for line in lines]
-                    bboxes = [[b[1] / w, b[0] / h, b[3] / w, b[2] / h] for b in bboxes]
+                    bboxes = [[b[0] / w, b[1] / h, b[2] / w, b[3] / h] for b in bboxes]
 
                 seqlength = len(image_paths)
                 sequence_info = SequenceInfo(
@@ -137,6 +137,70 @@ class LaSOTDataset(TrajectoryDataset):
                     traj_index.append((category, sequence_name, i, i + trajectory_len))
 
         return traj_index
+
+
+    @property
+    def scenes(self) -> List[str]:
+        return [sequence for category_sequences in self._sequence_index.values() for sequence in category_sequences.keys()]
+
+    @staticmethod
+    def _get_sequence_category(sequence_id: str) -> str:
+        """
+        Extracts category from `sequence_id`.
+
+        Args:
+            sequence_id: Sequence id
+
+        Returns:
+            Sequence category
+        """
+        parts = sequence_id.split('-')
+        assert len(parts) == 2, f'Failed to parse "{sequence_id}"!'
+        return parts[0]
+
+    def parse_object_id(self, object_id: str) -> Tuple[str, str]:
+        category = self._get_sequence_category(object_id)
+        assert category in self._sequence_index, f'Failed to find category "{category}"!'
+        assert object_id in self._sequence_index[category], f'Failed to find sequence "{object_id}"!'
+
+        return object_id, object_id
+
+    def get_scene_object_ids(self, scene_name: str) -> List[str]:
+        return [scene_name]  # Only one object per scene (equivalent to object_id) for SOT
+
+    def get_object_data_length(self, object_id: str) -> int:
+        category = self._get_sequence_category(object_id)
+        sequence_info = self._sequence_index[category][object_id]
+        return sequence_info.length
+
+    def get_object_data_label(self, object_id: str, index: int, relative_bbox_coords: bool = True) -> dict:
+        # scene_name == object_id
+        category = self._get_sequence_category(object_id)
+        sequence_info = self._sequence_index[category][object_id]
+
+        bbox = sequence_info.bboxes[index]
+        if not relative_bbox_coords:
+            bbox = [
+                int(bbox[0] * sequence_info.imwidth),
+                int(bbox[1] * sequence_info.imheight),
+                int(bbox[2] * sequence_info.imwidth),
+                int(bbox[3] * sequence_info.imheight)
+            ]
+
+        frame_id = index
+        image_path = sequence_info.image_paths[index]
+        return {
+            'frame_id': frame_id,
+            'bbox': bbox,
+            'image_path': image_path
+        }
+
+    def get_scene_image_path(self, scene_name: str, frame_id: int) -> str:
+        # scene_name == object_id
+        category = self._get_sequence_category(scene_name)
+        sequence_info = self._sequence_index[category][scene_name]
+        return sequence_info.image_paths[frame_id]
+
 
     def __len__(self) -> int:
         return len(self._trajectory_index)

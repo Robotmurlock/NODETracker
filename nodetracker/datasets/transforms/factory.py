@@ -30,8 +30,8 @@ def transform_factory(name: str, params: dict) -> Union[InvertibleTransform, Inv
         'first_difference': BboxFirstOrderDifferenceTransform,
         'standardization': BBoxStandardizationTransform,
         'standardized_first_difference': BBoxStandardizedFirstOrderDifferenceTransform,
-        'relative_to_last_obs_with_noise': BBoxRelativeToLastObsTransform,
-        'standardized_relative_to_last_obs_with_noise': BBoxStandardizedRelativeToLastObsTransform
+        'relative_to_last_obs': BBoxRelativeToLastObsTransform,
+        'standardized_relative_to_last_obs': BBoxStandardizedRelativeToLastObsTransform
     }
 
     cls = catalog[name]

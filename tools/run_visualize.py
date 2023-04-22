@@ -13,7 +13,7 @@ from tqdm import tqdm
 
 from nodetracker.common import conventions
 from nodetracker.common.project import CONFIGS_PATH
-from nodetracker.datasets import MOTDataset
+from nodetracker.datasets import dataset_factory
 from nodetracker.library.cv import BBox
 from nodetracker.utils import pipeline
 
@@ -38,7 +38,8 @@ def main(cfg: DictConfig):
     dataset_path = os.path.join(cfg.path.assets, cfg.dataset.get_split_path(cfg.eval.split))
     logger.info(f'Dataset {cfg.eval.split} path: "{dataset_path}".')
 
-    dataset = MOTDataset(
+    dataset = dataset_factory(
+        name=cfg.dataset.name,
         path=dataset_path,
         history_len=cfg.dataset.history_len,
         future_len=cfg.dataset.future_len

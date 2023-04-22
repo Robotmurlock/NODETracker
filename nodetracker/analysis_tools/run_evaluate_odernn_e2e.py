@@ -18,8 +18,7 @@ from nodetracker.analysis_tools.run_evaluate_kf_e2e import aggregate_metrics, ca
 from nodetracker.common import conventions
 from nodetracker.common.project import CONFIGS_PATH
 from nodetracker.common.project import OUTPUTS_PATH
-from nodetracker.datasets import transforms
-from nodetracker.datasets.mot.core import MOTDataset, LabelType
+from nodetracker.datasets import transforms, dataset_factory
 from nodetracker.node import load_or_create_model, LightningGaussianModel
 from nodetracker.utils import pipeline
 
@@ -29,7 +28,7 @@ logger = logging.getLogger('ODERNN_E2E_EVAL')
 # Improvisation
 N_STEPS: int = 5
 N_HIST: int = 10
-DETECTION_NOISE_SIGMA: float = 0.05
+DETECTION_NOISE_SIGMA: float = 0.00
 DETECTION_NOISE: int = 4 * DETECTION_NOISE_SIGMA * torch.ones(4, dtype=torch.float32)
 N_MAX_OBJS: Optional[int] = None
 DET_SKIP_PROBA: float = 0.0
@@ -104,11 +103,11 @@ def main(cfg: DictConfig):
     cfg, experiment_path = pipeline.preprocess(cfg, name='visualize_trajectories')
     dataset_path = os.path.join(cfg.path.assets, cfg.dataset.get_split_path(cfg.eval.split))
     logger.info(f'Loading dataset from path "{dataset_path}"')
-    dataset = MOTDataset(
+    dataset = dataset_factory(
+        name=cfg.dataset.name,
         path=dataset_path,
         history_len=1,  # Not relevant
-        future_len=1,  # not relevant
-        label_type=LabelType.GROUND_TRUTH
+        future_len=1  # not relevant
     )
 
     transform_func = transforms.transform_factory(cfg.transform.name, cfg.transform.params)

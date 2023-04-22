@@ -1,10 +1,10 @@
 defaults:
   - resources: cuda.yaml
   - dataset: lasot.yaml
-  - transform: standardized_relative_to_last_obs_with_noise.yaml
+  - transform: lasot/standardized_relative_to_last_obs.yaml
   - model: rnnode.yaml
   - train: rnnode.yaml
   - eval: rnnode.yaml
   - visualize: default.yaml
-  - augmentations: detector_noise_var_traj_length.yaml
+  - augmentations: default.yaml
   - _self_

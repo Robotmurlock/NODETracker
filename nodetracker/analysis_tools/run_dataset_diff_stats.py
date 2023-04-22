@@ -13,7 +13,7 @@ from tqdm import tqdm
 
 from nodetracker.common.project import CONFIGS_PATH
 from nodetracker.common import conventions
-from nodetracker.datasets import TorchMOTTrajectoryDataset
+from nodetracker.datasets import TorchTrajectoryDataset, dataset_factory
 from nodetracker.datasets import transforms
 from nodetracker.utils import pipeline
 
@@ -27,10 +27,13 @@ def main(cfg: DictConfig):
     dataset_train_path = os.path.join(cfg.path.assets, cfg.dataset.train_path)
     logger.info(f'Dataset train path: "{dataset_train_path}".')
 
-    dataset = TorchMOTTrajectoryDataset(
-        path=dataset_train_path,
-        history_len=cfg.dataset.history_len,
-        future_len=cfg.dataset.future_len,
+    dataset = TorchTrajectoryDataset(
+        dataset_factory(
+            name=cfg.dataset.name,
+            path=dataset_train_path,
+            history_len=cfg.dataset.history_len,
+            future_len=cfg.dataset.future_len,
+        ),
         transform=transforms.BBoxRelativeToLastObsTransform(),
         augmentation_before_transform=cfg.augmentations.before_transform,
         augmentation_after_transform=cfg.augmentations.after_transform
@@ -39,6 +42,7 @@ def main(cfg: DictConfig):
     sum_bbox = torch.zeros(4, dtype=torch.float32)  # Used to calculate mean and std
     sum_bbox2 = torch.zeros(4, dtype=torch.float32)  # Used to calculate std
     n_total = 0
+    # noinspection PyTypeChecker
     for bboxes_obs, bboxes_unobs, _, _, _ in tqdm(dataset, unit='sample', desc='Calculating diff statistics'):
         for data in [bboxes_obs, bboxes_unobs]:
             sum_bbox += data.sum(dim=0)
