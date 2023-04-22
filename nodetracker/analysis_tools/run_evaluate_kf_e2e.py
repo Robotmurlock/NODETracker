@@ -14,6 +14,7 @@ from typing import Dict, List, Optional, Union, Iterable
 
 import numpy as np
 import torch
+import yaml
 from tqdm import tqdm
 
 from nodetracker.common.project import ASSETS_PATH, OUTPUTS_PATH
@@ -22,7 +23,7 @@ from nodetracker.library.cv.bbox import BBox
 from nodetracker.library.kalman_filter.botsort_kf import BotSortKalmanFilter
 from nodetracker.utils.logging import configure_logging
 
-logger = logging.getLogger('MotTools')
+logger = logging.getLogger('KF_E2E_EVAL')
 
 
 Vector = Union[List[float], np.ndarray, torch.Tensor]
@@ -38,6 +39,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description='Kalman Filter evaluation')
     parser.add_argument('--input-path', type=str, required=False, default=ASSETS_PATH, help='Datasets path.')
     parser.add_argument('--output-path', type=str, required=False, default=OUTPUTS_PATH, help='Output path.')
+    parser.add_argument('--split-index-name', type=str, required=False, default='.split_index_3to1to4.yaml', help='Split index name.')
     parser.add_argument('--split', type=str, required=False, default='val', help='Dataset split name.')
     parser.add_argument('--dataset-name', type=str, required=True, help='Dataset name.')
     parser.add_argument('--steps', type=int, required=False, default=1, help='Number of forecast steps.')
@@ -256,7 +258,10 @@ def create_object_id_iterator(dataset: TrajectoryDataset, scene_name: str) -> It
 
 
 def main(args: argparse.Namespace) -> None:
-    dataset_path = os.path.join(args.input_path, args.dataset_name, args.split)
+    dataset_path = os.path.join(args.input_path, args.dataset_name)
+    split_index_path = os.path.join(args.input_path, args.dataset_name, args.split_index_name)
+    with open(split_index_path, 'r', encoding='utf-8') as f:
+        split_index = yaml.safe_load(f)
 
     # Parameters
     n_pred_steps: int = args.steps
@@ -268,6 +273,7 @@ def main(args: argparse.Namespace) -> None:
     dataset = dataset_factory(
         name=args.dataset_type,
         path=dataset_path,
+        sequence_list=split_index[args.split],
         history_len=1,  # Not relevant
         future_len=1  # not relevant
     )

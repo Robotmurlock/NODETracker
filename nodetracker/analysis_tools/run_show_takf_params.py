@@ -2,7 +2,6 @@
 Show TAKF parameters
 """
 import logging
-import os
 
 import hydra
 import torch
@@ -23,9 +22,6 @@ torch.set_printoptions(sci_mode=False, precision=5, linewidth=160)
 @hydra.main(config_path=CONFIGS_PATH, config_name='default', version_base='1.1')
 def main(cfg: DictConfig):
     cfg, experiment_path = pipeline.preprocess(cfg, name='inference')
-
-    dataset_path = os.path.join(cfg.path.assets, cfg.dataset.get_split_path(cfg.eval.split))
-    logger.info(f'Dataset {cfg.eval.split} path: "{dataset_path}".')
 
     checkpoint_path = conventions.get_checkpoint_path(experiment_path, cfg.eval.checkpoint) \
         if cfg.eval.checkpoint else None

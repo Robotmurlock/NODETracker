@@ -4,10 +4,11 @@ Config structure. Config should be loaded as dictionary and parsed into GlobalCo
 - Custom validations
 - Python IDE autocomplete
 """
+import logging
 from dataclasses import dataclass, asdict, field
 from pathlib import Path
 from typing import Optional, List, Union, Tuple, Dict, Any
-import logging
+import os
 
 import dacite
 import yaml
@@ -18,7 +19,6 @@ from nodetracker.common import project
 from nodetracker.datasets.augmentations import create_identity_augmentation_config
 from nodetracker.utils.serialization import serialize_json
 
-
 logger = logging.getLogger('ConfigParser')
 
 
@@ -27,43 +27,24 @@ class DatasetConfig:
     """
     Dataset config.
     - name: Dataset name
-    - train_path: Path to training dataset subset
-    - val_path: Path to validation dataset subset
-    - test_path: Path to test dataset subset
+    - path: Path to the dataset
+    - split_index: Path to the split index
     - history_len: Number of observable input values
     - future_len: Number of unobservable output values (values that are being predicted)
     """
     name: str
-    train_path: str
-    val_path: str
-    test_path: str
+    path: str
+    split_index_path: str
     history_len: int
     future_len: int
 
     additional_params: Optional[Dict[str, Any]] = field(default_factory=dict)
 
-    def get_split_path(self, split: str) -> str:
+    def __post_init__(self) -> None:
         """
-        Gets split path.
-
-        Args:
-            split: Split name (train, val, test)
-
-        Returns:
-            Path to split
+        Postprocess and validation.
         """
-        valid_split_values = ['train', 'val', 'test']
-        if split not in valid_split_values:
-            raise ValueError(f'Invalid split "{split}". Available: {valid_split_values}')
-
-        if split == 'train':
-            return self.train_path
-        elif split == 'val':
-            return self.val_path
-        elif split == 'test':
-            return self.test_path
-        else:
-            raise AssertionError('Invalid Program State!')
+        self.split_index, self.fullpath = None, None
 
 
 @dataclass
@@ -272,6 +253,16 @@ class GlobalConfig:
     augmentations: AugmentationsConfig = field(default_factory=AugmentationsConfig.default)
     path: PathConfig = field(default_factory=PathConfig.default)
     visualize: Optional[VisualizeConfig] = None
+
+    def __post_init__(self) -> None:
+        """
+        Postprocessing and validation.
+        """
+        # Load split index - bit dirty but path can be checking during config parsing.
+        split_index_fullpath = os.path.join(self.path.assets, self.dataset.split_index_path)
+        with open(split_index_fullpath, 'r', encoding='utf-8') as f:
+            self.dataset.split_index = yaml.safe_load(f)
+        self.dataset.fullpath = os.path.join(self.path.assets, self.dataset.path)
 
     @classmethod
     def from_dict(cls, raw: dict) -> 'GlobalConfig':

@@ -1,16 +1,19 @@
 """
 Dataset factory
 """
-from nodetracker.datasets.torch import TrajectoryDataset
-from nodetracker.datasets.mot.core import MOTDataset
+from typing import Dict, Any, Optional, List
+
 from nodetracker.datasets.lasot.core import LaSOTDataset
-from typing import Dict, Any, Optional
+from nodetracker.datasets.mot.core import MOTDataset
+from nodetracker.datasets.torch import TrajectoryDataset
+
 
 def dataset_factory(
     name: str,
     path: str,
     history_len: int,
     future_len: int,
+    sequence_list: Optional[List[str]] = None,
     additional_params: Optional[Dict[str, Any]] = None
 ) -> TrajectoryDataset:
     """
@@ -21,6 +24,7 @@ def dataset_factory(
         path: Dataset path
         history_len: Observed trajectory length
         future_len: Unobserved trajectory length
+        sequence_list: Dataset split sequence list
         additional_params: Additional dataset parameters
 
     Returns:
@@ -38,5 +42,6 @@ def dataset_factory(
         path=path,
         history_len=history_len,
         future_len=future_len,
+        sequence_list=sequence_list,
         **additional_params
     )

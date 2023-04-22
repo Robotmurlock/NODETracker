@@ -4,7 +4,8 @@ LaSOT dataset. More information: https://paperswithcode.com/dataset/lasot
 import logging
 import os
 from dataclasses import dataclass
-from typing import Dict, List, Tuple, Any
+from typing import Dict, List, Tuple, Any, Optional
+from nodetracker.utils import file_system
 
 import cv2
 import numpy as np
@@ -14,19 +15,6 @@ from nodetracker.datasets.torch import TrajectoryDataset
 from nodetracker.datasets.torch import run_dataset_test
 from nodetracker.datasets.utils import split_trajectory_observed_unobserved
 from nodetracker.utils.logging import configure_logging
-
-
-def listdir(path: str) -> List[str]:
-    """
-    Wrapper for `os.listdir` that ignore `.*` files (like `.DS_Store)
-
-    Args:
-        path: Directory path
-
-    Returns:
-        Listed files (not hidden)
-    """
-    return [p for p in os.listdir(path) if not p.startswith('.')]
 
 
 @dataclass
@@ -53,38 +41,51 @@ class LaSOTDataset(TrajectoryDataset):
         path: str,
         history_len: int,
         future_len: int,
+        sequence_list: Optional[List[str]] = None,
         **kwargs
     ):
-        super().__init__(history_len=history_len, future_len=future_len, **kwargs)
+        """
 
-        self._sequence_index = self._create_dataset_index(path)
+        Args:
+            path: Dataset path
+            history_len: Observed trajectory length
+            future_len: Unobserved trajectory length
+            sequence_list: Sequence list for dataset split
+        """
+        super().__init__(history_len=history_len, future_len=future_len, sequence_list=sequence_list, **kwargs)
+
+        self._sequence_index = self._create_dataset_index(path, sequence_list)
         self._trajectory_index = self._create_trajectory_index(self._sequence_index, history_len, future_len)
 
     # noinspection PyUnresolvedReferences
     @staticmethod
-    def _create_dataset_index(path: str) -> SequenceInfoIndex:
+    def _create_dataset_index(path: str, sequence_list: Optional[Dict[str, List[str]]]) -> SequenceInfoIndex:
         """
         Indexes all dataset metadata (loads everything except images) given the path
 
         Args:
             path: Path to the dataset
+            sequence_list: Sequence list for dataset split
 
         Returns:
             SequenceIndex
         """
         index: SequenceInfoIndex = {}
 
-        categories = listdir(path)
+        categories = file_system.listdir(path)
         for category in tqdm(categories, unit='category', desc='Indexing categories'):
             category_path = os.path.join(path, category)
-            sequence_names = listdir(category_path)
+            sequence_names = file_system.listdir(category_path)
 
             index[category]: Dict[str, SequenceInfo] = {}
 
             for sequence_name in sequence_names:
+                if sequence_list is not None and sequence_name not in sequence_list:
+                    continue
+
                 sequence_path = os.path.join(category_path, sequence_name)
                 sequence_images_path = os.path.join(sequence_path, 'img')
-                image_filenames = sorted(listdir(sequence_images_path))
+                image_filenames = sorted(file_system.listdir(sequence_images_path))
                 image_paths = [os.path.join(sequence_images_path, filename) for filename in image_filenames]
 
                 # Load image to extract sequence image resolution

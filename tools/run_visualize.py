@@ -35,12 +35,10 @@ def main(cfg: DictConfig):
     )
     predictions_path = os.path.join(inference_dirpath, 'inference.csv')
 
-    dataset_path = os.path.join(cfg.path.assets, cfg.dataset.get_split_path(cfg.eval.split))
-    logger.info(f'Dataset {cfg.eval.split} path: "{dataset_path}".')
-
     dataset = dataset_factory(
         name=cfg.dataset.name,
-        path=dataset_path,
+        path=cfg.dataset.fullpath,
+        sequence_list=cfg.dataset.split_index[cfg.eval.split],
         history_len=cfg.dataset.history_len,
         future_len=cfg.dataset.future_len
     )

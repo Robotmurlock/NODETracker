@@ -27,11 +27,9 @@ def main(cfg: DictConfig):
     postprocess_transform = transforms.transform_factory(cfg.transform.name, cfg.transform.params)
 
     # Load train dataset
-    dataset_train_path = os.path.join(cfg.path.assets, cfg.dataset.train_path)
-    logger.info(f'Dataset train path: "{dataset_train_path}".')
     train_loader = create_dataloader(
-        dataset_path=dataset_train_path,
         cfg=cfg,
+        split='train',
         transform=postprocess_transform,
         shuffle=True,
         train=True,
@@ -41,11 +39,9 @@ def main(cfg: DictConfig):
     )
 
     # Load val dataset
-    dataset_val_path = os.path.join(cfg.path.assets, cfg.dataset.val_path)
-    logger.info(f'Dataset val path: "{dataset_val_path}".')
     val_loader = create_dataloader(
-        dataset_path=dataset_val_path,
         cfg=cfg,
+        split='val',
         transform=postprocess_transform,
         shuffle=False,
         train=False

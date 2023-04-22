@@ -24,7 +24,7 @@ from nodetracker.node import load_or_create_model
 from nodetracker.utils import pipeline
 from tools.utils import create_dataloader
 
-logger = logging.getLogger('VisualizeTrajectories')
+logger = logging.getLogger('ODERNNVAEUncertaintyEstimation')
 
 
 def plot_trajectory_estimation(
@@ -212,17 +212,13 @@ MAX_PLOTS = 10
 
 @hydra.main(config_path=CONFIGS_PATH, config_name='default', version_base='1.1')
 def main(cfg: DictConfig):
-
-    cfg, experiment_path = pipeline.preprocess(cfg, name='visualize_trajectories')
+    cfg, experiment_path = pipeline.preprocess(cfg, name='odernnvae_uncertainty_estimation')
 
     postprocess_transform = transforms.transform_factory(cfg.transform.name, cfg.transform.params)
 
-    # Load dataset for visualization
-    dataset_path = os.path.join(cfg.path.assets, cfg.dataset.get_split_path(cfg.eval.split))
-    logger.info(f'Dataset {cfg.eval.split} path: "{dataset_path}".')
     data_loader = create_dataloader(
-        dataset_path=dataset_path,
         cfg=cfg,
+        split=cfg.eval.split,
         transform=None,  # Preprocessing and postprocessing are applied manually
         shuffle=True,
         train=False,

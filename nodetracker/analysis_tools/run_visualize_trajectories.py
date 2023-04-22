@@ -162,12 +162,9 @@ def main(cfg: DictConfig):
 
     postprocess_transform = transforms.transform_factory(cfg.transform.name, cfg.transform.params)
 
-    # Load dataset for visualization
-    dataset_path = os.path.join(cfg.path.assets, cfg.dataset.get_split_path(cfg.eval.split))
-    logger.info(f'Dataset {cfg.eval.split} path: "{dataset_path}".')
     data_loader = create_dataloader(
-        dataset_path=dataset_path,
         cfg=cfg,
+        split=cfg.eval.split,
         transform=None,  # Preprocessing and postprocessing are applied manually
         shuffle=True,
         train=False

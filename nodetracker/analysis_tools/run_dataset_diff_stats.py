@@ -3,7 +3,6 @@ Training script
 """
 import json
 import logging
-import os
 from pathlib import Path
 
 import hydra
@@ -11,8 +10,8 @@ import torch
 from omegaconf import DictConfig
 from tqdm import tqdm
 
-from nodetracker.common.project import CONFIGS_PATH
 from nodetracker.common import conventions
+from nodetracker.common.project import CONFIGS_PATH
 from nodetracker.datasets import TorchTrajectoryDataset, dataset_factory
 from nodetracker.datasets import transforms
 from nodetracker.utils import pipeline
@@ -24,13 +23,11 @@ logger = logging.getLogger('DatasetDiffStats')
 def main(cfg: DictConfig):
     cfg, _ = pipeline.preprocess(cfg, name='dataset_diff_stats')
 
-    dataset_train_path = os.path.join(cfg.path.assets, cfg.dataset.train_path)
-    logger.info(f'Dataset train path: "{dataset_train_path}".')
-
     dataset = TorchTrajectoryDataset(
         dataset_factory(
             name=cfg.dataset.name,
-            path=dataset_train_path,
+            path=cfg.dataset.fullpath,
+            sequence_list=cfg.dataset.split_index['train'],
             history_len=cfg.dataset.history_len,
             future_len=cfg.dataset.future_len,
         ),

@@ -101,11 +101,11 @@ class ODERNNFilter:
 @hydra.main(config_path=CONFIGS_PATH, config_name='default', version_base='1.1')
 def main(cfg: DictConfig):
     cfg, experiment_path = pipeline.preprocess(cfg, name='visualize_trajectories')
-    dataset_path = os.path.join(cfg.path.assets, cfg.dataset.get_split_path(cfg.eval.split))
-    logger.info(f'Loading dataset from path "{dataset_path}"')
+
     dataset = dataset_factory(
         name=cfg.dataset.name,
-        path=dataset_path,
+        path=cfg.dataset.fullpath,
+        sequence_list=cfg.dataset.split_index[cfg.eval.split],
         history_len=1,  # Not relevant
         future_len=1  # not relevant
     )

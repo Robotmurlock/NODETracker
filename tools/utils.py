@@ -1,7 +1,7 @@
 """
 Utility functions (often used functions)
 """
-from typing import Optional
+from typing import Optional, List
 
 from torch.utils.data import DataLoader
 
@@ -13,8 +13,8 @@ from nodetracker.datasets.utils import OdeDataloaderCollateFunctional
 
 
 def create_dataloader(
-    dataset_path: str,
     cfg: GlobalConfig,
+    split: str,
     train: bool,
     transform: Optional[InvertibleTransform] = None,
     augmentation_before_transform: Optional[TrajectoryAugmentation] = None,
@@ -27,8 +27,8 @@ def create_dataloader(
     Creates dataloader for MOT20 dataset.
 
     Args:
-        dataset_path: Dataset path
         cfg: Global config
+        split: Split (train/val/test)
         train: Is dataloader created for train or eval
         transform: preprocess-postprocess transform function
         augmentation_before_transform: Augmentations that should be applied BEFORE transform function
@@ -40,12 +40,15 @@ def create_dataloader(
     Returns:
         Dataloader for MOT20 dataset.
     """
+    assert split in ['train', 'val', 'test'], f'Unknown split "{split}".'
+
     dataset = TorchTrajectoryDataset(
         dataset=dataset_factory(
             name=cfg.dataset.name,
-            path=dataset_path,
+            path=cfg.dataset.fullpath,
             history_len=cfg.dataset.history_len,
             future_len=cfg.dataset.future_len,
+            sequence_list=cfg.dataset.split_index[split],
             additional_params=cfg.dataset.additional_params
         ),
         transform=transform,

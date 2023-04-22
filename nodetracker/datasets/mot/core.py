@@ -4,11 +4,10 @@ MOT Challenge Dataset support
 import configparser
 import copy
 import enum
-import json
 import logging
 import os
 from collections import defaultdict
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Tuple, List, Any, Union, Optional
 
@@ -67,9 +66,8 @@ class MOTDataset(TrajectoryDataset):
         path: str,
         history_len: int,
         future_len: int,
+        sequence_list: Optional[List[str]] = None,
         label_type: LabelType = LabelType.GROUND_TRUTH,
-        scene_filter: Optional[List[str]] = None,
-        fast_loading: bool = True,
         **kwargs
     ) -> None:
         """
@@ -78,16 +76,14 @@ class MOTDataset(TrajectoryDataset):
             history_len: Number of observed data points
             future_len: Number of unobserved data points
             label_type: Label Type
-            fast_loading: Cache metadata (faster loading)
 
         """
-        super().__init__(history_len=history_len, future_len=future_len, **kwargs)
+        super().__init__(history_len=history_len, future_len=future_len, sequence_list=sequence_list, **kwargs)
 
         self._path = path
         self._label_type = label_type
-        self._scene_filter = scene_filter
 
-        self._scene_info_index = self._index_dataset(path, label_type, scene_filter, fast_loading)
+        self._scene_info_index = self._index_dataset(path, label_type, sequence_list)
         self._data_labels, self._n_labels = self._parse_labels(self._scene_info_index)
         self._trajectory_index = self._create_trajectory_index(self._data_labels, self._history_len, self._future_len)
 
@@ -175,8 +171,7 @@ class MOTDataset(TrajectoryDataset):
     def _index_dataset(
         path: str,
         label_type: LabelType,
-        scene_filter: Optional[List[str]],
-        fast_loading: bool
+        sequence_list: Optional[List[str]]
     ) -> SceneInfoIndex:
         """
         Index dataset content. Format: { {scene_name}: {scene_labels_path} }
@@ -184,8 +179,7 @@ class MOTDataset(TrajectoryDataset):
         Args:
             path: Path to dataset
             label_type: Use ground truth bboxes or detections
-            scene_filter: Filter scenes
-            fast_loading: Faster data loading (cache)
+            sequence_list: Filter scenes
 
         Returns:
             Index to scenes
@@ -193,25 +187,10 @@ class MOTDataset(TrajectoryDataset):
         scene_names = [file for file in os.listdir(path) if not file.startswith('.')]
         logger.debug(f'Found {len(scene_names)} scenes. Names: {scene_names}.')
 
-        if fast_loading:
-            cache_path = MOTDataset._get_data_cache_path(path, data_name='scene_index')
-            if os.path.exists(cache_path):
-                logger.info(f'Found scene index cache at "{cache_path}".')
-                with open(cache_path, 'r', encoding='utf-8') as f:
-                    scene_info_raw = json.load(f)
-
-                if set(scene_info_raw.keys()) != set(scene_names):
-                    logger.warning('Scene cache index does not match. Deleting cache and indexing again...')
-                    os.remove(cache_path)
-
-                scene_info_index = {name: SceneInfo(**info) for name, info in scene_info_raw.items()}
-                return scene_info_index
-
         scene_info_index: SceneInfoIndex = {}
 
         for scene_name in scene_names:
-            if scene_filter is not None and scene_name not in scene_filter:
-                logger.debug(f'Skipping {scene_name} using scene filter.')
+            if sequence_list is not None and scene_name not in sequence_list:
                 continue
 
             scene_directory = os.path.join(path, scene_name)
@@ -231,15 +210,6 @@ class MOTDataset(TrajectoryDataset):
             scene_info = SceneInfo(**raw_info)
             scene_info_index[scene_name] = scene_info
             logger.debug(f'Scene info {scene_info}.')
-
-        if fast_loading:
-            logger.info('Saving index cache for future faster loading...')
-            scene_info_raw = {name: asdict(info) for name, info in scene_info_index.items()}
-            cache_path = MOTDataset._get_data_cache_path(path, data_name='scene_index')
-            with open(cache_path, 'w', encoding='utf-8') as f:
-                json.dump(scene_info_raw, f)
-
-            logger.info(f'Saved scene index cache to "{cache_path}".')
 
         return scene_info_index
 

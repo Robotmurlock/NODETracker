@@ -15,9 +15,10 @@ class TrajectoryDataset(ABC):
     """
     Defines interface for TrajectoryDataset.
     """
-    def __init__(self, history_len: int, future_len: int, **kwargs):
+    def __init__(self, history_len: int, future_len: int, sequence_list: Optional[List[str]] = None, **kwargs):
         self._history_len = history_len
         self._future_len = future_len
+        self._sequence_list = sequence_list
 
     @abstractmethod
     def __getitem__(self, index: int) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, Dict[str, Any]]:

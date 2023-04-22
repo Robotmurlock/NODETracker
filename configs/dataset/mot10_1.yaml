@@ -1,6 +1,5 @@
 name: 'MOT20'
-train_path: '${dataset.name}/train'
-val_path: '${dataset.name}/val'
-test_path: '${dataset.name}/test'
-history_len: 10 
+path: '${dataset.name}'
+split_index_path: '${dataset.name}/.split_index_3to1to4.yaml'
+history_len: 10
 future_len: 1

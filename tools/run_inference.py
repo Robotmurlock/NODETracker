@@ -250,14 +250,12 @@ def main(cfg: DictConfig):
     cfg, experiment_path = pipeline.preprocess(cfg, name='inference')
     cfg = update_parameters_for_eval(cfg)
 
-    dataset_path = os.path.join(cfg.path.assets, cfg.dataset.get_split_path(cfg.eval.split))
-    logger.info(f'Dataset {cfg.eval.split} path: "{dataset_path}".')
-
     postprocess_transform = transforms.transform_factory(cfg.transform.name, cfg.transform.params)
     dataset = TorchTrajectoryDataset(
         dataset_factory(
             name=cfg.dataset.name,
-            path=dataset_path,
+            path=cfg.dataset.fullpath,
+            sequence_list=cfg.dataset.split_index[cfg.eval.split],
             history_len=cfg.dataset.history_len,
             future_len=cfg.dataset.future_len,
             additional_params=cfg.dataset.additional_params
