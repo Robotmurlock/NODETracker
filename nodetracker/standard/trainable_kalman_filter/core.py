@@ -24,6 +24,7 @@ from typing import Tuple
 
 import torch
 from torch import nn
+import torch.linalg as LA
 
 
 class TrainingAKFMode(enum.Enum):
@@ -384,7 +385,7 @@ class TrainableAdaptiveKalmanFilter(nn.Module):
         HT_expanded = torch.transpose(H_expanded, dim0=-2, dim1=-1)
 
         # TODO: Use Cholesky batch matrix decomposition instead of `torch.inverse` for better numerical stability
-        K = torch.bmm(torch.bmm(P_hat, HT_expanded), torch.inverse(P_proj))  # 8x4
+        K = torch.bmm(torch.bmm(P_hat, HT_expanded), LA.pinv(P_proj))  # 8x4
 
         # validation: (8x8 @ 8x4) @ inv(4x8 @ 8x8 @ 8x4) = 8x4 @ 4x4 = 8x4
         innovation = z - x_proj  # 4x1

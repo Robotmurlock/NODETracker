@@ -1,5 +1,5 @@
-experiment: 'RNNODE-lasot-exp02-no-wd'
-description: 'RNNODE - No wd'
+experiment: 'RNNODE-lasot-exp02-dog-cat-turtle-robot-airplane-full-train'
+description: 'RNNODE - five categories'
 batch_size: 32
 learning_rate: 1e-3
 max_epochs: 15

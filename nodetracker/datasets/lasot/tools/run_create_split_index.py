@@ -42,15 +42,15 @@ def index_dataset(path: str) -> DatasetIndex:
     Returns:
         Dataset index
     """
-    index: DatasetIndex = {}
+    index: DatasetIndex = defaultdict(list)
 
-    categories = sorted(file_system.listdir(path))
-    for category in categories:
-        category_path = os.path.join(path, category)
-        sequences = sorted(file_system.listdir(category_path), key=lambda x: int(x.split('-')[-1]))
-        index[category] = sequences
+    sequences = file_system.listdir(path)
+    for sequence in sequences:
+        category, _ = sequence.split('-')
+        index[category].append(sequence)
 
-    return index
+    index = {k: sorted(v, key=lambda x: int(x.split('-')[-1])) for k, v in index.items()}
+    return dict(index)
 
 
 def perform_split(index: DatasetIndex, train_val_ratio: float) -> SplitIndex:

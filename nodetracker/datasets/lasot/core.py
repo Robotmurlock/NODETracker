@@ -6,6 +6,7 @@ import os
 from dataclasses import dataclass
 from typing import Dict, List, Tuple, Any, Optional
 from nodetracker.utils import file_system
+from collections import defaultdict
 
 import cv2
 import numpy as np
@@ -70,51 +71,46 @@ class LaSOTDataset(TrajectoryDataset):
         Returns:
             SequenceIndex
         """
-        index: SequenceInfoIndex = {}
+        index: SequenceInfoIndex = defaultdict(dict)
 
-        categories = file_system.listdir(path)
-        for category in tqdm(categories, unit='category', desc='Indexing categories'):
-            category_path = os.path.join(path, category)
-            sequence_names = file_system.listdir(category_path)
+        sequences = file_system.listdir(path)
+        for sequence_name in tqdm(sequences, unit='sequences', desc='Indexing sequences'):
+            category, _ = sequence_name.split('-')
+            if sequence_list is not None and sequence_name not in sequence_list:
+                continue
 
-            index[category]: Dict[str, SequenceInfo] = {}
+            sequence_path = os.path.join(path, sequence_name)
+            sequence_images_path = os.path.join(sequence_path, 'img')
+            image_filenames = sorted(file_system.listdir(sequence_images_path, regex_filter='(.*?)(jpg|png)'))
+            image_paths = [os.path.join(sequence_images_path, filename) for filename in image_filenames]
 
-            for sequence_name in sequence_names:
-                if sequence_list is not None and sequence_name not in sequence_list:
-                    continue
+            # Load image to extract sequence image resolution
+            image = cv2.imread(image_paths[0])
+            assert image is not None, f'Failed to load image {image_paths[0]}!'
 
-                sequence_path = os.path.join(category_path, sequence_name)
-                sequence_images_path = os.path.join(sequence_path, 'img')
-                image_filenames = sorted(file_system.listdir(sequence_images_path))
-                image_paths = [os.path.join(sequence_images_path, filename) for filename in image_filenames]
+            h, w, _ = image.shape
 
-                # Load image to extract sequence image resolution
-                image = cv2.imread(image_paths[0])
-                assert image is not None, f'Failed to load image {image_paths[0]}!'
+            gt_path = os.path.join(sequence_path, 'groundtruth.txt')
+            with open(gt_path, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+                bboxes = [[int(v) for v in line.split(',')] for line in lines]
+                bboxes = [[b[0] / w, b[1] / h, b[2] / w, b[3] / h] for b in bboxes]
 
-                h, w, _ = image.shape
+            seqlength = len(image_paths)
+            sequence_info = SequenceInfo(
+                name=sequence_name,
+                category=category,
+                length=seqlength,
+                imheight=h,
+                imwidth=w,
+                image_paths=image_paths,
+                bboxes=bboxes,
+                time_points=list(range(seqlength))
+            )
 
-                gt_path = os.path.join(sequence_path, 'groundtruth.txt')
-                with open(gt_path, 'r', encoding='utf-8') as f:
-                    lines = f.readlines()
-                    bboxes = [[int(v) for v in line.split(',')] for line in lines]
-                    bboxes = [[b[0] / w, b[1] / h, b[2] / w, b[3] / h] for b in bboxes]
+            index[category][sequence_name] = sequence_info
 
-                seqlength = len(image_paths)
-                sequence_info = SequenceInfo(
-                    name=sequence_name,
-                    category=category,
-                    length=seqlength,
-                    imheight=h,
-                    imwidth=w,
-                    image_paths=image_paths,
-                    bboxes=bboxes,
-                    time_points=list(range(seqlength))
-                )
-
-                index[category][sequence_name] = sequence_info
-
-        return index
+        return dict(index)
 
     # noinspection PyMethodMayBeStatic
     def _create_trajectory_index(self, sequence_index: SequenceInfoIndex, history_len: int, future_len: int) -> TrajectoryIndex:
@@ -138,7 +134,6 @@ class LaSOTDataset(TrajectoryDataset):
                     traj_index.append((category, sequence_name, i, i + trajectory_len))
 
         return traj_index
-
 
     @property
     def scenes(self) -> List[str]:

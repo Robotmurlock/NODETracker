@@ -1,5 +1,5 @@
-experiment: 'TAKF-iter04-exp11-REPRODUCE-motion-first-principles-triu-motion-only-frozen-diag-longer-train'
-description: 'Training motion KF parameters with first principles matrix initialization (triu constraint, jitter, longer-train)'
+experiment: 'TAKF-LaSOT-iter01-exp01-motion-first-principles-triu-motion-only-frozen-diag-longer-train'
+description: 'Training motion KF parameters with first principles matrix initialization (triu constraint, longer-train)'
 batch_size: 128
 learning_rate: 1e-3
 max_epochs: 15

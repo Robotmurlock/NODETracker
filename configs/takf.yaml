@@ -1,6 +1,6 @@
 defaults:
   - resources: cuda.yaml
-  - dataset: mot10_1.yaml
+  - dataset: lasot10_1.yaml
   - transform: identity.yaml
   - model: takf.yaml
   - train: takf.yaml

@@ -284,7 +284,7 @@ class MOTDataset(TrajectoryDataset):
         for object_id, data in tqdm(labels.items(), desc='Creating trajectories', unit='object'):
             object_trajectory_len = len(data)
             for i in range(object_trajectory_len - trajectory_len + 1):
-                traj_index.append((object_id, i, i+trajectory_len))
+                traj_index.append((object_id, i, i + trajectory_len))
 
         return traj_index
 

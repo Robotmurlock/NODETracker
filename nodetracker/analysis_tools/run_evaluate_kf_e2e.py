@@ -11,6 +11,7 @@ from collections import defaultdict
 from multiprocessing import Pool
 from pathlib import Path
 from typing import Dict, List, Optional, Union, Iterable
+import traceback
 
 import numpy as np
 import torch
@@ -209,7 +210,12 @@ def kf_trak_eval(
             if skip_detection:
                 mean, covariance = mean_hat, covariance_hat
             else:
-                mean, covariance = kf.update(mean_hat, covariance_hat, measurement)  # Posterior
+                # noinspection PyBroadException
+                try:
+                    mean, covariance = kf.update(mean_hat, covariance_hat, measurement)  # Posterior
+                except:
+                    logger.error(f'Error occurred on update: {traceback.format_exc()}!')
+                    mean, covariance = mean_hat, covariance_hat
 
             total_mse = 0.0
             total_iou = 0.0
