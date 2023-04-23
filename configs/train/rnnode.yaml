@@ -1,5 +1,5 @@
-experiment: 'RNNODE-lasot-exp02-dog-cat-turtle-robot-airplane-full-train'
-description: 'RNNODE - five categories'
+experiment: 'RNNODE-lasot-exp03-dog-cat-turtle-robot-airplane-64dim'
+description: 'RNNODE - five categories - 64dim'
 batch_size: 32
 learning_rate: 1e-3
 max_epochs: 15
