@@ -1,10 +1,10 @@
 type: 'takf'
 params:
-  training_mode: 'motion'
+  training_mode: 'uncertainty'
 
   positive_motion_mat: True
   triu_motion_mat: True
   first_principles_motion_mat: True
-  optimize_likelihood: False
+  optimize_likelihood: True
   freeze_eye_diagonal_motion_mat: True
   first_principles_add_jitter_motion_mat: False

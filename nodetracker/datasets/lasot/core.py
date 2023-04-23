@@ -3,10 +3,9 @@ LaSOT dataset. More information: https://paperswithcode.com/dataset/lasot
 """
 import logging
 import os
+from collections import defaultdict
 from dataclasses import dataclass
 from typing import Dict, List, Tuple, Any, Optional
-from nodetracker.utils import file_system
-from collections import defaultdict
 
 import cv2
 import numpy as np
@@ -15,6 +14,7 @@ from tqdm import tqdm
 from nodetracker.datasets.torch import TrajectoryDataset
 from nodetracker.datasets.torch import run_dataset_test
 from nodetracker.datasets.utils import split_trajectory_observed_unobserved
+from nodetracker.utils import file_system
 from nodetracker.utils.logging import configure_logging
 
 
@@ -25,9 +25,62 @@ class SequenceInfo:
     seqlength: int
     imheight: int
     imwidth: int
+    text_label: str
     image_paths: List[str]
     bboxes: List[List[float]]
     time_points: List[int]
+    occlusions: List[bool]
+    out_of_views: List[bool]
+
+
+FrameData = Tuple[List[int], bool, bool, str]  # coords, occlusion, out of view, image path
+
+
+def parse_sequence(sequence_path: str) -> Tuple[List[FrameData], str]:
+    """
+    Parses sequence directory. Sequence data contains info for each frame:
+    - bbox coordinates
+    - is object occluded
+    - is object out of view
+
+    Sequence also contains text label.
+
+    Args:
+        sequence_path: Sequence path
+
+    Returns:
+        Parsed sequence with data:
+        - Sequence data (bbox, occlusions, out of view)
+        - text label
+        - path to sequence images
+    """
+    occlusion_filepath = os.path.join(sequence_path, 'full_occlusion.txt')
+    out_of_view_filepath = os.path.join(sequence_path, 'out_of_view.txt')
+    nlp_filepath = os.path.join(sequence_path, 'nlp.txt')
+    gt_filepath = os.path.join(sequence_path, 'groundtruth.txt')
+
+    with open(occlusion_filepath, 'r', encoding='utf-8') as f:
+        occlusion_raw = f.read()
+        occlusions = [bool(int(o)) for o in occlusion_raw.strip().split(',')]
+
+    with open(out_of_view_filepath, 'r', encoding='utf-8') as f:
+        oov_raw = f.read()
+        oov = [bool(int(o)) for o in oov_raw.strip().split(',')]
+
+    with open(nlp_filepath, 'r', encoding='utf-8') as f:
+        text_label = f.read().strip()
+
+    with open(gt_filepath, 'r', encoding='utf-8') as f:
+        coord_lines = f.readlines()
+        coords = [[int(v) for v in c.strip().split(',')] for c in coord_lines]
+
+    image_dirpath = os.path.join(sequence_path, 'img')
+    image_filenames = sorted(file_system.listdir(image_dirpath, regex_filter='(.*?)(jpg|png)'))
+    image_paths = [os.path.join(image_dirpath, image_filename) for image_filename in image_filenames]
+
+    assert len(occlusions) == len(oov) == len(coords), 'Failed to parse sequence!'
+    data = list(zip(coords, occlusions, oov, image_paths))
+    return data, text_label
 
 
 SequenceInfoIndex = Dict[str, Dict[str, SequenceInfo]]  # Category -> (SequenceName -> SequenceInfo)
@@ -43,6 +96,8 @@ class LaSOTDataset(TrajectoryDataset):
         history_len: int,
         future_len: int,
         sequence_list: Optional[List[str]] = None,
+        skip_occlusion: bool = False,
+        skip_out_of_view: bool = False,
         **kwargs
     ):
         """
@@ -55,8 +110,17 @@ class LaSOTDataset(TrajectoryDataset):
         """
         super().__init__(history_len=history_len, future_len=future_len, sequence_list=sequence_list, **kwargs)
 
-        self._sequence_index = self._create_dataset_index(path, sequence_list)
-        self._trajectory_index = self._create_trajectory_index(self._sequence_index, history_len, future_len)
+        self._sequence_index = self._create_dataset_index(
+            path=path,
+            sequence_list=sequence_list
+        )
+        self._trajectory_index = self._create_trajectory_index(
+            sequence_index=self._sequence_index,
+            history_len=history_len,
+            future_len=future_len,
+            skip_occlusion=skip_occlusion,
+            skip_out_of_view=skip_out_of_view
+        )
 
     # noinspection PyUnresolvedReferences
     @staticmethod
@@ -80,9 +144,8 @@ class LaSOTDataset(TrajectoryDataset):
                 continue
 
             sequence_path = os.path.join(path, sequence_name)
-            sequence_images_path = os.path.join(sequence_path, 'img')
-            image_filenames = sorted(file_system.listdir(sequence_images_path, regex_filter='(.*?)(jpg|png)'))
-            image_paths = [os.path.join(sequence_images_path, filename) for filename in image_filenames]
+            sequence_data, text_label = parse_sequence(sequence_path)
+            coords, occlusions, oov, image_paths = zip(*sequence_data)
 
             # Load image to extract sequence image resolution
             image = cv2.imread(image_paths[0])
@@ -103,17 +166,26 @@ class LaSOTDataset(TrajectoryDataset):
                 seqlength=seqlength,
                 imheight=h,
                 imwidth=w,
+                text_label=text_label,
                 image_paths=image_paths,
                 bboxes=bboxes,
-                time_points=list(range(seqlength))
+                time_points=list(range(seqlength)),
+                occlusions=occlusions,
+                out_of_views=oov
             )
 
             index[category][sequence_name] = sequence_info
 
         return dict(index)
 
-    # noinspection PyMethodMayBeStatic
-    def _create_trajectory_index(self, sequence_index: SequenceInfoIndex, history_len: int, future_len: int) -> TrajectoryIndex:
+    @staticmethod
+    def _create_trajectory_index(
+        sequence_index: SequenceInfoIndex,
+        history_len: int,
+        future_len: int,
+        skip_occlusion: bool,
+        skip_out_of_view: bool
+    ) -> TrajectoryIndex:
         """
         Creates trajectory index (using indices).
 
@@ -121,6 +193,8 @@ class LaSOTDataset(TrajectoryDataset):
             sequence_index: Sequence info index
             history_len: Observed trajectory length
             future_len: Unobserved trajectory length
+            skip_occlusion: Skip frames with occlusions
+            skip_out_of_view: Skip frames with out of view
 
         Returns:
 
@@ -130,7 +204,16 @@ class LaSOTDataset(TrajectoryDataset):
 
         for category, category_data in tqdm(sequence_index.items(), total=len(sequence_index), unit='category', desc='Creating trajectory index'):
             for sequence_name, sequence_info in category_data.items():
-                for i in range(sequence_info.seqlength - trajectory_len + 1):
+                traj_time_points = list(range(sequence_info.seqlength - trajectory_len + 1))
+                if skip_occlusion:
+                    if any(sequence_info.occlusions[i] for i in traj_time_points):
+                        continue
+
+                if skip_out_of_view:
+                    if any(sequence_info.out_of_views[i] for i in traj_time_points):
+                        continue
+
+                for i in traj_time_points:
                     traj_index.append((category, sequence_name, i, i + trajectory_len))
 
         return traj_index
@@ -231,10 +314,27 @@ if __name__ == '__main__':
     from nodetracker.common.project import ASSETS_PATH
     configure_logging(logging.DEBUG)
 
-    dataset = LaSOTDataset(
-        path=os.path.join(ASSETS_PATH, 'LaSOT', 'train'),
-        history_len=4,
-        future_len=4
-    )
+    BAR = 80 * '=' + '\n\n'
+    configuration = [
+        ('None', False, False),
+        ('Occlusions', True, False),
+        ('Out of view', False, True),
+        ('Occlusions and Out of view', True, True)
+    ]
 
-    run_dataset_test(dataset)
+    first_iteration = True
+    for desc, skip_occlusion, skip_out_of_view in configuration:
+        if not first_iteration:
+            print(BAR)
+        first_iteration = False
+
+        print(f'Testing dataset. Skip: {desc}')
+        run_dataset_test(
+            LaSOTDataset(
+                path=os.path.join(ASSETS_PATH, 'LaSOT'),
+                history_len=4,
+                future_len=4,
+                skip_occlusion=skip_occlusion,
+                skip_out_of_view=skip_out_of_view
+            )
+        )

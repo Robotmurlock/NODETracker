@@ -11,8 +11,6 @@ train_params:
   sched_lr_step: 4
   weight_decay: 0.00
 
-resume_from_checkpoint: null
-
 logging_cfg:
   path: 'logs'
   log_every_n_steps: 1

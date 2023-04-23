@@ -9,8 +9,6 @@ train_params:
   sched_lr_gamma: 0.1
   sched_lr_step: 3
 
-resume_from_checkpoint: null
-
 logging_cfg:
   path: 'logs'
   log_every_n_steps: 1
