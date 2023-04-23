@@ -3,7 +3,10 @@ Implementation of SOT (single-object-tracking) metrics.
 """
 import numpy as np
 from nodetracker.library.cv.bbox import BBox
-from typing import List, Tuple
+from typing import List, Tuple, Union, Optional
+
+
+ThresholdType = Union[float, List[float], np.ndarray]
 
 
 def traj_bbox_to_traj_center(traj: np.ndarray) -> np.ndarray:
@@ -66,6 +69,9 @@ def _iou(gt_traj: np.ndarray, pred_traj: np.ndarray) -> Tuple[List[float], int, 
     if len(gt_traj.shape) == 2:
         gt_traj = gt_traj[:, np.newaxis, :]
         pred_traj = pred_traj[:, np.newaxis, :]
+    elif len(gt_traj.shape) == 1:
+        gt_traj = gt_traj[np.newaxis, np.newaxis, :]
+        pred_traj = pred_traj[np.newaxis, np.newaxis, :]
 
     assert len(gt_traj.shape) == 3, f'Expected 3 dimensions for trajectory input. Got {gt_traj.shape}.'
     time_len, batch_size, dim = gt_traj.shape
@@ -74,8 +80,8 @@ def _iou(gt_traj: np.ndarray, pred_traj: np.ndarray) -> Tuple[List[float], int, 
     iou_scores: List[float] = []
     for time_index in range(time_len):
         for batch_index in range(batch_size):
-            gt_bbox = BBox.from_yxwh(*gt_traj[time_index, batch_index, :])
-            pred_bbox = BBox.from_yxwh(*pred_traj[time_index, batch_index, :])
+            gt_bbox = BBox.from_yxwh(*gt_traj[time_index, batch_index, :], clip=True)
+            pred_bbox = BBox.from_yxwh(*pred_traj[time_index, batch_index, :], clip=True)
             iou_score = gt_bbox.iou(pred_bbox)
             iou_scores.append(iou_score)
 
@@ -97,7 +103,7 @@ def accuracy(gt_traj: np.ndarray, pred_traj: np.ndarray) -> float:
     return sum(iou_scores) / (time_len * batch_size)
 
 
-def success(gt_traj: np.ndarray, pred_traj: np.ndarray, threshold: float = 0.5) -> float:
+def success(gt_traj: np.ndarray, pred_traj: np.ndarray, threshold: Optional[ThresholdType] = None) -> float:
     """
     Calculates average success between GT and PRED bbox.
     Success is 1 if iou is greater than the `threshold` else it is 0.
@@ -110,11 +116,21 @@ def success(gt_traj: np.ndarray, pred_traj: np.ndarray, threshold: float = 0.5) 
     Returns:
         Accuracy metric.
     """
+    if threshold is None:
+        threshold = np.arange(0, 1.05, 0.05)
+    if isinstance(threshold, float):
+        threshold = [threshold]
+
     iou_scores, time_len, batch_size = _iou(gt_traj, pred_traj)
-    return sum([(1.0 if score >= threshold else 0.0) for score in iou_scores]) / (time_len * batch_size)
+
+    scores = []
+    for t in threshold:
+        score = sum([(1.0 if score >= t else 0.0) for score in iou_scores]) / (time_len * batch_size)
+        scores.append(score)
+    return np.array(scores).mean()
 
 
-def precision(gt_traj: np.ndarray, pred_traj: np.ndarray, imheight: int, imwidth: int, threshold: int = 20) -> float:
+def precision(gt_traj: np.ndarray, pred_traj: np.ndarray, imheight: int, imwidth: int, threshold: Optional[ThresholdType] = None) -> float:
     """
     Calculates average precision between GT and PRED bbox.
 
@@ -128,6 +144,11 @@ def precision(gt_traj: np.ndarray, pred_traj: np.ndarray, imheight: int, imwidth
     Returns:
         Precision metric.
     """
+    if threshold is None:
+        threshold = np.arange(0.0, 51.0, 1.0)
+    if isinstance(threshold, float):
+        threshold = [threshold]
+
     # Calculate centers
     gt_center = traj_bbox_to_traj_center(gt_traj)
     pred_center = traj_bbox_to_traj_center(pred_traj)
@@ -140,10 +161,16 @@ def precision(gt_traj: np.ndarray, pred_traj: np.ndarray, imheight: int, imwidth
 
     # Calculate precision
     distance = point_to_point_distance(gt_center, pred_center)
-    return (distance <= threshold).astype(np.float32).mean()
+
+    # Calculate AUC
+    scores = []
+    for t in threshold:
+        score = (distance <= t).astype(np.float32).mean()
+        scores.append(score)
+    return np.array(scores).mean()
 
 
-def norm_precision(gt_traj: np.ndarray, pred_traj: np.ndarray, threshold: int = 0.05) -> float:
+def norm_precision(gt_traj: np.ndarray, pred_traj: np.ndarray, threshold: Optional[ThresholdType] = None) -> float:
     """
     Calculates average normalized precision between GT and PRED bbox.
 
@@ -155,10 +182,21 @@ def norm_precision(gt_traj: np.ndarray, pred_traj: np.ndarray, threshold: int = 
     Returns:
         Normalized precision metric.
     """
+    if threshold is None:
+        threshold = np.arange(0.0, 51.0, 1.0) / 100
+    if isinstance(threshold, float):
+        threshold = [threshold]
+
     # Calculate centers
     gt_center = traj_bbox_to_traj_center(gt_traj)
     pred_center = traj_bbox_to_traj_center(pred_traj)
 
     # Calculate normalized precision
     distance = point_to_point_distance(gt_center, pred_center)
-    return (distance <= threshold).astype(np.float32).mean()
+
+    # Calculate AUC
+    scores = []
+    for t in threshold:
+        score = (distance <= t).astype(np.float32).mean()
+        scores.append(score)
+    return np.array(scores).mean()

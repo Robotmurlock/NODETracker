@@ -1,8 +1,8 @@
-experiment: 'RNNODE-lasot-exp03-dog-cat-turtle-robot-airplane-64dim'
-description: 'RNNODE - five categories - 64dim'
+experiment: 'RNNODE-lasot-exp04-dog-cat-turtle-robot-airplane-64dim-MOT20-checkpoint'
+description: 'RNNODE - five categories - 64dim. Checkpoint=outputs/MOT20/RNNODE-iter03-exp03-double-params/checkpoints/last.ckpt'
 batch_size: 32
 learning_rate: 1e-3
-max_epochs: 15
+max_epochs: 25
 
 train_params:
   optim_name: adamw
@@ -19,4 +19,4 @@ logging_cfg:
 
 checkpoint_cfg:
   metric_monitor: 'val/loss'
-  resume_from: null
+  resume_from: '/home/madzemovic/NODETracker-tmp/outputs/MOT20/RNNODE-iter03-exp03-double-params/checkpoints/last.ckpt'

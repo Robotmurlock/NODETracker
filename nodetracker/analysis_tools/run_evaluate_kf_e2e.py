@@ -7,22 +7,31 @@ import json
 import logging
 import os
 import random
+import traceback
 from collections import defaultdict
 from multiprocessing import Pool
 from pathlib import Path
 from typing import Dict, List, Optional, Union, Iterable
-import traceback
 
 import numpy as np
 import torch
 import yaml
 from tqdm import tqdm
 
+
 from nodetracker.common.project import ASSETS_PATH, OUTPUTS_PATH
 from nodetracker.datasets import dataset_factory, TrajectoryDataset
-from nodetracker.library.cv.bbox import BBox
 from nodetracker.library.kalman_filter.botsort_kf import BotSortKalmanFilter
 from nodetracker.utils.logging import configure_logging
+from nodetracker.evaluation import sot as sot_metrics
+
+METRICS = [
+    ('MSE', sot_metrics.mse),
+    ('Accuracy', sot_metrics.accuracy),
+    ('Success', sot_metrics.success),
+    ('NormPrecision', sot_metrics.norm_precision)
+]
+
 
 logger = logging.getLogger('KF_E2E_EVAL')
 
@@ -129,22 +138,6 @@ def simulate_detector_noise(
     ]
 
 
-def calc_iou(pred: Union[List[float], np.ndarray, torch.Tensor], gt: Union[List[float], np.ndarray, torch.Tensor]) -> float:
-    """
-    Calculates iou score between two bboxes represented as numpy arrays in yxwh format.
-
-    Args:
-        pred: Prediction bbox (numpy)
-        gt: Ground Truth bbox (numpy)
-
-    Returns:
-        IOU score
-    """
-    pred_bbox = BBox.from_yxwh(*pred, clip=True)
-    gt_bbox = BBox.from_yxwh(*gt, clip=True)
-    return float(gt_bbox.iou(pred_bbox))
-
-
 def simulate_detector_false_positive(proba: float, first_frame: bool) -> bool:
     """
     "Deletes" measurement with some probability. First frame can't be skipped.
@@ -217,36 +210,29 @@ def kf_trak_eval(
                     logger.error(f'Error occurred on update: {traceback.format_exc()}!')
                     mean, covariance = mean_hat, covariance_hat
 
-            total_mse = 0.0
-            total_iou = 0.0
+            total_score = {k: 0.0 for k, _ in METRICS}
+
             forward_mean_hat, forward_covariance_hat = mean_hat, covariance_hat
             for p_index in range(n_pred_steps):
                 prior, _ = kf.project(forward_mean_hat, forward_covariance_hat)  # KF Prediction is before update
-
                 gt = np.array(measurements[index + p_index], dtype=np.float32)
 
-                # Calculate MSE
-                mse = ((gt - prior) ** 2).mean()
-                sample_metrics[f'prior-MSE-{p_index}'].append(mse)
-                total_mse += mse
-
-                # Calculate IOU (Accuracy)
-                iou_score = calc_iou(prior, gt)
-                sample_metrics[f'prior-Accuracy-{p_index}'].append(iou_score)
-                total_iou += iou_score
+                for metric_name, metric_func in METRICS:
+                    score = metric_func(gt, prior)
+                    sample_metrics[f'prior-{metric_name}-{p_index}'].append(score)
+                    total_score[metric_name] += score
 
                 forward_mean_hat, forward_covariance_hat = kf.predict(forward_mean_hat, forward_covariance_hat)
 
-            sample_metrics['prior-MSE'].append(total_mse / n_pred_steps)
-            sample_metrics['prior-Accuracy'].append(total_iou / n_pred_steps)
+            for metric_name, _ in METRICS:
+                sample_metrics[f'prior-{metric_name}'].append(total_score[metric_name] / n_pred_steps)
 
             posterior, _ = kf.project(mean, covariance)
             gt = np.array(measurement_no_noise, dtype=np.float32)
 
-            posterior_mse = ((posterior - gt) ** 2).mean()
-            sample_metrics[f'posterior-MSE'].append(posterior_mse)
-            posterior_iou_score = calc_iou(posterior, gt)
-            sample_metrics[f'posterior-Accuracy'].append(posterior_iou_score)
+            for metric_name, metric_func in METRICS:
+                score = metric_func(posterior, gt)
+                sample_metrics[f'posterior-{metric_name}'].append(score)
 
             # Save data
             prev_measurement = measurement

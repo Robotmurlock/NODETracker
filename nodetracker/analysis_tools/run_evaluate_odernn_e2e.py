@@ -9,12 +9,17 @@ from pathlib import Path
 from typing import List, Tuple, Optional
 
 import hydra
+import numpy as np
 import torch
 from omegaconf import DictConfig
 from tqdm import tqdm
 
-from nodetracker.analysis_tools.run_evaluate_kf_e2e import aggregate_metrics, calc_iou, \
-    simulate_detector_noise, simulate_detector_false_positive
+from nodetracker.analysis_tools.run_evaluate_kf_e2e import (
+    aggregate_metrics,
+    simulate_detector_noise,
+    simulate_detector_false_positive,
+    METRICS
+)
 from nodetracker.common import conventions
 from nodetracker.common.project import CONFIGS_PATH
 from nodetracker.common.project import OUTPUTS_PATH
@@ -147,7 +152,7 @@ def main(cfg: DictConfig):
             n_data_points = dataset.get_object_data_length(object_id)
             for index in range(n_data_points-n_pred_steps):
                 measurement = dataset.get_object_data_label(object_id, index)['bbox']
-                measurement_no_noise = torch.tensor(measurement, dtype=torch.float32)
+                measurement_no_noise = np.array(measurement, dtype=np.float32)
                 measurement = simulate_detector_noise(measurement, prev_measurement, DETECTION_NOISE_SIGMA)
                 skip_detection = simulate_detector_false_positive(DET_SKIP_PROBA, first_frame=not buffer.has_input)
 
@@ -165,30 +170,25 @@ def main(cfg: DictConfig):
                         mean, covariance = ode_filter.update(x_mean_hat_first, x_std_hat_first,
                                                              measurement, detection_noise)
 
-                    total_mse = 0.0
-                    total_iou = 0.0
+                    total_score = {k: 0.0 for k, _ in METRICS}
+
                     for p_index in range(n_pred_steps):
-                        pred = x_mean_hat[p_index, 0]
-                        gt = torch.tensor(dataset.get_object_data_label(object_id, index + p_index)['bbox'],
-                                          dtype=torch.float32)
+                        pred = x_mean_hat[p_index, 0].numpy()
+                        gt = np.array(dataset.get_object_data_label(object_id, index + p_index)['bbox'],
+                                      dtype=np.float32)
 
-                        # Calculate MSE
-                        mse = ((gt - pred) ** 2).mean().item()
-                        sample_metrics[f'prior-MSE-{p_index}'].append(mse)
-                        total_mse += mse
+                        for metric_name, metric_func in METRICS:
+                            score = metric_func(gt, pred)
+                            sample_metrics[f'prior-{metric_name}-{p_index}'].append(score)
+                            total_score[metric_name] += score
 
-                        # Calculate IOU (Accuracy)
-                        iou_score = calc_iou(pred, gt)
-                        sample_metrics[f'prior-Accuracy-{p_index}'].append(iou_score)
-                        total_iou += iou_score
+                    for metric_name, _ in METRICS:
+                        sample_metrics[f'prior-{metric_name}'].append(total_score[metric_name] / n_pred_steps)
 
-                    sample_metrics['prior-MSE'].append(total_mse / n_pred_steps)
-                    sample_metrics['prior-Accuracy'].append(total_iou / n_pred_steps)
-
-                    posterior_mse = ((mean - measurement_no_noise) ** 2).mean().item()
-                    sample_metrics[f'posterior-MSE'].append(posterior_mse)
-                    posterior_iou_score = calc_iou(mean, measurement_no_noise)
-                    sample_metrics[f'posterior-Accuracy'].append(posterior_iou_score)
+                    mean_numpy = mean.detach().cpu().numpy()
+                    for metric_name, metric_func in METRICS:
+                        score = metric_func(mean_numpy, measurement_no_noise)
+                        sample_metrics[f'posterior-{metric_name}'].append(score)
 
                 if skip_detection:
                     buffer.push(mean.clone())
