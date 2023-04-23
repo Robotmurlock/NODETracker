@@ -22,7 +22,7 @@ from nodetracker.utils.logging import configure_logging
 class SequenceInfo:
     name: str
     category: str
-    length: int
+    seqlength: int
     imheight: int
     imwidth: int
     image_paths: List[str]
@@ -100,7 +100,7 @@ class LaSOTDataset(TrajectoryDataset):
             sequence_info = SequenceInfo(
                 name=sequence_name,
                 category=category,
-                length=seqlength,
+                seqlength=seqlength,
                 imheight=h,
                 imwidth=w,
                 image_paths=image_paths,
@@ -130,7 +130,7 @@ class LaSOTDataset(TrajectoryDataset):
 
         for category, category_data in tqdm(sequence_index.items(), total=len(sequence_index), unit='category', desc='Creating trajectory index'):
             for sequence_name, sequence_info in category_data.items():
-                for i in range(sequence_info.length - trajectory_len + 1):
+                for i in range(sequence_info.seqlength - trajectory_len + 1):
                     traj_index.append((category, sequence_name, i, i + trajectory_len))
 
         return traj_index
@@ -138,6 +138,10 @@ class LaSOTDataset(TrajectoryDataset):
     @property
     def scenes(self) -> List[str]:
         return [sequence for category_sequences in self._sequence_index.values() for sequence in category_sequences.keys()]
+
+    def get_scene_info(self, scene_name: str) -> Any:
+        category = self._get_sequence_category(scene_name)
+        return self._sequence_index[category][scene_name]
 
     @staticmethod
     def _get_sequence_category(sequence_id: str) -> str:
@@ -167,7 +171,7 @@ class LaSOTDataset(TrajectoryDataset):
     def get_object_data_length(self, object_id: str) -> int:
         category = self._get_sequence_category(object_id)
         sequence_info = self._sequence_index[category][object_id]
-        return sequence_info.length
+        return sequence_info.seqlength
 
     def get_object_data_label(self, object_id: str, index: int, relative_bbox_coords: bool = True) -> dict:
         # scene_name == object_id

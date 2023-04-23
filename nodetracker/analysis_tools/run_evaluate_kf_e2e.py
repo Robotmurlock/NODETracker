@@ -11,19 +11,23 @@ import traceback
 from collections import defaultdict
 from multiprocessing import Pool
 from pathlib import Path
-from typing import Dict, List, Optional, Union, Iterable
+from typing import Dict, List, Optional, Union, Iterable, Tuple
 
+import cv2
 import numpy as np
 import torch
 import yaml
 from tqdm import tqdm
 
-
 from nodetracker.common.project import ASSETS_PATH, OUTPUTS_PATH
 from nodetracker.datasets import dataset_factory, TrajectoryDataset
+from nodetracker.evaluation import sot as sot_metrics
+from nodetracker.library.cv.bbox import BBox
+from nodetracker.library.cv import color_palette
+from nodetracker.library.cv.video_writer import MP4Writer
+from nodetracker.library.cv import drawing
 from nodetracker.library.kalman_filter.botsort_kf import BotSortKalmanFilter
 from nodetracker.utils.logging import configure_logging
-from nodetracker.evaluation import sot as sot_metrics
 
 METRICS = [
     ('MSE', sot_metrics.mse),
@@ -59,6 +63,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--skip-det-proba', type=float, required=False, default=0.0, help='Probability to skip detection.')
     parser.add_argument('--n-workers', type=int, required=False, default=8, help='Number of workers for faster evaluation.')
     parser.add_argument('--dataset-type', type=str, required=False, default='MOT20', help='Supported: MOT20, LaSOT')
+    parser.add_argument('--visualize', action='store_true', required=False, help='Create visualization video.')
+    parser.add_argument('--video-dirpath', type=str, default='KF_visualization', required=False,
+                        help='Visualization dirpath relative to the `output-path`.')
+    parser.add_argument('--visualize-show-iou', action='store_true', required=False, help='Draw IOU (accuracy) one images.')
     return parser.parse_args()
 
 
@@ -157,29 +165,34 @@ def simulate_detector_false_positive(proba: float, first_frame: bool) -> bool:
 
 
 def kf_trak_eval(
-    measurements: List[List[float]],
+    object_id_measurements: List[List[float]],
     det_noise_sigma: float,
     det_skip_proba: float,
     n_pred_steps: int,
-    use_optimal_motion_mat: bool = False
-) -> Optional[Dict[str, List[float]]]:
+    use_optimal_motion_mat: bool = False,
+    fast_inference: bool = True
+) -> Optional[Tuple[str, Dict[str, List[float]], Dict[str, List[List[float]]]]]:
     """
     Evaluates Kalman filter on SOT tracking.
 
     Args:
 
-        measurements: List of measurements
+        object_id_measurements: (Object id, List of measurements)
         det_noise_sigma: Detection noise (sigma)
         det_skip_proba: Detection skip probability
         n_pred_steps: Number of forward inference steps
         use_optimal_motion_mat: Use optimal (fine-tuned) KF
+        fast_inference: Do not save inference data (optimization)
 
     Returns:
         Metrics for each tracker step.
     """
+    object_id, measurements = object_id_measurements
+
     kf = BotSortKalmanFilter(use_optimal_motion_mat=use_optimal_motion_mat)  # Create KF for new track
     mean, covariance, mean_hat, covariance_hat, prev_measurement = None, None, None, None, None
-    sample_metrics = defaultdict(list)
+    sample_metrics: Dict = defaultdict(list)
+    inference = {k: {} for k in ['prior', 'posterior']}
 
     n_data_points = len(measurements)
     n_inf_steps = n_data_points - n_pred_steps
@@ -213,8 +226,10 @@ def kf_trak_eval(
             total_score = {k: 0.0 for k, _ in METRICS}
 
             forward_mean_hat, forward_covariance_hat = mean_hat, covariance_hat
+            first_prior = None
             for p_index in range(n_pred_steps):
                 prior, _ = kf.project(forward_mean_hat, forward_covariance_hat)  # KF Prediction is before update
+                first_prior = prior if first_prior is None else first_prior
                 gt = np.array(measurements[index + p_index], dtype=np.float32)
 
                 for metric_name, metric_func in METRICS:
@@ -237,16 +252,77 @@ def kf_trak_eval(
             # Save data
             prev_measurement = measurement
 
-    return sample_metrics
+            if not fast_inference:
+                inference['prior'][index] = first_prior.tolist()
+                inference['posterior'][index] = posterior.tolist()
+
+    return object_id, dict(sample_metrics), inference
 
 
-def create_object_id_iterator(dataset: TrajectoryDataset, scene_name: str) -> Iterable[List[List[float]]]:
+def create_object_id_iterator(dataset: TrajectoryDataset, scene_name: str) -> Iterable[Tuple[str, List[List[float]]]]:
+    """
+    Creates object id iterator. Creates input data for motion model for each object existing in the scene.
+
+    Args:
+        dataset: Dataset
+        scene_name: Scene (sequence) name
+
+    Returns:
+        object_id, measurements
+    """
     object_ids = dataset.get_scene_object_ids(scene_name)
     for object_id in object_ids:
         n_data_points = dataset.get_object_data_length(object_id)
         measurements = [dataset.get_object_data_label(object_id, index)['bbox']
                         for index in range(n_data_points)]
-        yield measurements
+        yield object_id, measurements
+
+
+def visualize_video(
+    scene_name: str,
+    inference_visualization_cache: Dict[str, Dict[str, Dict[int, List[float]]]],
+    dataset: TrajectoryDataset,
+    output_path: str,
+    video_dirpath: str,
+    model_name: str,
+    show_iou: bool = False
+) -> None:
+    inference_types = list(next(iter(inference_visualization_cache.values())).keys())
+    for inference_type in inference_types:
+
+        full_video_dirpath = os.path.join(output_path, video_dirpath, inference_type)
+        Path(full_video_dirpath).mkdir(parents=True, exist_ok=True)
+        scene_info = dataset.get_scene_info(scene_name)
+        n_frames = scene_info.seqlength  # TODO: Works for LaSOT and MOT but may crash for other datasets
+
+        video_path = os.path.join(full_video_dirpath, f'{scene_name}.mp4')
+
+        logger.info(f'Performing visualization for scene "{scene_name}" and inference type "{inference_type}"... '
+                    f'Video path is "{video_path}"')
+        with MP4Writer(video_path, fps=30) as writer:
+            for frame_index in tqdm(range(n_frames), desc='Drawing', unit='frame', total=n_frames):
+                image_path = dataset.get_scene_image_path(scene_name, frame_index)
+                # noinspection PyUnresolvedReferences
+                image = cv2.imread(image_path)
+
+                for object_id, inference_data in inference_visualization_cache.items():
+                    gt_bbox = BBox.from_yxwh(*dataset.get_object_data_label(object_id, frame_index)['bbox'], clip=True)
+                    image = gt_bbox.draw(image, color=color_palette.GREEN)
+
+                    pred_data = inference_data[inference_type].get(frame_index)
+                    if pred_data is not None:
+                        pred_bbox = BBox.from_yxwh(*pred_data, clip=True)
+                        image = pred_bbox.draw(image, color=color_palette.RED)
+
+                        if show_iou:
+                            iou_score = gt_bbox.iou(pred_bbox)
+                            left, top, _, _ = pred_bbox.scaled_yxyx_from_image(image)
+                            image = drawing.draw_text(image, f'{100*iou_score:.1f}', left, top - 3, color_palette.RED)
+
+                image = drawing.draw_text(image, 'GroundTruth', 5, 15, color_palette.GREEN)
+                image = drawing.draw_text(image, f'{model_name}-{inference_type}', 5, 30, color_palette.RED)
+
+                writer.write(image)
 
 
 def main(args: argparse.Namespace) -> None:
@@ -279,18 +355,39 @@ def main(args: argparse.Namespace) -> None:
     for scene_name in scene_names:
         object_id_iterator = create_object_id_iterator(dataset, scene_name)
         n_object_ids = dataset.get_scene_number_of_object_ids(scene_name)
+        inference_visualization_cache: Dict[str, Dict[str, Dict[int, List[float]]]] = {}  # Used only for visualization
+
         with Pool(n_workers) as pool:
             method = functools.partial(
                 kf_trak_eval,
                 det_skip_proba=det_skip_proba,
                 det_noise_sigma=det_noise_sigma,
                 n_pred_steps=n_pred_steps,
-                use_optimal_motion_mat=args.optimal_kf
+                use_optimal_motion_mat=args.optimal_kf,
+                fast_inference=not args.visualize
             )
 
-            for sample_metrics in tqdm(pool.imap_unordered(method, object_id_iterator),
+            for inference_package in tqdm(pool.imap_unordered(method, object_id_iterator),
                                        unit='track', desc=f'Evaluating tracker on {scene_name}', total=n_object_ids):
+                if inference_package is None:
+                    continue
+
+                object_id, sample_metrics, inference = inference_package
                 global_metrics = merge_metrics(global_metrics, sample_metrics)
+
+                if args.visualize:
+                    inference_visualization_cache[object_id] = inference
+
+        if args.visualize:
+            visualize_video(
+                scene_name=scene_name,
+                inference_visualization_cache=inference_visualization_cache,
+                dataset=dataset,
+                output_path=args.output_path,
+                video_dirpath=args.video_dirpath,
+                show_iou=args.visualize_show_iou,
+                model_name='KalmanFilter'
+            )
 
     metrics = aggregate_metrics(global_metrics)
 

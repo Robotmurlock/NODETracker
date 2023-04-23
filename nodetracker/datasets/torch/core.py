@@ -104,6 +104,7 @@ class TrajectoryDataset(ABC):
             Data point.
         """
 
+    @abstractmethod
     def get_scene_info(self, scene_name: str) -> Any:
         """
         Get scene metadata by name.
