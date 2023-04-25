@@ -105,6 +105,21 @@ class TrajectoryDataset(ABC):
         """
 
     @abstractmethod
+    def get_object_data_label_by_frame_index(self, object_id: str, frame_index: int, relative_bbox_coords: bool = True) -> Optional[dict]:
+        """
+        Like `get_object_data_label` but data is relative to given frame_index.
+        If object does not exist in given frame index then None is returned.
+
+        Args:
+            object_id: Object id
+            frame_index: Frame Index
+            relative_bbox_coords: Scale bbox coords to [0, 1]
+
+        Returns:
+            Data point.
+        """
+
+    @abstractmethod
     def get_scene_info(self, scene_name: str) -> Any:
         """
         Get scene metadata by name.

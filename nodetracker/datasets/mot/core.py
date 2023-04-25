@@ -84,7 +84,7 @@ class MOTDataset(TrajectoryDataset):
         self._label_type = label_type
 
         self._scene_info_index = self._index_dataset(path, label_type, sequence_list)
-        self._data_labels, self._n_labels = self._parse_labels(self._scene_info_index)
+        self._data_labels, self._n_labels, self._frame_to_data_index_lookup = self._parse_labels(self._scene_info_index)
         self._trajectory_index = self._create_trajectory_index(self._data_labels, self._history_len, self._future_len)
 
     @property
@@ -129,6 +129,13 @@ class MOTDataset(TrajectoryDataset):
             data['bbox'] = bbox
 
         return data
+
+    def get_object_data_label_by_frame_index(self, object_id: str, frame_index: int, relative_bbox_coords: bool = True) -> Optional[dict]:
+        index = self._frame_to_data_index_lookup[object_id].get(frame_index)
+        if index is None:
+            return index
+
+        return self.get_object_data_label(object_id, index, relative_bbox_coords=relative_bbox_coords)
 
     def get_scene_info(self, scene_name: str) -> SceneInfo:
         return self._scene_info_index[scene_name]
@@ -214,7 +221,7 @@ class MOTDataset(TrajectoryDataset):
         return scene_info_index
 
     @staticmethod
-    def _parse_labels(scene_infos: SceneInfoIndex) -> Tuple[Dict[str, list], int]:
+    def _parse_labels(scene_infos: SceneInfoIndex) -> Tuple[Dict[str, list], int, Dict[str, Dict[int, int]]]:
         """
         Loads all labels dictionary with format:
         {
@@ -230,6 +237,7 @@ class MOTDataset(TrajectoryDataset):
             Labels dictionary
         """
         data = defaultdict(list)
+        frame_to_data_index_lookup: Dict[str, Dict[int, int]] = defaultdict(dict)
         n_labels = 0
 
         for scene_name, scene_info in scene_infos.items():
@@ -256,10 +264,11 @@ class MOTDataset(TrajectoryDataset):
                         'bbox': row.values.tolist(),
                         'image_path': MOTDataset._get_image_path(scene_info, frame_id)
                     })
+                    frame_to_data_index_lookup[object_global_id][frame_id] = len(data[object_global_id]) - 1
 
         logger.debug(f'Parsed labels. Dataset size is {n_labels}.')
         data = dict(data)  # Disposing unwanted defaultdict side-effects
-        return data, n_labels
+        return data, n_labels, frame_to_data_index_lookup
 
     @staticmethod
     def _create_trajectory_index(

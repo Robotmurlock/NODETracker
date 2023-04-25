@@ -278,6 +278,9 @@ class LaSOTDataset(TrajectoryDataset):
             'image_path': image_path
         }
 
+    def get_object_data_label_by_frame_index(self, object_id: str, frame_index: int, relative_bbox_coords: bool = True) -> Optional[dict]:
+        return self.get_object_data_label(object_id, frame_index, relative_bbox_coords=relative_bbox_coords)
+
     def get_scene_image_path(self, scene_name: str, frame_id: int) -> str:
         # scene_name == object_id
         category = self._get_sequence_category(scene_name)

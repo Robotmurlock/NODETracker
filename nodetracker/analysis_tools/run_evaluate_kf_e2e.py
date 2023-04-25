@@ -11,7 +11,7 @@ import traceback
 from collections import defaultdict
 from multiprocessing import Pool
 from pathlib import Path
-from typing import Dict, List, Optional, Union, Iterable, Tuple
+from typing import Dict, List, Optional, Union, Iterable, Tuple, Any
 
 import cv2
 import numpy as np
@@ -70,7 +70,7 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def aggregate_metrics(sample_metrics: Dict[str, List[float]]) -> Dict[str, float]:
+def aggregate_metrics(sample_metrics: Any) -> Any:
     """
     Aggregates dictionary of sample metrics (list of values) to dictionary of metrics.
     All metrics should be "mean-friendly".
@@ -81,10 +81,19 @@ def aggregate_metrics(sample_metrics: Dict[str, List[float]]) -> Dict[str, float
     Returns:
         Aggregated metrics.
     """
-    return {k: sum(v) / len(v) for k, v in sample_metrics.items()}
+    if isinstance(sample_metrics, list):
+        return sum(sample_metrics) / len(sample_metrics)
+    elif isinstance(sample_metrics, dict):
+        return {k: aggregate_metrics(v) for k, v in sample_metrics.items()}
+    else:
+        return sample_metrics
 
 
-def merge_metrics(global_metrics: Optional[Dict[str, List[float]]], metrics: Optional[Dict[str, List[float]]]) -> Dict[str, List[float]]:
+def merge_metrics(
+    global_metrics: Optional[Dict[str, Any]],
+    metrics: Optional[Dict[str, List[float]]],
+    scene_name: str
+) -> Dict[str, Any]:
     """
     Adds aggregated metrics to global metrics dictionary.
     If global dictionary is empty then aggregated dictionary is taken as the global one.
@@ -93,6 +102,7 @@ def merge_metrics(global_metrics: Optional[Dict[str, List[float]]], metrics: Opt
     Args:
         global_metrics: Global metrics data
         metrics: Aggregated metrics data (can be empty)
+        scene_name: Save scene name metrics
 
     Returns:
         Merged (global) metrics
@@ -101,13 +111,14 @@ def merge_metrics(global_metrics: Optional[Dict[str, List[float]]], metrics: Opt
         return global_metrics
 
     if global_metrics is None:
-        return metrics
+        return {'global': metrics}
 
-    metric_names = set(global_metrics.keys())
+    metric_names = set(global_metrics['global'].keys())
     assert metric_names == set(metrics.keys()), f'Metric keys do not match: {metric_names} != {set(metrics.keys())}'
 
     for name in metric_names:
-        global_metrics[name].extend(metrics[name])
+        global_metrics['global'][name].extend(metrics[name])
+        global_metrics[scene_name] = metrics
 
     return global_metrics
 
@@ -165,7 +176,7 @@ def simulate_detector_false_positive(proba: float, first_frame: bool) -> bool:
 
 
 def kf_trak_eval(
-    object_id_measurements: List[List[float]],
+    object_id_measurements_frame_ids: Tuple[str, List[List[float]], List[int]],
     det_noise_sigma: float,
     det_skip_proba: float,
     n_pred_steps: int,
@@ -177,7 +188,7 @@ def kf_trak_eval(
 
     Args:
 
-        object_id_measurements: (Object id, List of measurements)
+        object_id_measurements_frame_ids: (Object id, List of measurements, frame_ids)
         det_noise_sigma: Detection noise (sigma)
         det_skip_proba: Detection skip probability
         n_pred_steps: Number of forward inference steps
@@ -187,7 +198,7 @@ def kf_trak_eval(
     Returns:
         Metrics for each tracker step.
     """
-    object_id, measurements = object_id_measurements
+    object_id, measurements, frame_ids = object_id_measurements_frame_ids
 
     kf = BotSortKalmanFilter(use_optimal_motion_mat=use_optimal_motion_mat)  # Create KF for new track
     mean, covariance, mean_hat, covariance_hat, prev_measurement = None, None, None, None, None
@@ -201,6 +212,7 @@ def kf_trak_eval(
 
     for index in range(n_inf_steps):
         measurement = measurements[index]
+        frame_id = frame_ids[index]
         measurement_no_noise = measurement
         measurement = simulate_detector_noise(measurement, prev_measurement, det_noise_sigma)
         skip_detection = simulate_detector_false_positive(det_skip_proba, first_frame=prev_measurement is None)
@@ -253,13 +265,14 @@ def kf_trak_eval(
             prev_measurement = measurement
 
             if not fast_inference:
-                inference['prior'][index] = first_prior.tolist()
-                inference['posterior'][index] = posterior.tolist()
+                inference['prior'][frame_id] = first_prior.tolist()
+                inference['posterior'][frame_id] = posterior.tolist()
 
     return object_id, dict(sample_metrics), inference
 
 
-def create_object_id_iterator(dataset: TrajectoryDataset, scene_name: str) -> Iterable[Tuple[str, List[List[float]]]]:
+def create_object_id_iterator(dataset: TrajectoryDataset, scene_name: str) \
+        -> Iterable[Tuple[str, List[List[float]], List[int]]]:
     """
     Creates object id iterator. Creates input data for motion model for each object existing in the scene.
 
@@ -275,7 +288,9 @@ def create_object_id_iterator(dataset: TrajectoryDataset, scene_name: str) -> It
         n_data_points = dataset.get_object_data_length(object_id)
         measurements = [dataset.get_object_data_label(object_id, index)['bbox']
                         for index in range(n_data_points)]
-        yield object_id, measurements
+        frame_ids = [dataset.get_object_data_label(object_id, index)['frame_id']
+                     for index in range(n_data_points)]
+        yield object_id, measurements, frame_ids
 
 
 def visualize_video(
@@ -301,20 +316,22 @@ def visualize_video(
                     f'Video path is "{video_path}"')
         with MP4Writer(video_path, fps=30) as writer:
             for frame_index in tqdm(range(n_frames), desc='Drawing', unit='frame', total=n_frames):
-                image_path = dataset.get_scene_image_path(scene_name, frame_index)
+                image_path = dataset.get_scene_image_path(scene_name, frame_index + 1)
                 # noinspection PyUnresolvedReferences
                 image = cv2.imread(image_path)
 
                 for object_id, inference_data in inference_visualization_cache.items():
-                    gt_bbox = BBox.from_yxwh(*dataset.get_object_data_label(object_id, frame_index)['bbox'], clip=True)
-                    image = gt_bbox.draw(image, color=color_palette.GREEN)
+                    gt_data = dataset.get_object_data_label_by_frame_index(object_id, frame_index)
+                    if gt_data is not None:
+                        gt_bbox = BBox.from_yxwh(*gt_data['bbox'], clip=True)
+                        image = gt_bbox.draw(image, color=color_palette.GREEN)
 
                     pred_data = inference_data[inference_type].get(frame_index)
                     if pred_data is not None:
                         pred_bbox = BBox.from_yxwh(*pred_data, clip=True)
                         image = pred_bbox.draw(image, color=color_palette.RED)
 
-                        if show_iou:
+                        if show_iou and gt_data is not None:
                             iou_score = gt_bbox.iou(pred_bbox)
                             left, top, _, _ = pred_bbox.scaled_yxyx_from_image(image)
                             image = drawing.draw_text(image, f'{100*iou_score:.1f}', left, top - 3, color_palette.RED)
@@ -372,8 +389,8 @@ def main(args: argparse.Namespace) -> None:
                 if inference_package is None:
                     continue
 
-                object_id, sample_metrics, inference = inference_package
-                global_metrics = merge_metrics(global_metrics, sample_metrics)
+                object_id, scene_metrics, inference = inference_package
+                global_metrics = merge_metrics(global_metrics, scene_metrics, scene_name)
 
                 if args.visualize:
                     inference_visualization_cache[object_id] = inference
