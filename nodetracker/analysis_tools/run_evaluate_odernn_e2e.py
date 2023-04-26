@@ -36,7 +36,7 @@ logger = logging.getLogger('ODERNN_E2E_EVAL')
 # Improvisation
 N_STEPS: int = 5
 N_HIST: int = 10
-MIN_BUFFER_SIZE: int = 3
+MIN_BUFFER_SIZE: int = 1
 DETECTION_NOISE_SIGMA: float = 0.00
 DETECTION_NOISE: int = 4 * DETECTION_NOISE_SIGMA * torch.ones(4, dtype=torch.float32)
 N_MAX_OBJS: Optional[int] = None
@@ -88,6 +88,12 @@ class ODERNNFilter:
         self._model.eval()
 
     def predict(self, x_obs: torch.Tensor, ts_obs: torch.Tensor, ts_unobs: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        if ts_obs.shape[0] == 1:
+            # Only one bbox in history - using baseline (propagate last bbox) instead of NN model
+            x_unobs_mean_hat = torch.stack([x_obs[-1].clone() for _ in range(ts_unobs.shape[0])]).to(ts_obs)
+            x_unobs_std_hat = 10 * torch.ones_like(x_unobs_mean_hat).to(ts_obs)
+            return x_unobs_mean_hat, x_unobs_std_hat
+
         t_x_obs, _, t_ts_obs, *_ = self._transform.apply(data=(x_obs, None, ts_obs), shallow=False)
         t_x_obs, t_ts_obs, ts_unobs = t_x_obs.to(self._accelerator), t_ts_obs.to(self._accelerator), ts_unobs.to(self._accelerator)
         t_x_unobs_mean_hat, t_x_unobs_std_hat, *_ = self._model.inference(t_x_obs, t_ts_obs, ts_unobs)
