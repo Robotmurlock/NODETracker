@@ -32,6 +32,7 @@ class SceneInfo:
     MOT Scene metadata (name, frame shape, ...)
     """
     name: str
+    category: str
     dirpath: str
     gt_path: str
     seqlength: Union[str, int]
@@ -156,7 +157,7 @@ class MOTDataset(TrajectoryDataset):
 
     def get_scene_image_path(self, scene_name: str, frame_id: int) -> str:
         scene_info = self._scene_info_index[scene_name]
-        return self._get_image_path(scene_info, frame_id)
+        return self._get_image_path(scene_info, frame_id + 1)
 
     @staticmethod
     def _get_data_cache_path(path: str, data_name: str) -> str:
@@ -214,7 +215,7 @@ class MOTDataset(TrajectoryDataset):
             raw_info['gt_path'] = gt_path
             raw_info['dirpath'] = scene_directory
 
-            scene_info = SceneInfo(**raw_info)
+            scene_info = SceneInfo(**raw_info, category='pedestrian')
             scene_info_index[scene_name] = scene_info
             logger.debug(f'Scene info {scene_info}.')
 
@@ -262,7 +263,9 @@ class MOTDataset(TrajectoryDataset):
                     data[object_global_id].append({
                         'frame_id': frame_id,
                         'bbox': row.values.tolist(),
-                        'image_path': MOTDataset._get_image_path(scene_info, frame_id)
+                        'image_path': MOTDataset._get_image_path(scene_info, frame_id),
+                        'occ': False,
+                        'oov': False
                     })
                     frame_to_data_index_lookup[object_global_id][frame_id] = len(data[object_global_id]) - 1
 

@@ -53,10 +53,10 @@ class BotSortKalmanFilter(object):
 
         if use_optimal_motion_mat:
             self._motion_mat = np.array(
-                [[1.00000, 0.00000, 0.00000, 0.00000, 3.74974, 0.00000, 0.00000, 0.00000],
-                 [0.00000, 1.00000, 0.00000, 0.00000, 0.00000, 3.16231, 0.00000, 0.00000],
-                 [0.00000, 0.00000, 1.00000, 0.00000, 0.00000, 0.00000, 4.55696, 0.00000],
-                 [0.00000, 0.00000, 0.00000, 1.00000, 0.00000, 0.00000, 0.00000, 3.62997],
+                [[1.00000, 0.00000, 0.00000, 0.00000, 4.17727, 0.00000, 0.00000, 0.00000],
+                 [0.00000, 1.00000, 0.00000, 0.00000, 0.00000, 4.61050, 0.00000, 0.00000],
+                 [0.00000, 0.00000, 1.00000, 0.00000, 0.00000, 0.00000, 3.72298, 0.00000],
+                 [0.00000, 0.00000, 0.00000, 1.00000, 0.00000, 0.00000, 0.00000, 3.61937],
                  [0.00000, 0.00000, 0.00000, 0.00000, 1.00000, 0.00000, 0.00000, 0.00000],
                  [0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 1.00000, 0.00000, 0.00000],
                  [0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 1.00000, 0.00000],
@@ -68,8 +68,11 @@ class BotSortKalmanFilter(object):
         # Motion and observation uncertainty are chosen relative to the current
         # state estimate. These weights control the amount of uncertainty in
         # the model. This is a bit hacky.
-        self._std_weight_position = 1. / 20
-        self._std_weight_velocity = 1. / 160
+        # self._std_weight_position = 1. / 20
+        # self._std_weight_velocity = 1. / 160
+
+        self._std_weight_position = 0.04737
+        self._std_weight_velocity = 0.00875
 
     def initiate(self, measurement):
         """Create track from unassociated measurement.

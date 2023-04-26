@@ -6,7 +6,8 @@ import logging
 import os
 from collections import defaultdict
 from pathlib import Path
-from typing import List, Tuple, Optional
+from typing import List, Tuple, Optional, Dict
+from nodetracker.utils.collections import nesteddict
 
 import hydra
 import numpy as np
@@ -16,8 +17,10 @@ from tqdm import tqdm
 
 from nodetracker.analysis_tools.run_evaluate_kf_e2e import (
     aggregate_metrics,
+    merge_metrics,
     simulate_detector_noise,
     simulate_detector_false_positive,
+    visualize_video,
     METRICS
 )
 from nodetracker.common import conventions
@@ -33,10 +36,15 @@ logger = logging.getLogger('ODERNN_E2E_EVAL')
 # Improvisation
 N_STEPS: int = 5
 N_HIST: int = 10
+MIN_BUFFER_SIZE: int = 3
 DETECTION_NOISE_SIGMA: float = 0.00
 DETECTION_NOISE: int = 4 * DETECTION_NOISE_SIGMA * torch.ones(4, dtype=torch.float32)
 N_MAX_OBJS: Optional[int] = None
 DET_SKIP_PROBA: float = 0.0
+SKIP_OCCLUSION = True
+SKIP_OUT_OF_VIEW = True
+VISUALIZE = True
+VISUALIZE_SHOW_IOU = True
 
 
 class ODETorchTensorBuffer:
@@ -65,6 +73,9 @@ class ODETorchTensorBuffer:
         ts_unobs = torch.tensor(list(range(n_hist_steps + 1, n_hist_steps + n_future_steps + 1)), dtype=torch.float32).view(-1, 1, 1)
 
         return x_obs, ts_obs, ts_unobs
+
+    def clear(self) -> None:
+        self._buffer.clear()
 
 
 class ODERNNFilter:
@@ -117,11 +128,10 @@ def main(cfg: DictConfig):
 
     transform_func = transforms.transform_factory(cfg.transform.name, cfg.transform.params)
 
-    sample_metrics = defaultdict(list)
-
     Path(OUTPUTS_PATH).mkdir(parents=True, exist_ok=True)
     metrics_path = os.path.join(OUTPUTS_PATH,
                                 f'odernn_metrics_noise{DETECTION_NOISE_SIGMA}_skip{DET_SKIP_PROBA}.json')
+
     logger.info('Evaluating ODERNN filter')
 
     checkpoint_path = conventions.get_checkpoint_path(experiment_path, cfg.eval.checkpoint) \
@@ -142,21 +152,43 @@ def main(cfg: DictConfig):
 
     n_finished_objs = 0
 
+    global_metrics = None
     scene_names = dataset.scenes
+
     for scene_name in scene_names:
+        scene_metrics = defaultdict(list)
         object_ids = dataset.get_scene_object_ids(scene_name)
+        scene_info = dataset.get_scene_info(scene_name)
+        inference_visualization_cache: Dict[str, Dict[str, Dict[int, List[float]]]] = nesteddict()  # Used only for visualization
+
         for object_id in tqdm(object_ids, unit='track', desc=f'Evaluating tracker on {scene_name}'):
-            buffer = ODETorchTensorBuffer(N_HIST, min_size=10, dtype=torch.float32)
+            buffer = ODETorchTensorBuffer(N_HIST, min_size=MIN_BUFFER_SIZE, dtype=torch.float32)
             prev_measurement, x_mean_hat, x_std_hat, mean, covariance = None, None, None, None, None
 
             n_data_points = dataset.get_object_data_length(object_id)
             for index in range(n_data_points-n_pred_steps):
-                measurement = dataset.get_object_data_label(object_id, index)['bbox']
+                point_data = dataset.get_object_data_label(object_id, index)
+                frame_id = point_data['frame_id']
+                measurement = point_data['bbox']
                 measurement_no_noise = np.array(measurement, dtype=np.float32)
                 measurement = simulate_detector_noise(measurement, prev_measurement, DETECTION_NOISE_SIGMA)
                 skip_detection = simulate_detector_false_positive(DET_SKIP_PROBA, first_frame=not buffer.has_input)
 
                 measurement = torch.tensor(measurement, dtype=torch.float32)
+
+                if SKIP_OUT_OF_VIEW:
+                    oov = point_data['oov']
+                    if oov:
+                        prev_measurement, x_mean_hat, x_std_hat, mean, covariance = None, None, None, None, None
+                        buffer.clear()
+                        continue
+
+                if SKIP_OCCLUSION:
+                    occ = point_data['occ']
+                    if occ:
+                        prev_measurement, x_mean_hat, x_std_hat, mean, covariance = None, None, None, None, None
+                        buffer.clear()
+                        continue
 
                 if buffer.has_input:
                     x_obs, ts_obs, ts_unobs = buffer.get_input(n_pred_steps)
@@ -179,16 +211,22 @@ def main(cfg: DictConfig):
 
                         for metric_name, metric_func in METRICS:
                             score = metric_func(gt, pred)
-                            sample_metrics[f'prior-{metric_name}-{p_index}'].append(score)
+                            scene_metrics[f'prior-{metric_name}-{p_index}'].append(score)
                             total_score[metric_name] += score
 
                     for metric_name, _ in METRICS:
-                        sample_metrics[f'prior-{metric_name}'].append(total_score[metric_name] / n_pred_steps)
+                        scene_metrics[f'prior-{metric_name}'].append(total_score[metric_name] / n_pred_steps)
 
                     mean_numpy = mean.detach().cpu().numpy()
                     for metric_name, metric_func in METRICS:
                         score = metric_func(mean_numpy, measurement_no_noise)
-                        sample_metrics[f'posterior-{metric_name}'].append(score)
+                        scene_metrics[f'posterior-{metric_name}'].append(score)
+
+                    if VISUALIZE:
+                        inference_visualization_cache[object_id]['prior'][frame_id] = \
+                            x_mean_hat_first.detach().cpu().numpy().tolist()
+                        inference_visualization_cache[object_id]['posterior'][frame_id] = \
+                            mean.detach().cpu().numpy().tolist()
 
                 if skip_detection:
                     buffer.push(mean.clone())
@@ -202,7 +240,25 @@ def main(cfg: DictConfig):
             if N_MAX_OBJS is not None and n_finished_objs >= N_MAX_OBJS:
                 break
 
-    metrics = aggregate_metrics(sample_metrics)
+        global_metrics = merge_metrics(
+            global_metrics=global_metrics,
+            metrics=scene_metrics,
+            scene_name=scene_name,
+            category=scene_info.category
+        )
+
+        if VISUALIZE:
+            visualize_video(
+                scene_name=scene_name,
+                inference_visualization_cache=inference_visualization_cache,
+                dataset=dataset,
+                output_path=OUTPUTS_PATH,
+                video_dirpath='ODE_visualization',
+                model_name=model.__class__.__name__,
+                show_iou=VISUALIZE_SHOW_IOU
+            )
+
+    metrics = aggregate_metrics(global_metrics)
 
     # Save metrics
     logger.info(f'Metrics: \n{json.dumps(metrics, indent=2)}')

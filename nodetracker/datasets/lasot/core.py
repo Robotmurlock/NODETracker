@@ -107,6 +107,8 @@ class LaSOTDataset(TrajectoryDataset):
             history_len: Observed trajectory length
             future_len: Unobserved trajectory length
             sequence_list: Sequence list for dataset split
+            skip_occlusion: Skip trajectories with occlusions
+            skip_out_of_view: Skip trajectories that are out of view
         """
         super().__init__(history_len=history_len, future_len=future_len, sequence_list=sequence_list, **kwargs)
 
@@ -193,11 +195,11 @@ class LaSOTDataset(TrajectoryDataset):
             sequence_index: Sequence info index
             history_len: Observed trajectory length
             future_len: Unobserved trajectory length
-            skip_occlusion: Skip frames with occlusions
-            skip_out_of_view: Skip frames with out of view
+            skip_occlusion: Skip frames with object that is occluded
+            skip_out_of_view: Skip frames with object that is out of view
 
         Returns:
-
+            Trajectory index
         """
         trajectory_len = history_len + future_len
         traj_index: TrajectoryIndex = []
@@ -272,10 +274,14 @@ class LaSOTDataset(TrajectoryDataset):
 
         frame_id = index
         image_path = sequence_info.image_paths[index]
+        occlusion = sequence_info.occlusions[index]
+        out_of_view = sequence_info.out_of_views[index]
         return {
             'frame_id': frame_id,
             'bbox': bbox,
-            'image_path': image_path
+            'image_path': image_path,
+            'occ': occlusion,
+            'oov': out_of_view
         }
 
     def get_object_data_label_by_frame_index(self, object_id: str, frame_index: int, relative_bbox_coords: bool = True) -> Optional[dict]:
@@ -326,7 +332,7 @@ if __name__ == '__main__':
     ]
 
     first_iteration = True
-    for desc, skip_occlusion, skip_out_of_view in configuration:
+    for desc, skip_occlusion_value, skip_out_of_view_value in configuration:
         if not first_iteration:
             print(BAR)
         first_iteration = False
@@ -337,7 +343,7 @@ if __name__ == '__main__':
                 path=os.path.join(ASSETS_PATH, 'LaSOT'),
                 history_len=4,
                 future_len=4,
-                skip_occlusion=skip_occlusion,
-                skip_out_of_view=skip_out_of_view
+                skip_occlusion=skip_occlusion_value,
+                skip_out_of_view=skip_out_of_view_value
             )
         )

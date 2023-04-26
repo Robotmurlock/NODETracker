@@ -58,6 +58,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--dataset-name', type=str, required=True, help='Dataset name.')
     parser.add_argument('--steps', type=int, required=False, default=1, help='Number of forecast steps.')
     parser.add_argument('--optimal-kf', action='store_true', help='Use optimal KF motion matrix.')
+    parser.add_argument('--skip-occ', action='store_true', help='Skip occlusions during inference.')
+    parser.add_argument('--skip-oov', action='store_true', help='Skip out of view during inference.')
     parser.add_argument('--noise-sigma', type=float, required=False, default=0.05,
                         help='Add noise for posterior evaluation. Set 0 to disable.')
     parser.add_argument('--skip-det-proba', type=float, required=False, default=0.0, help='Probability to skip detection.')
@@ -84,7 +86,8 @@ def aggregate_metrics(sample_metrics: Any) -> Any:
     if isinstance(sample_metrics, list):
         return sum(sample_metrics) / len(sample_metrics)
     elif isinstance(sample_metrics, dict):
-        return {k: aggregate_metrics(v) for k, v in sample_metrics.items()}
+        agg = {k: aggregate_metrics(v) for k, v in sample_metrics.items()}
+        return dict(sorted(agg.items()))
     else:
         return sample_metrics
 
@@ -92,7 +95,8 @@ def aggregate_metrics(sample_metrics: Any) -> Any:
 def merge_metrics(
     global_metrics: Optional[Dict[str, Any]],
     metrics: Optional[Dict[str, List[float]]],
-    scene_name: str
+    scene_name: str,
+    category: str
 ) -> Dict[str, Any]:
     """
     Adds aggregated metrics to global metrics dictionary.
@@ -103,6 +107,7 @@ def merge_metrics(
         global_metrics: Global metrics data
         metrics: Aggregated metrics data (can be empty)
         scene_name: Save scene name metrics
+        category: Category
 
     Returns:
         Merged (global) metrics
@@ -111,14 +116,29 @@ def merge_metrics(
         return global_metrics
 
     if global_metrics is None:
-        return {'global': metrics}
+        return {
+            'global': metrics,
+            'categories': {
+                category: metrics
+            },
+            'scenes': {
+                scene_name: metrics
+            }
+        }
 
     metric_names = set(global_metrics['global'].keys())
     assert metric_names == set(metrics.keys()), f'Metric keys do not match: {metric_names} != {set(metrics.keys())}'
 
     for name in metric_names:
         global_metrics['global'][name].extend(metrics[name])
-        global_metrics[scene_name] = metrics
+        if category not in global_metrics['categories']:
+            global_metrics['categories'][category] = {}
+        if name not in global_metrics['categories'][category]:
+            global_metrics['categories'][category][name] = []
+        global_metrics['categories'][category][name].extend(metrics[name])
+
+    assert scene_name not in global_metrics['scenes'], f'Found duplicate scene "{scene_name}"!'
+    global_metrics['scenes'][scene_name] = metrics
 
     return global_metrics
 
@@ -176,11 +196,13 @@ def simulate_detector_false_positive(proba: float, first_frame: bool) -> bool:
 
 
 def kf_trak_eval(
-    object_id_measurements_frame_ids: Tuple[str, List[List[float]], List[int]],
+    object_id_traj_data: Tuple[str, List[dict]],
     det_noise_sigma: float,
     det_skip_proba: float,
     n_pred_steps: int,
     use_optimal_motion_mat: bool = False,
+    skip_occ: bool = False,
+    skip_oov: bool = False,
     fast_inference: bool = True
 ) -> Optional[Tuple[str, Dict[str, List[float]], Dict[str, List[List[float]]]]]:
     """
@@ -188,17 +210,24 @@ def kf_trak_eval(
 
     Args:
 
-        object_id_measurements_frame_ids: (Object id, List of measurements, frame_ids)
+        object_id_traj_data: (Object id, Trajectory point data)
         det_noise_sigma: Detection noise (sigma)
         det_skip_proba: Detection skip probability
         n_pred_steps: Number of forward inference steps
         use_optimal_motion_mat: Use optimal (fine-tuned) KF
         fast_inference: Do not save inference data (optimization)
+        skip_occ: Skip occlusions during inference
+        skip_oov: Skip out of view during inference
 
     Returns:
         Metrics for each tracker step.
     """
-    object_id, measurements, frame_ids = object_id_measurements_frame_ids
+    object_id, traj_data = object_id_traj_data
+
+    measurements = [ti['bbox'] for ti in traj_data]
+    frame_ids = [ti['frame_id'] for ti in traj_data]
+    occlusions = [ti['occ'] for ti in traj_data]
+    out_of_view = [ti['oov'] for ti in traj_data]
 
     kf = BotSortKalmanFilter(use_optimal_motion_mat=use_optimal_motion_mat)  # Create KF for new track
     mean, covariance, mean_hat, covariance_hat, prev_measurement = None, None, None, None, None
@@ -216,6 +245,18 @@ def kf_trak_eval(
         measurement_no_noise = measurement
         measurement = simulate_detector_noise(measurement, prev_measurement, det_noise_sigma)
         skip_detection = simulate_detector_false_positive(det_skip_proba, first_frame=prev_measurement is None)
+
+        if skip_oov:
+            oov = out_of_view[index]
+            if oov:
+                mean, covariance, mean_hat, covariance_hat, prev_measurement = None, None, None, None, None
+                continue
+
+        if skip_occ:
+            occ = occlusions[index]
+            if occ:
+                mean, covariance, mean_hat, covariance_hat, prev_measurement = None, None, None, None, None
+                continue
 
         if mean is None:
             # First KF iteration
@@ -272,7 +313,7 @@ def kf_trak_eval(
 
 
 def create_object_id_iterator(dataset: TrajectoryDataset, scene_name: str) \
-        -> Iterable[Tuple[str, List[List[float]], List[int]]]:
+        -> Iterable[Tuple[str, List[dict]]]:
     """
     Creates object id iterator. Creates input data for motion model for each object existing in the scene.
 
@@ -281,16 +322,13 @@ def create_object_id_iterator(dataset: TrajectoryDataset, scene_name: str) \
         scene_name: Scene (sequence) name
 
     Returns:
-        object_id, measurements
+        object_id, Trajectory data
     """
     object_ids = dataset.get_scene_object_ids(scene_name)
     for object_id in object_ids:
         n_data_points = dataset.get_object_data_length(object_id)
-        measurements = [dataset.get_object_data_label(object_id, index)['bbox']
-                        for index in range(n_data_points)]
-        frame_ids = [dataset.get_object_data_label(object_id, index)['frame_id']
-                     for index in range(n_data_points)]
-        yield object_id, measurements, frame_ids
+        traj_data = [dataset.get_object_data_label(object_id, index) for index in range(n_data_points)]
+        yield object_id, traj_data
 
 
 def visualize_video(
@@ -316,7 +354,7 @@ def visualize_video(
                     f'Video path is "{video_path}"')
         with MP4Writer(video_path, fps=30) as writer:
             for frame_index in tqdm(range(n_frames), desc='Drawing', unit='frame', total=n_frames):
-                image_path = dataset.get_scene_image_path(scene_name, frame_index + 1)
+                image_path = dataset.get_scene_image_path(scene_name, frame_index)
                 # noinspection PyUnresolvedReferences
                 image = cv2.imread(image_path)
 
@@ -347,6 +385,8 @@ def main(args: argparse.Namespace) -> None:
     split_index_path = os.path.join(args.input_path, args.dataset_name, args.split_index_name)
     with open(split_index_path, 'r', encoding='utf-8') as f:
         split_index = yaml.safe_load(f)
+    skip_occ: bool = args.skip_occ
+    skip_oov: bool = args.skip_oov
 
     # Parameters
     n_pred_steps: int = args.steps
@@ -372,6 +412,7 @@ def main(args: argparse.Namespace) -> None:
     for scene_name in scene_names:
         object_id_iterator = create_object_id_iterator(dataset, scene_name)
         n_object_ids = dataset.get_scene_number_of_object_ids(scene_name)
+        scene_info = dataset.get_scene_info(scene_name)
         inference_visualization_cache: Dict[str, Dict[str, Dict[int, List[float]]]] = {}  # Used only for visualization
 
         with Pool(n_workers) as pool:
@@ -381,6 +422,8 @@ def main(args: argparse.Namespace) -> None:
                 det_noise_sigma=det_noise_sigma,
                 n_pred_steps=n_pred_steps,
                 use_optimal_motion_mat=args.optimal_kf,
+                skip_occ=skip_occ,
+                skip_oov=skip_oov,
                 fast_inference=not args.visualize
             )
 
@@ -390,7 +433,13 @@ def main(args: argparse.Namespace) -> None:
                     continue
 
                 object_id, scene_metrics, inference = inference_package
-                global_metrics = merge_metrics(global_metrics, scene_metrics, scene_name)
+
+                global_metrics = merge_metrics(
+                    global_metrics=global_metrics,
+                    metrics=scene_metrics,
+                    scene_name=scene_name,
+                    category=scene_info.category
+                )
 
                 if args.visualize:
                     inference_visualization_cache[object_id] = inference
