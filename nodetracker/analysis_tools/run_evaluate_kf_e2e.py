@@ -60,6 +60,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--optimal-kf', action='store_true', help='Use optimal KF motion matrix.')
     parser.add_argument('--skip-occ', action='store_true', help='Skip occlusions during inference.')
     parser.add_argument('--skip-oov', action='store_true', help='Skip out of view during inference.')
+    parser.add_argument('--occ-as-skip-detection', action='store_true', help='Occlusions and out of view count as skipped detections')
     parser.add_argument('--noise-sigma', type=float, required=False, default=0.05,
                         help='Add noise for posterior evaluation. Set 0 to disable.')
     parser.add_argument('--skip-det-proba', type=float, required=False, default=0.0, help='Probability to skip detection.')
@@ -203,6 +204,7 @@ def kf_trak_eval(
     use_optimal_motion_mat: bool = False,
     skip_occ: bool = False,
     skip_oov: bool = False,
+    occlusion_as_skip_detection: bool = False,
     fast_inference: bool = True
 ) -> Optional[Tuple[str, Dict[str, List[float]], Dict[str, List[List[float]]]]]:
     """
@@ -216,6 +218,7 @@ def kf_trak_eval(
         n_pred_steps: Number of forward inference steps
         use_optimal_motion_mat: Use optimal (fine-tuned) KF
         fast_inference: Do not save inference data (optimization)
+        occlusion_as_skip_detection: Count occlusions and oov as skipped detections
         skip_occ: Skip occlusions during inference
         skip_oov: Skip out of view during inference
 
@@ -242,18 +245,24 @@ def kf_trak_eval(
     for index in range(n_inf_steps):
         measurement = measurements[index]
         frame_id = frame_ids[index]
+        oov = out_of_view[index]
+        occ = occlusions[index]
         measurement_no_noise = measurement
         measurement = simulate_detector_noise(measurement, prev_measurement, det_noise_sigma)
         skip_detection = simulate_detector_false_positive(det_skip_proba, first_frame=prev_measurement is None)
 
+        if occlusion_as_skip_detection:
+            if oov or occ:
+                skip_detection = True
+
         if skip_oov:
-            oov = out_of_view[index]
+            assert not occlusion_as_skip_detection, 'Invalid Program State!'
             if oov:
                 mean, covariance, mean_hat, covariance_hat, prev_measurement = None, None, None, None, None
                 continue
 
         if skip_occ:
-            occ = occlusions[index]
+            assert not occlusion_as_skip_detection, 'Invalid Program State!'
             if occ:
                 mean, covariance, mean_hat, covariance_hat, prev_measurement = None, None, None, None, None
                 continue
@@ -285,22 +294,25 @@ def kf_trak_eval(
                 first_prior = prior if first_prior is None else first_prior
                 gt = np.array(measurements[index + p_index], dtype=np.float32)
 
-                for metric_name, metric_func in METRICS:
-                    score = metric_func(gt, prior)
-                    sample_metrics[f'prior-{metric_name}-{p_index}'].append(score)
-                    total_score[metric_name] += score
+                if not oov:
+                    for metric_name, metric_func in METRICS:
+                        score = metric_func(gt, prior)
+                        sample_metrics[f'prior-{metric_name}-{p_index}'].append(score)
+                        total_score[metric_name] += score
 
-                forward_mean_hat, forward_covariance_hat = kf.predict(forward_mean_hat, forward_covariance_hat)
+                    forward_mean_hat, forward_covariance_hat = kf.predict(forward_mean_hat, forward_covariance_hat)
 
-            for metric_name, _ in METRICS:
-                sample_metrics[f'prior-{metric_name}'].append(total_score[metric_name] / n_pred_steps)
+            if not oov:
+                for metric_name, _ in METRICS:
+                    sample_metrics[f'prior-{metric_name}'].append(total_score[metric_name] / n_pred_steps)
 
             posterior, _ = kf.project(mean, covariance)
             gt = np.array(measurement_no_noise, dtype=np.float32)
 
-            for metric_name, metric_func in METRICS:
-                score = metric_func(posterior, gt)
-                sample_metrics[f'posterior-{metric_name}'].append(score)
+            if not oov:
+                for metric_name, metric_func in METRICS:
+                    score = metric_func(posterior, gt)
+                    sample_metrics[f'posterior-{metric_name}'].append(score)
 
             # Save data
             prev_measurement = measurement
@@ -387,6 +399,9 @@ def main(args: argparse.Namespace) -> None:
         split_index = yaml.safe_load(f)
     skip_occ: bool = args.skip_occ
     skip_oov: bool = args.skip_oov
+    occ_as_skip_detection: bool = args.occ_as_skip_detection
+    assert (not occ_as_skip_detection) or (not skip_occ and not skip_oov), \
+        'Cat\'t use "occ_as_skip_detection" with "skip_occ" or "skip_oov"'
 
     # Parameters
     n_pred_steps: int = args.steps
@@ -424,7 +439,8 @@ def main(args: argparse.Namespace) -> None:
                 use_optimal_motion_mat=args.optimal_kf,
                 skip_occ=skip_occ,
                 skip_oov=skip_oov,
-                fast_inference=not args.visualize
+                fast_inference=not args.visualize,
+                occlusion_as_skip_detection=occ_as_skip_detection
             )
 
             for inference_package in tqdm(pool.imap_unordered(method, object_id_iterator),

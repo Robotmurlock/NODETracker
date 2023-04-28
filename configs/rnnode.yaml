@@ -7,4 +7,5 @@ defaults:
   - eval: rnnode.yaml
   - visualize: default.yaml
   - augmentations: default.yaml
+  - path: lasot.yaml
   - _self_

@@ -7,7 +7,6 @@ import os
 from collections import defaultdict
 from pathlib import Path
 from typing import List, Tuple, Optional, Dict
-from nodetracker.utils.collections import nesteddict
 
 import hydra
 import numpy as np
@@ -29,6 +28,7 @@ from nodetracker.common.project import OUTPUTS_PATH
 from nodetracker.datasets import transforms, dataset_factory
 from nodetracker.node import load_or_create_model, LightningGaussianModel
 from nodetracker.utils import pipeline
+from nodetracker.utils.collections import nesteddict
 
 logger = logging.getLogger('ODERNN_E2E_EVAL')
 
@@ -41,9 +41,10 @@ DETECTION_NOISE_SIGMA: float = 0.00
 DETECTION_NOISE: int = 4 * DETECTION_NOISE_SIGMA * torch.ones(4, dtype=torch.float32)
 N_MAX_OBJS: Optional[int] = None
 DET_SKIP_PROBA: float = 0.0
-SKIP_OCCLUSION = True
-SKIP_OUT_OF_VIEW = True
-VISUALIZE = True
+SKIP_OCCLUSION = False
+SKIP_OUT_OF_VIEW = False
+OCCLUSION_AS_SKIP_DETECTION = True
+VISUALIZE = False
 VISUALIZE_SHOW_IOU = True
 
 
@@ -123,6 +124,8 @@ class ODERNNFilter:
 @hydra.main(config_path=CONFIGS_PATH, config_name='default', version_base='1.1')
 def main(cfg: DictConfig):
     cfg, experiment_path = pipeline.preprocess(cfg, name='visualize_trajectories')
+    assert (not OCCLUSION_AS_SKIP_DETECTION) or (not SKIP_OCCLUSION and not SKIP_OUT_OF_VIEW), \
+        'Cat\'t use "occ_as_skip_detection" with "skip_occ" or "skip_oov"'
 
     dataset = dataset_factory(
         name=cfg.dataset.name,
@@ -176,21 +179,28 @@ def main(cfg: DictConfig):
                 point_data = dataset.get_object_data_label(object_id, index)
                 frame_id = point_data['frame_id']
                 measurement = point_data['bbox']
+                oov = point_data['oov']
+                occ = point_data['occ']
+
                 measurement_no_noise = np.array(measurement, dtype=np.float32)
                 measurement = simulate_detector_noise(measurement, prev_measurement, DETECTION_NOISE_SIGMA)
                 skip_detection = simulate_detector_false_positive(DET_SKIP_PROBA, first_frame=not buffer.has_input)
 
                 measurement = torch.tensor(measurement, dtype=torch.float32)
 
+                if OCCLUSION_AS_SKIP_DETECTION:
+                    if oov or occ:
+                        skip_detection = True
+
                 if SKIP_OUT_OF_VIEW:
-                    oov = point_data['oov']
+                    assert not OCCLUSION_AS_SKIP_DETECTION, 'Invalid Program State!'
                     if oov:
                         prev_measurement, x_mean_hat, x_std_hat, mean, covariance = None, None, None, None, None
                         buffer.clear()
                         continue
 
                 if SKIP_OCCLUSION:
-                    occ = point_data['occ']
+                    assert not OCCLUSION_AS_SKIP_DETECTION, 'Invalid Program State!'
                     if occ:
                         prev_measurement, x_mean_hat, x_std_hat, mean, covariance = None, None, None, None, None
                         buffer.clear()
@@ -215,18 +225,21 @@ def main(cfg: DictConfig):
                         gt = np.array(dataset.get_object_data_label(object_id, index + p_index)['bbox'],
                                       dtype=np.float32)
 
+                        if not oov:
+                            for metric_name, metric_func in METRICS:
+                                score = metric_func(gt, pred)
+                                scene_metrics[f'prior-{metric_name}-{p_index}'].append(score)
+                                total_score[metric_name] += score
+
+                    if not oov:
+                        for metric_name, _ in METRICS:
+                            scene_metrics[f'prior-{metric_name}'].append(total_score[metric_name] / n_pred_steps)
+
+                    if not oov:
+                        mean_numpy = mean.detach().cpu().numpy()
                         for metric_name, metric_func in METRICS:
-                            score = metric_func(gt, pred)
-                            scene_metrics[f'prior-{metric_name}-{p_index}'].append(score)
-                            total_score[metric_name] += score
-
-                    for metric_name, _ in METRICS:
-                        scene_metrics[f'prior-{metric_name}'].append(total_score[metric_name] / n_pred_steps)
-
-                    mean_numpy = mean.detach().cpu().numpy()
-                    for metric_name, metric_func in METRICS:
-                        score = metric_func(mean_numpy, measurement_no_noise)
-                        scene_metrics[f'posterior-{metric_name}'].append(score)
+                            score = metric_func(mean_numpy, measurement_no_noise)
+                            scene_metrics[f'posterior-{metric_name}'].append(score)
 
                     if VISUALIZE:
                         inference_visualization_cache[object_id]['prior'][frame_id] = \

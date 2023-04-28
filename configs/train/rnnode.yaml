@@ -1,5 +1,5 @@
-experiment: 'RNNODE-lasot-exp06-dog-cat-turtle-robot-airplane-64dim-no-oov-no-occ-long-train'
-description: 'RNNODE - five categories - 64dim. No occlusions and no out of view in training. Long train, bigger batch size.'
+experiment: 'RNNODE-lasot-exp01-64dim-no-occ-long-train'
+description: 'RNNODE - full dataset - 64dim. No out of view in training. Long train, bigger batch size.'
 batch_size: 64
 learning_rate: 1e-3
 max_epochs: 20
