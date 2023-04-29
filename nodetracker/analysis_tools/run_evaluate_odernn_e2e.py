@@ -225,17 +225,17 @@ def main(cfg: DictConfig):
                         gt = np.array(dataset.get_object_data_label(object_id, index + p_index)['bbox'],
                                       dtype=np.float32)
 
-                        if not oov:
+                        if not oov and not occ:
                             for metric_name, metric_func in METRICS:
                                 score = metric_func(gt, pred)
                                 scene_metrics[f'prior-{metric_name}-{p_index}'].append(score)
                                 total_score[metric_name] += score
 
-                    if not oov:
+                    if not oov and not occ:
                         for metric_name, _ in METRICS:
                             scene_metrics[f'prior-{metric_name}'].append(total_score[metric_name] / n_pred_steps)
 
-                    if not oov:
+                    if not oov and not occ:
                         mean_numpy = mean.detach().cpu().numpy()
                         for metric_name, metric_func in METRICS:
                             score = metric_func(mean_numpy, measurement_no_noise)

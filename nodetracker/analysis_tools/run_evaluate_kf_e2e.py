@@ -294,7 +294,7 @@ def kf_trak_eval(
                 first_prior = prior if first_prior is None else first_prior
                 gt = np.array(measurements[index + p_index], dtype=np.float32)
 
-                if not oov:
+                if not oov and not occ:
                     for metric_name, metric_func in METRICS:
                         score = metric_func(gt, prior)
                         sample_metrics[f'prior-{metric_name}-{p_index}'].append(score)
@@ -302,14 +302,14 @@ def kf_trak_eval(
 
                     forward_mean_hat, forward_covariance_hat = kf.predict(forward_mean_hat, forward_covariance_hat)
 
-            if not oov:
+            if not oov and not occ:
                 for metric_name, _ in METRICS:
                     sample_metrics[f'prior-{metric_name}'].append(total_score[metric_name] / n_pred_steps)
 
             posterior, _ = kf.project(mean, covariance)
             gt = np.array(measurement_no_noise, dtype=np.float32)
 
-            if not oov:
+            if not oov and not occ:
                 for metric_name, metric_func in METRICS:
                     score = metric_func(posterior, gt)
                     sample_metrics[f'posterior-{metric_name}'].append(score)
