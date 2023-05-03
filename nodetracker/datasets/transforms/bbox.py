@@ -92,26 +92,30 @@ class BBoxStandardizationTransform(InvertibleTransformWithStd):
 
     def apply(self, data: TensorCollection, shallow: bool = True) -> TensorCollection:
         bbox_obs, bbox_unobs, *other = data
+        mean = self._mean.to(bbox_obs)
+        std = self._std.to(bbox_obs)
 
-        bbox_obs = (bbox_obs - self._mean) / self._std
+        bbox_obs = (bbox_obs - mean) / std
         # During live inference, bbox_unobs are not known (this is for training only)
-        bbox_unobs = (bbox_unobs - self._mean) / self._std if bbox_unobs is not None else None
+        bbox_unobs = (bbox_unobs - mean) / std if bbox_unobs is not None else None
 
         return bbox_obs, bbox_unobs, *other
 
     def inverse(self, data: TensorCollection, shallow: bool = True, n_samples: int = 1) -> TensorCollection:
         bbox_obs, bbox_unobs, *other = data
+        mean = self._mean.to(bbox_obs)
+        std = self._std.to(bbox_obs)
 
         if n_samples == 1:
             # Note: inverse transform is not applied to `bbox_obs`
-            bbox_unobs = bbox_unobs * self._std + self._mean
+            bbox_unobs = bbox_unobs * std + mean
         else:
             # Support (Improvisation) for VAE monte carlo sampling for mean and std estimation
-            mean_repeated = self._mean.repeat(n_samples)
-            std_repeated = self._std.repeat(n_samples)
+            mean_repeated = mean.repeat(n_samples)
+            std_repeated = std.repeat(n_samples)
             bbox_unobs = bbox_unobs * std_repeated + mean_repeated
 
-        return [bbox_obs, bbox_unobs, *other]
+        return bbox_obs, bbox_unobs, *other
 
     def inverse_std(self, t_std: torch.Tensor, additional_data: Optional[TensorCollection] = None, shallow: bool = True) \
             -> TensorCollection:
@@ -120,7 +124,8 @@ class BBoxStandardizationTransform(InvertibleTransformWithStd):
         # y[i] = (x[i] - m) / s
         # => x[i] = y[i] * s + m
         # => std(x) = std(y) * s
-        return t_std * self._std
+        std = self._std.to(t_std)
+        return t_std * std
 
 
 class BBoxStandardizedFirstOrderDifferenceTransform(InvertibleTransformWithStd):
