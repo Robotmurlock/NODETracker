@@ -163,6 +163,7 @@ class TrainConfig:
     logging_cfg: TrainLoggingConfig
     checkpoint_cfg: TrainCheckpointConfig
 
+    inverse_transform_before_loss: bool = field(default=False)
     train_params: Optional[dict] = field(default_factory=dict)  # default: empty dict
 
 

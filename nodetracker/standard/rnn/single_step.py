@@ -1,11 +1,12 @@
 """
 Autoregressive single-step RNN
 """
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Union
 
 import torch
 from torch import nn
 
+from nodetracker.datasets.transforms import InvertibleTransform, InvertibleTransformWithStd
 from nodetracker.library import time_series
 from nodetracker.library.building_blocks import MLP
 from nodetracker.node.utils import LightningModuleForecaster, LightningTrainConfig
@@ -77,6 +78,7 @@ class LightningSingleStepRNN(LightningModuleForecaster):
         rnn_n_layers: int = 1,
 
         model_gaussian: bool = False,
+        transform_func: Optional[Union[InvertibleTransform, InvertibleTransformWithStd]] = None,
 
         train_config: Optional[LightningTrainConfig] = None
     ):
@@ -90,7 +92,8 @@ class LightningSingleStepRNN(LightningModuleForecaster):
         super().__init__(
             train_config=train_config,
             model=model,
-            model_gaussian=model_gaussian
+            model_gaussian=model_gaussian,
+            transform_func=transform_func
         )
 
 

@@ -1,7 +1,10 @@
-from nodetracker.node.utils.training import LightningModuleForecaster, LightningTrainConfig
-from typing import Optional, Tuple, Type, Dict, Any
-from torch import nn
+from typing import Optional, Tuple, Type, Dict, Any, Union
+
 import torch
+from torch import nn
+
+from nodetracker.datasets.transforms import InvertibleTransform, InvertibleTransformWithStd
+from nodetracker.node.utils.training import LightningModuleForecaster, LightningTrainConfig
 
 
 class LightningGaussianModel(LightningModuleForecaster):
@@ -12,9 +15,15 @@ class LightningGaussianModel(LightningModuleForecaster):
         self,
         model: nn.Module,
         model_gaussian: bool = False,
-        train_config: Optional[LightningTrainConfig] = None
+        train_config: Optional[LightningTrainConfig] = None,
+        transform_func: Optional[Union[InvertibleTransform, InvertibleTransformWithStd]] = None
     ):
-        super().__init__(train_config=train_config, model=model, model_gaussian=model_gaussian)
+        super().__init__(
+            train_config=train_config,
+            model=model,
+            model_gaussian=model_gaussian,
+            transform_func=transform_func
+        )
 
         self._is_modeling_gaussian = model_gaussian
 

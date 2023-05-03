@@ -1,8 +1,10 @@
-experiment: 'RNNODE-lasot-exp04-128dim-no-occ-no-oov-long-train-hybrid_gaussian_nllloss_giou'
-description: 'RNNODE - full dataset - 64dim. No out of view and occlusion in training. Using hybrid_gaussian_nllloss_giou.'
+experiment: 'RNNODE-lasot-exp04-128dim-no-occ-no-oov-long-train-inverse-func'
+description: 'RNNODE - full dataset - 128dim. No out of view and occlusion in training. Using inverse transform func before.'
 batch_size: 64
 learning_rate: 1e-3
 max_epochs: 20
+
+inverse_transform_before_loss: True
 
 train_params:
   optim_name: adamw
@@ -11,10 +13,7 @@ train_params:
   sched_lr_step: 5
   weight_decay: 0.0001
 
-  loss_name: 'hybrid_gaussian_nllloss_giou'
-  loss_params:
-    w_nllloss: 5
-    w_giou: 1
+  loss_name: 'gaussian_nllloss'
 
 logging_cfg:
   path: 'logs'

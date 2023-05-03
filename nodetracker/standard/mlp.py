@@ -1,12 +1,13 @@
 """
 Implementation of simple MLP forecaster model.
 """
-from typing import Optional
+from typing import Optional, Union
 
 import torch
 from torch import nn
 
 from nodetracker.library.building_blocks import MLP
+from nodetracker.datasets.transforms import InvertibleTransform, InvertibleTransformWithStd
 from nodetracker.node.utils import LightningTrainConfig, LightningModuleForecaster
 
 
@@ -68,7 +69,8 @@ class LightningMLPForecaster(LightningModuleForecaster):
         forecast_steps: int,
         n_layers: int = 1,
 
-        train_config: Optional[LightningTrainConfig] = None
+        train_config: Optional[LightningTrainConfig] = None,
+        transform_func: Optional[Union[InvertibleTransform, InvertibleTransformWithStd]] = None,
     ):
         """
         Args:
@@ -87,8 +89,11 @@ class LightningMLPForecaster(LightningModuleForecaster):
             forecast_steps=forecast_steps,
             n_layers=n_layers
         )
-        loss_func = nn.MSELoss()
-        super().__init__(train_config=train_config, model=model, loss_func=loss_func)
+        super().__init__(
+            train_config=train_config,
+            model=model,
+            transform_func=transform_func
+        )
 
 
 # noinspection DuplicatedCode

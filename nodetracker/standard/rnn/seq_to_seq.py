@@ -3,11 +3,12 @@ Implementation of simple RNN Encoder Decoder architecture used for comparison
 - Encoder: using same form of RNNEncoder as in ODERNN
 - Decoder: Variable step regression
 """
-from typing import Optional
+from typing import Optional, Union
 
 import torch
 from torch import nn
 
+from nodetracker.datasets.transforms import InvertibleTransform, InvertibleTransformWithStd
 from nodetracker.library import time_series
 from nodetracker.library.building_blocks import MLP
 from nodetracker.node.utils import LightningTrainConfig, LightningModuleForecaster
@@ -160,6 +161,7 @@ class LightningRNNSeq2Seq(LightningModuleForecaster):
             dcoder_rnn_n_layers: int = 1,
 
             model_guassian: bool = False,
+            transform_func: Optional[Union[InvertibleTransform, InvertibleTransformWithStd]] = None,
 
             train_config: Optional[LightningTrainConfig] = None
     ):
@@ -182,7 +184,8 @@ class LightningRNNSeq2Seq(LightningModuleForecaster):
         super().__init__(
             train_config=train_config,
             model=model,
-            model_gaussian=model_guassian
+            model_gaussian=model_guassian,
+            transform_func=transform_func
         )
 
 

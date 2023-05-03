@@ -14,6 +14,7 @@ from nodetracker.node.utils.training import LightningModuleForecaster
 from nodetracker.standard.mlp import LightningMLPForecaster
 from nodetracker.standard.rnn import LightningRNNSeq2Seq, LightningARRNN, LightningSingleStepRNN
 from nodetracker.standard.trainable_kalman_filter import LightningAdaptiveKalmanFilter
+from nodetracker.datasets.transforms import InvertibleTransform, InvertibleTransformWithStd
 
 
 class ModelType(enum.Enum):
@@ -52,7 +53,8 @@ def load_or_create_model(
     model_type: Union[ModelType, str],
     params: dict,
     checkpoint_path: Optional[str] = None,
-    train_params: Optional[dict] = None
+    train_params: Optional[dict] = None,
+    transform_func: Optional[Union[InvertibleTransform, InvertibleTransformWithStd]] = None
 ) -> Union[LightningModuleForecaster, LightningModule]:
     """
     Loads trained (if given checkpoint path) or creates new model given name and parameters.
@@ -67,6 +69,7 @@ def load_or_create_model(
         params: Model parameters'
         checkpoint_path: Load pretrained model
         train_params: Parameters for model training
+        transform_func: Transform function (applied before loss)
     Returns:
         Model
     """
@@ -98,6 +101,15 @@ def load_or_create_model(
         raise ValueError('Train config and checkpoint path can\'t be both None for trainable models!')
 
     if checkpoint_path is not None:
-        return model_cls.load_from_checkpoint(checkpoint_path=checkpoint_path, **params, train_config=train_config)
+        return model_cls.load_from_checkpoint(
+            **params,
+            checkpoint_path=checkpoint_path,
+            train_config=train_config,
+            transform_func=transform_func
+        )
 
-    return model_cls(**params, train_config=train_config)
+    return model_cls(
+        **params,
+        train_config=train_config,
+        transform_func=transform_func
+    )

@@ -52,7 +52,8 @@ def main(cfg: DictConfig):
     model = load_or_create_model(
         model_type=model_type,
         params=cfg.model.params,
-        train_params=cfg.train.train_params
+        train_params=cfg.train.train_params,
+        transform_func=postprocess_transform if cfg.train.inverse_transform_before_loss else None
     )
 
     tb_logger = TensorBoardLogger(save_dir=experiment_path, name=conventions.TENSORBOARD_DIRNAME)

@@ -2,11 +2,12 @@
 Custom model: RNN-ODE
 Like ODE-RNN but without ODE in encoder
 """
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Union
 
 import torch
 from torch import nn
 
+from nodetracker.datasets.transforms import InvertibleTransform, InvertibleTransformWithStd
 from nodetracker.node.core.odevae import NODEDecoder
 from nodetracker.node.odernn.utils import LightningGaussianModel, run_simple_lightning_guassian_model_test
 from nodetracker.node.utils import LightningTrainConfig
@@ -65,6 +66,7 @@ class LightningRNNODE(LightningGaussianModel):
         hidden_dim: int,
 
         model_gaussian: bool = False,
+        transform_func: Optional[Union[InvertibleTransform, InvertibleTransformWithStd]] = None,
 
         n_encoder_rnn_layers: int = 1,
 
@@ -84,7 +86,8 @@ class LightningRNNODE(LightningGaussianModel):
         super().__init__(
             train_config=train_config,
             model=model,
-            model_gaussian=model_gaussian
+            model_gaussian=model_gaussian,
+            transform_func=transform_func
         )
 
 if __name__ == '__main__':

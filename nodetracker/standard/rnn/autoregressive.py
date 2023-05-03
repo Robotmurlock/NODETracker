@@ -1,13 +1,14 @@
 """
 Autoregressive RNN
 """
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Union
 
 import torch
 from torch import nn
 
 from nodetracker.library import time_series
 from nodetracker.library.building_blocks import MLP, ResnetMLPBlock
+from nodetracker.datasets.transforms import InvertibleTransform, InvertibleTransformWithStd
 from nodetracker.node.utils import LightningModuleForecasterWithTeacherForcing, LightningTrainConfig
 
 
@@ -139,6 +140,7 @@ class LightningARRNN(LightningModuleForecasterWithTeacherForcing):
         rnn_n_layers: int = 1,
 
         model_gaussian: bool = False,
+        transform_func: Optional[Union[InvertibleTransform, InvertibleTransformWithStd]] = None,
         teacher_forcing: bool = False,
 
         train_config: Optional[LightningTrainConfig] = None
@@ -157,6 +159,7 @@ class LightningARRNN(LightningModuleForecasterWithTeacherForcing):
             train_config=train_config,
             model=model,
             model_gaussian=model_gaussian,
+            transform_func=transform_func,
             teacher_forcing=teacher_forcing
         )
 
