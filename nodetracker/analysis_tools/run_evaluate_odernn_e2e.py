@@ -13,6 +13,7 @@ import numpy as np
 import torch
 from omegaconf import DictConfig
 from tqdm import tqdm
+import re
 
 from nodetracker.analysis_tools.run_evaluate_kf_e2e import (
     aggregate_metrics,
@@ -44,8 +45,9 @@ DET_SKIP_PROBA: float = 0.0
 SKIP_OCCLUSION = False
 SKIP_OUT_OF_VIEW = False
 OCCLUSION_AS_SKIP_DETECTION = True
-VISUALIZE = False
+VISUALIZE = True
 VISUALIZE_SHOW_IOU = True
+SCENE_REGEX_FILTER = 'yoyo-*'
 
 
 class ODETorchTensorBuffer:
@@ -163,6 +165,8 @@ def main(cfg: DictConfig):
 
     global_metrics = None
     scene_names = dataset.scenes
+    if SCENE_REGEX_FILTER is not None:
+        scene_names = [sn for sn in scene_names if re.match(SCENE_REGEX_FILTER, sn)]
 
     for scene_name in scene_names:
         scene_metrics = defaultdict(list)

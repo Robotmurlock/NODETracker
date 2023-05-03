@@ -159,8 +159,6 @@ class LightningODERNN(LightningGaussianModel):
             model_gaussian=model_gaussian
         )
 
-        self._is_modeling_gaussian = model_gaussian
-
 
 if __name__ == '__main__':
     run_simple_lightning_guassian_model_test(

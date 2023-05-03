@@ -14,8 +14,7 @@ class LightningGaussianModel(LightningModuleForecaster):
         model_gaussian: bool = False,
         train_config: Optional[LightningTrainConfig] = None
     ):
-        loss_func = nn.GaussianNLLLoss() if model_gaussian else nn.MSELoss()
-        super().__init__(train_config=train_config, model=model, loss_func=loss_func, model_gaussian=model_gaussian)
+        super().__init__(train_config=train_config, model=model, model_gaussian=model_gaussian)
 
         self._is_modeling_gaussian = model_gaussian
 

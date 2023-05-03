@@ -208,6 +208,7 @@ class LightningODERNNVAE(LightningModuleBase):
             solver_name=solver_name,
             solver_params=solver_params
         )
+        assert train_config.loss_name.lower() == 'elbo', 'ODERNNVAE only supports ELBO loss!'
         self._loss_func = ELBO(noise_std)
 
     def forward(self, x: torch.Tensor, t_obs: torch.Tensor, t_unobs: Optional[torch.Tensor] = None) \

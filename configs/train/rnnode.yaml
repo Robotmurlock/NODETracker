@@ -1,5 +1,5 @@
-experiment: 'RNNODE-lasot-exp02-64dim-no-occ-no-oov-long-train'
-description: 'RNNODE - full dataset - 64dim. No out of view and occlusion in training. Long train, bigger batch size, weight decay.'
+experiment: 'RNNODE-lasot-exp04-128dim-no-occ-no-oov-long-train-hybrid_gaussian_nllloss_giou'
+description: 'RNNODE - full dataset - 64dim. No out of view and occlusion in training. Using hybrid_gaussian_nllloss_giou.'
 batch_size: 64
 learning_rate: 1e-3
 max_epochs: 20
@@ -10,6 +10,11 @@ train_params:
   sched_lr_gamma: 0.1
   sched_lr_step: 5
   weight_decay: 0.0001
+
+  loss_name: 'hybrid_gaussian_nllloss_giou'
+  loss_params:
+    w_nllloss: 5
+    w_giou: 1
 
 logging_cfg:
   path: 'logs'

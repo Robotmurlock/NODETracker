@@ -12,6 +12,7 @@ from collections import defaultdict
 from multiprocessing import Pool
 from pathlib import Path
 from typing import Dict, List, Optional, Union, Iterable, Tuple, Any
+import re
 
 import cv2
 import numpy as np
@@ -70,6 +71,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--video-dirpath', type=str, default='KF_visualization', required=False,
                         help='Visualization dirpath relative to the `output-path`.')
     parser.add_argument('--visualize-show-iou', action='store_true', required=False, help='Draw IOU (accuracy) one images.')
+    parser.add_argument('--scene-regex-filter', type=str, required=False, default=None, help='Filter scene by ')
     return parser.parse_args()
 
 
@@ -424,6 +426,9 @@ def main(args: argparse.Namespace) -> None:
 
     global_metrics = None
     scene_names = dataset.scenes
+    if args.scene_regex_filter is not None:
+        scene_names = [sn for sn in scene_names if re.match(args.scene_regex_filter, sn)]
+
     for scene_name in scene_names:
         object_id_iterator = create_object_id_iterator(dataset, scene_name)
         n_object_ids = dataset.get_scene_number_of_object_ids(scene_name)

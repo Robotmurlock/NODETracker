@@ -87,11 +87,9 @@ class LightningSingleStepRNN(LightningModuleForecaster):
             head_n_layers=head_n_layers,
             rnn_n_layers=rnn_n_layers
         )
-        loss_func = nn.MSELoss()
         super().__init__(
             train_config=train_config,
             model=model,
-            loss_func=loss_func,
             model_gaussian=model_gaussian
         )
 

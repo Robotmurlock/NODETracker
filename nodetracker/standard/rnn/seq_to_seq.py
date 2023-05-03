@@ -179,11 +179,9 @@ class LightningRNNSeq2Seq(LightningModuleForecaster):
             encoder_rnn_n_layers=encoder_rnn_n_layers,
             dcoder_rnn_n_layers=dcoder_rnn_n_layers
         )
-        loss_func = nn.MSELoss()
         super().__init__(
             train_config=train_config,
             model=model,
-            loss_func=loss_func,
             model_gaussian=model_guassian
         )
 
