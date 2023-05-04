@@ -1,0 +1,24 @@
+# Predictions steps (for multistep evaluation)
+n_steps: 5
+
+# Handling occ and oov
+skip_occ: False
+skip_oov: False
+occ_and_oov_as_skip_detection: True
+
+# Simulating detector
+noise_sigma: 0.05
+skip_det_proba: 0.0
+
+# Filter factory config
+filter_name: 'akf'
+filter_params:
+  optimal_motion_mat: True
+
+# Visualization
+visualize: False
+video_dirpath: 'visualization'
+visualize_show_iou: True
+
+# Scene filter
+scene_regex_filter: null

@@ -333,7 +333,8 @@ if __name__ == '__main__':
     configure_logging(logging.DEBUG)
 
     dataset = MOTDataset(
-        path=os.path.join(ASSETS_PATH, 'MOT20', 'train'),
+        path=os.path.join(ASSETS_PATH, 'MOT20'),
+        sequence_list=['MOT20-05'],
         history_len=4,
         future_len=4
     )

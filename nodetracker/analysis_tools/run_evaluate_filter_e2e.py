@@ -27,7 +27,7 @@ from nodetracker.library.cv.bbox import BBox
 from nodetracker.library.cv import color_palette
 from nodetracker.library.cv.video_writer import MP4Writer
 from nodetracker.library.cv import drawing
-from nodetracker.library.kalman_filter.botsort_kf import BotSortKalmanFilter
+from nodetracker.filter import BotSortKalmanFilterWrapper
 from nodetracker.utils.logging import configure_logging
 
 METRICS = [
@@ -239,8 +239,8 @@ def kf_trak_eval(
     occlusions = [ti['occ'] for ti in traj_data]
     out_of_view = [ti['oov'] for ti in traj_data]
 
-    kf = BotSortKalmanFilter(use_optimal_motion_mat=use_optimal_motion_mat)  # Create KF for new track
-    mean, covariance, mean_hat, covariance_hat, prev_measurement = None, None, None, None, None
+    kf = BotSortKalmanFilterWrapper(use_optimal_motion_mat=use_optimal_motion_mat)  # Create KF for new track
+    prior_state, posterior_state, prev_measurement = None, None, None
     sample_metrics: Dict = defaultdict(list)
     inference = {k: {} for k in ['prior', 'posterior']}
 
@@ -257,6 +257,7 @@ def kf_trak_eval(
         measurement_no_noise = measurement
         measurement = simulate_detector_noise(measurement, prev_measurement, det_noise_sigma)
         skip_detection = simulate_detector_false_positive(det_skip_proba, first_frame=prev_measurement is None)
+        measurement = torch.tensor(measurement, dtype=torch.float32)
 
         if occlusion_as_skip_detection:
             if oov or occ:
@@ -265,39 +266,40 @@ def kf_trak_eval(
         if skip_oov:
             assert not occlusion_as_skip_detection, 'Invalid Program State!'
             if oov:
-                mean, covariance, mean_hat, covariance_hat, prev_measurement = None, None, None, None, None
+                prior_state, posterior_state, prev_measurement = None, None, None
                 continue
 
         if skip_occ:
             assert not occlusion_as_skip_detection, 'Invalid Program State!'
             if occ:
-                mean, covariance, mean_hat, covariance_hat, prev_measurement = None, None, None, None, None
+                prior_state, posterior_state, prev_measurement = None, None, None
                 continue
 
-        if mean is None:
+        if posterior_state is None:
             # First KF iteration
-            mean, covariance = kf.initiate(measurement)
-            prior, _ = kf.project(mean, covariance)
+            posterior_state = kf.initiate(measurement)
+            prior, _ = kf.project(posterior_state)
             # Nothing to compare in first iteration
         else:
             # Perform prediction
-            mean_hat, covariance_hat = kf.predict(mean, covariance)  # Prior
+            prior_state = kf.predict(posterior_state)  # Prior
             if skip_detection:
-                mean, covariance = mean_hat, covariance_hat
+                posterior_state = prior_state
             else:
                 # noinspection PyBroadException
                 try:
-                    mean, covariance = kf.update(mean_hat, covariance_hat, measurement)  # Posterior
+                    posterior_state = kf.update(prior_state, measurement)  # Posterior
                 except:
                     logger.error(f'Error occurred on update: {traceback.format_exc()}!')
-                    mean, covariance = mean_hat, covariance_hat
+                    posterior_state = prior_state
 
             total_score = {k: 0.0 for k, _ in METRICS}
 
-            forward_mean_hat, forward_covariance_hat = mean_hat, covariance_hat
+            forward_state = posterior_state
             first_prior = None
             for p_index in range(n_pred_steps):
-                prior, _ = kf.project(forward_mean_hat, forward_covariance_hat)  # KF Prediction is before update
+                prior, _ = kf.project(forward_state)  # KF Prediction is before update
+                prior = prior.detach().cpu().numpy()
                 first_prior = prior if first_prior is None else first_prior
                 gt = np.array(measurements[index + p_index], dtype=np.float32)
 
@@ -307,13 +309,14 @@ def kf_trak_eval(
                         sample_metrics[f'prior-{metric_name}-{p_index}'].append(score)
                         total_score[metric_name] += score
 
-                    forward_mean_hat, forward_covariance_hat = kf.predict(forward_mean_hat, forward_covariance_hat)
+                    forward_state = kf.predict(forward_state)
 
             if not oov and not occ:
                 for metric_name, _ in METRICS:
                     sample_metrics[f'prior-{metric_name}'].append(total_score[metric_name] / n_pred_steps)
 
-            posterior, _ = kf.project(mean, covariance)
+            posterior, _ = kf.project(posterior_state)
+            posterior = posterior.detach().cpu().numpy()
             gt = np.array(measurement_no_noise, dtype=np.float32)
 
             if not oov and not occ:
@@ -322,7 +325,7 @@ def kf_trak_eval(
                     sample_metrics[f'posterior-{metric_name}'].append(score)
 
             # Save data
-            prev_measurement = measurement
+            prev_measurement = measurement.detach().cpu().numpy()
 
             if not fast_inference:
                 inference['prior'][frame_id] = first_prior.tolist()
