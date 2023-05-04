@@ -85,14 +85,18 @@ def run_simple_lightning_guassian_model_test(model_class: Type[LightningGaussian
     # Test standard (no gaussian)
     model = model_class(**params)
 
-    output, _ = model(xs, ts_obs, ts_unobs)
+    output = model(xs, ts_obs, ts_unobs)
+    if isinstance(output, tuple):
+        output, *_ = output
     assert output.shape == expected_shape, f'Expected shape {expected_shape} but found {output.shape}!'
 
     # Test model (gaussian)
     model = model_class(model_gaussian=True, **params)
 
     expected_shape = (2, 3, 14)
-    output, _ = model(xs, ts_obs, ts_unobs)
+    output = model(xs, ts_obs, ts_unobs)
+    if isinstance(output, tuple):
+        output, *_ = output
     assert output.shape == expected_shape, f'Expected shape {expected_shape} but found {output.shape}!'
 
     expected_shapes = [(2, 3, 7), (2, 3, 7)]

@@ -1,14 +1,14 @@
 experiment: 'RNNODE-lasot-exp04-128dim-no-occ-no-oov-long-train-inverse-func'
 description: 'RNNODE - full dataset - 128dim. No out of view and occlusion in training. Using inverse transform func before.'
 batch_size: 64
-learning_rate: 1e-3
+learning_rate: 1e-2
 max_epochs: 20
 
 inverse_transform_before_loss: True
 
 train_params:
   optim_name: adamw
-  learning_rate: 1e-3
+  learning_rate: 1e-2
   sched_lr_gamma: 0.1
   sched_lr_step: 5
   weight_decay: 0.0001

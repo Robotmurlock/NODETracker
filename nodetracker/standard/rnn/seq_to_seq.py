@@ -11,7 +11,8 @@ from torch import nn
 from nodetracker.datasets.transforms import InvertibleTransform, InvertibleTransformWithStd
 from nodetracker.library import time_series
 from nodetracker.library.building_blocks import MLP
-from nodetracker.node.utils import LightningTrainConfig, LightningModuleForecaster
+from nodetracker.node.odernn.utils import LightningGaussianModel, run_simple_lightning_guassian_model_test
+from nodetracker.node.utils import LightningTrainConfig
 
 
 class RNNEncoder(nn.Module):
@@ -61,6 +62,8 @@ class RNNDecoder(nn.Module):
         hidden_dim: int, 
         latent_dim: int,
 
+        model_gaussian: bool = False,
+
         rnn_n_layers: int = 1
     ):
         """
@@ -82,7 +85,10 @@ class RNNDecoder(nn.Module):
             batch_first=False
         )
         self._latent2hidden = MLP(input_dim=latent_dim, output_dim=hidden_dim)
-        self._hidden2obs = MLP(input_dim=hidden_dim, output_dim=observable_dim)
+        self._hidden2obs = MLP(
+            input_dim=hidden_dim,
+            output_dim=observable_dim if not model_gaussian else 2 * observable_dim
+        )
 
     def forward(self, z: torch.Tensor, n_steps: int) -> torch.Tensor:
         batch_size = z.shape[1]
@@ -112,8 +118,10 @@ class RNNSeq2Seq(nn.Module):
         hidden_dim: int, 
         latent_dim: int,
 
+        model_gaussian: bool = False,
+
         encoder_rnn_n_layers: int = 1,
-        dcoder_rnn_n_layers: int = 1
+        decoder_rnn_n_layers: int = 1
 
     ):
         """
@@ -122,7 +130,7 @@ class RNNSeq2Seq(nn.Module):
             hidden_dim: Hidden trajectory dimension
             latent_dim: "latent" (hidden-2) trajectory dimension
             encoder_rnn_n_layers: Number of stacked RNN (GRU) layers for RNN Encoder
-            dcoder_rnn_n_layers: Number of stacked RNN (GRU) layers for RNN Decoder
+            decoder_rnn_n_layers: Number of stacked RNN (GRU) layers for RNN Decoder
         """
         super().__init__()
         self._encoder = RNNEncoder(
@@ -136,8 +144,10 @@ class RNNSeq2Seq(nn.Module):
             observable_dim=observable_dim,
             hidden_dim=hidden_dim,
             latent_dim=latent_dim,
+
+            model_gaussian=model_gaussian,
             
-            rnn_n_layers=dcoder_rnn_n_layers
+            rnn_n_layers=decoder_rnn_n_layers
         )
 
     def forward(self, x: torch.Tensor, ts_obs: torch.Tensor, ts_unobs: torch.Tensor) -> torch.Tensor:
@@ -147,7 +157,7 @@ class RNNSeq2Seq(nn.Module):
         return x_hat
 
 
-class LightningRNNSeq2Seq(LightningModuleForecaster):
+class LightningRNNSeq2Seq(LightningGaussianModel):
     """
     Simple RNN implementation to compare with NODE models.
     """
@@ -158,9 +168,9 @@ class LightningRNNSeq2Seq(LightningModuleForecaster):
             latent_dim: int,
 
             encoder_rnn_n_layers: int = 1,
-            dcoder_rnn_n_layers: int = 1,
+            decoder_rnn_n_layers: int = 1,
 
-            model_guassian: bool = False,
+            model_gaussian: bool = False,
             transform_func: Optional[Union[InvertibleTransform, InvertibleTransformWithStd]] = None,
 
             train_config: Optional[LightningTrainConfig] = None
@@ -171,41 +181,38 @@ class LightningRNNSeq2Seq(LightningModuleForecaster):
             hidden_dim: Hidden trajectory dimension
             latent_dim: "latent" (hidden-2) trajectory dimension
             encoder_rnn_n_layers: Number of stacked RNN (GRU) layers for RNN Encoder
-            dcoder_rnn_n_layers: Number of stacked RNN (GRU) layers for RNN Decoder
+            decoder_rnn_n_layers: Number of stacked RNN (GRU) layers for RNN Decoder
         """
         model = RNNSeq2Seq(
             observable_dim=observable_dim, 
             hidden_dim=hidden_dim, 
             latent_dim=latent_dim,
 
+            model_gaussian=model_gaussian,
+
             encoder_rnn_n_layers=encoder_rnn_n_layers,
-            dcoder_rnn_n_layers=dcoder_rnn_n_layers
+            decoder_rnn_n_layers=decoder_rnn_n_layers
         )
         super().__init__(
             train_config=train_config,
             model=model,
-            model_gaussian=model_guassian,
+            model_gaussian=model_gaussian,
             transform_func=transform_func
         )
 
 
-# noinspection DuplicatedCode
 def main() -> None:
-    model = LightningRNNSeq2Seq(
-        observable_dim=5,
-        hidden_dim=3,
-        latent_dim=2,
+    run_simple_lightning_guassian_model_test(
+        model_class=LightningRNNSeq2Seq,
+        params={
+            'observable_dim': 7,
+            'hidden_dim': 3,
+            'latent_dim': 2,
 
-        encoder_rnn_n_layers=2,
-        dcoder_rnn_n_layers=2
+            'encoder_rnn_n_layers': 2,
+            'decoder_rnn_n_layers': 2
+        }
     )
-    xs = torch.randn(10, 3, 5)
-    ts_obs = torch.randn(10, 3, 1)
-    ts_unobs = torch.rand(20, 3, 1)
-    output = model(xs, ts_obs, ts_unobs)
-    expected_shape = (20, 3, 5)
-
-    assert output.shape == expected_shape, f'Expected shape {expected_shape} but found {output.shape}!'
 
 
 if __name__ == '__main__':

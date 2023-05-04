@@ -118,7 +118,8 @@ class LightningModuleForecaster(LightningModuleBase):
         self._loss_func = factory_loss_function(train_config.loss_name, train_config.loss_params) \
             if train_config is not None else None
         if self._model_gaussian:
-            assert 'gaussian_nllloss' in train_config.loss_name, 'Failed to find "gaussian_nllloss" in loss function name!'
+            if train_config is not None:
+                assert 'gaussian_nllloss' in train_config.loss_name, 'Failed to find "gaussian_nllloss" in loss function name!'
             if transform_func is not None:
                 assert isinstance(transform_func, InvertibleTransformWithStd), \
                     f'Expected transform function to be of type "InvertibleTransformWithStd" but got "{type(transform_func)}"'
