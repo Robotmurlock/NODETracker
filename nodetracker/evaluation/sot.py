@@ -1,12 +1,9 @@
 """
 Implementation of SOT (single-object-tracking) metrics.
 """
+from typing import List, Union, Optional, Dict
+
 import numpy as np
-import torch
-
-from nodetracker.library.cv.bbox import BBox
-from typing import List, Tuple, Union, Optional, Dict
-
 
 ThresholdType = Union[float, List[float], np.ndarray]
 
@@ -24,6 +21,22 @@ def traj_bbox_to_traj_center(traj: np.ndarray) -> np.ndarray:
     xc = (traj[..., 0] + traj[..., 2]) / 2
     yc = (traj[..., 1] + traj[..., 3]) / 2
     return np.dstack([xc, yc])
+
+
+def traj_bbox_xyhw_to_xyxy(bbox: np.ndarray, eps=1e-9) -> np.ndarray:
+    """
+    Converts bbox format xyhw to xyxy.
+
+    Args:
+        bbox: BBox in xywh format.
+        eps: minimum width and height
+
+    Returns:
+        Bbox in xyxy format
+    """
+    bbox[..., 2] = np.maximum(bbox[..., 0] + bbox[..., 2], bbox[..., 0] + eps)
+    bbox[..., 3] = np.maximum(bbox[..., 1] + bbox[..., 3], bbox[..., 1] + eps)
+    return bbox
 
 
 def point_to_point_distance(lhs: np.ndarray, rhs: np.ndarray) -> np.ndarray:
@@ -54,40 +67,48 @@ def mse(gt_traj: np.ndarray, pred_traj: np.ndarray) -> float:
     return float(((gt_traj - pred_traj) ** 2).mean())
 
 
-def _iou(gt_traj: np.ndarray, pred_traj: np.ndarray) -> Tuple[List[float], int, int]:
+def iou(bboxes1: np.ndarray, bboxes2: np.ndarray, is_xyhw_format: bool = True) -> np.ndarray:
     """
     Calculates iou between each bbox (for each time point and each batch).
     Used as helper function to calculate other IOU based metrics.
 
     Args:
-        gt_traj: Ground Truth Trajectory
-        pred_traj: Prediction Trajectory
+        bboxes1: lhs bboxes
+        bboxes2: rhs bboxes
+        is_xyhw_format: If true then it is required to be converted to xyxy first
 
     Returns:
-        List of ious, trajectory length, trajectory batch size
+        iou score for each bbox
     """
-    assert gt_traj.shape == pred_traj.shape, f'Shape does not match. {gt_traj.shape} != {pred_traj.shape}.'
+    if bboxes1.shape != bboxes2.shape:
+        raise AttributeError(f'BBoxes do not have the same shape: {bboxes1.shape} != {bboxes2.shape}')
 
-    if len(gt_traj.shape) == 2:
-        gt_traj = gt_traj[:, np.newaxis, :]
-        pred_traj = pred_traj[:, np.newaxis, :]
-    elif len(gt_traj.shape) == 1:
-        gt_traj = gt_traj[np.newaxis, np.newaxis, :]
-        pred_traj = pred_traj[np.newaxis, np.newaxis, :]
+    if bboxes1.size == 0:
+        return np.array([], dtype=np.float32)
 
-    assert len(gt_traj.shape) == 3, f'Expected 3 dimensions for trajectory input. Got {gt_traj.shape}.'
-    time_len, batch_size, dim = gt_traj.shape
-    assert dim == 4, f'Expected trajectory to be 4D (x, y, w, h). But got {gt_traj.shape}!'
+    if is_xyhw_format:
+        bboxes1 = traj_bbox_xyhw_to_xyxy(bboxes1)
+        bboxes2 = traj_bbox_xyhw_to_xyxy(bboxes2)
 
-    iou_scores: List[float] = []
-    for time_index in range(time_len):
-        for batch_index in range(batch_size):
-            gt_bbox = BBox.from_yxwh(*gt_traj[time_index, batch_index, :], clip=True)
-            pred_bbox = BBox.from_yxwh(*pred_traj[time_index, batch_index, :], clip=True)
-            iou_score = gt_bbox.iou(pred_bbox)
-            iou_scores.append(iou_score)
+    bboxes1_area = (bboxes1[..., 2] - bboxes1[..., 0]) * (bboxes1[..., 3] - bboxes1[..., 1])
+    bboxes2_area = (bboxes2[..., 2] - bboxes2[..., 0]) * (bboxes2[..., 3] - bboxes2[..., 1])
 
-    return iou_scores, time_len, batch_size
+    # Calculate the coordinates of the intersection rectangles
+    left = np.maximum(bboxes1[..., 0], bboxes2[..., 0])
+    up = np.maximum(bboxes1[..., 1], bboxes2[..., 1])
+    right = np.minimum(bboxes1[..., 2], bboxes2[..., 2])
+    down = np.minimum(bboxes1[..., 3], bboxes2[..., 3])
+
+    # Calculate the area of intersection rectangles
+    width = np.maximum(right - left, 0)
+    height = np.maximum(down - up, 0)
+    intersection_area = width * height
+
+    # Calculate the IoU
+    union_area = bboxes1_area + bboxes2_area - intersection_area
+    iou_scores = np.divide(intersection_area, union_area, out=np.zeros_like(union_area), where=union_area != 0)
+
+    return iou_scores
 
 
 def accuracy(gt_traj: np.ndarray, pred_traj: np.ndarray) -> float:
@@ -101,8 +122,7 @@ def accuracy(gt_traj: np.ndarray, pred_traj: np.ndarray) -> float:
     Returns:
         Accuracy metric.
     """
-    iou_scores, time_len, batch_size = _iou(gt_traj, pred_traj)
-    return sum(iou_scores) / (time_len * batch_size)
+    return iou(gt_traj, pred_traj).mean()
 
 
 def success(gt_traj: np.ndarray, pred_traj: np.ndarray, threshold: Optional[ThresholdType] = None) -> float:
@@ -123,11 +143,11 @@ def success(gt_traj: np.ndarray, pred_traj: np.ndarray, threshold: Optional[Thre
     if isinstance(threshold, float):
         threshold = [threshold]
 
-    iou_scores, time_len, batch_size = _iou(gt_traj, pred_traj)
+    iou_scores = iou(gt_traj, pred_traj)
 
     scores = []
     for t in threshold:
-        score = sum([(1.0 if score >= t else 0.0) for score in iou_scores]) / (time_len * batch_size)
+        score = (iou_scores >= t).astype(np.float32).mean()
         scores.append(score)
     return np.array(scores).mean()
 
@@ -148,7 +168,7 @@ def precision(gt_traj: np.ndarray, pred_traj: np.ndarray, imheight: int, imwidth
     """
     if threshold is None:
         threshold = np.arange(0.0, 51.0, 1.0)
-    if isinstance(threshold, float):
+    if isinstance(threshold, float) or isinstance(threshold, int):
         threshold = [threshold]
 
     # Calculate centers
