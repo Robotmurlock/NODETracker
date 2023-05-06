@@ -44,7 +44,7 @@ class NODEFilter(StateModelFilter):
     def __init__(
         self,
         model: LightningGaussianModel,
-        transform: transforms.InvertibleTransformWithStd,
+        transform: transforms.InvertibleTransformWithVariance,
         accelerator: str,
         det_std: List[float],
 

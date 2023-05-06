@@ -67,7 +67,7 @@ def run_inference(
     batch_cnt = 0
     first_chunk = True
 
-    for bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, metadata in tqdm(data_loader, unit='sample',
+    for bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, _, metadata in tqdm(data_loader, unit='sample',
                                                                      desc='Running inference'):
         # `t` prefix means that tensor is mapped to transformed space
         t_bboxes_obs, _, t_ts_obs, t_ts_unobs = transform.apply([bboxes_obs, bboxes_unobs, ts_obs, ts_unobs],

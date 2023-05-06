@@ -7,7 +7,7 @@ from typing import Optional, Tuple, Union
 import torch
 from torch import nn
 
-from nodetracker.datasets.transforms import InvertibleTransform, InvertibleTransformWithStd
+from nodetracker.datasets.transforms import InvertibleTransform, InvertibleTransformWithVariance
 from nodetracker.library.building_blocks.mlp import MLP
 from nodetracker.library.building_blocks.resnet import ResnetMLPBlock
 from nodetracker.node.core.odevae import NODEDecoder
@@ -113,7 +113,7 @@ class LightningMLPODE(LightningGaussianModel):
         hidden_dim: int,
 
         model_gaussian: bool = False,
-        transform_func: Optional[Union[InvertibleTransform, InvertibleTransformWithStd]] = None,
+        transform_func: Optional[Union[InvertibleTransform, InvertibleTransformWithVariance]] = None,
 
         n_stem_layers: int = 1,
         n_resnet_layers: int = 4,

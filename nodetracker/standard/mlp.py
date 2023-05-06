@@ -7,7 +7,7 @@ import torch
 from torch import nn
 
 from nodetracker.library.building_blocks import MLP
-from nodetracker.datasets.transforms import InvertibleTransform, InvertibleTransformWithStd
+from nodetracker.datasets.transforms import InvertibleTransform, InvertibleTransformWithVariance
 from nodetracker.node.utils import LightningTrainConfig, LightningModuleForecaster
 
 
@@ -70,7 +70,7 @@ class LightningMLPForecaster(LightningModuleForecaster):
         n_layers: int = 1,
 
         train_config: Optional[LightningTrainConfig] = None,
-        transform_func: Optional[Union[InvertibleTransform, InvertibleTransformWithStd]] = None,
+        transform_func: Optional[Union[InvertibleTransform, InvertibleTransformWithVariance]] = None,
     ):
         """
         Args:

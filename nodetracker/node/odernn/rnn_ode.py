@@ -7,7 +7,7 @@ from typing import Optional, Tuple, Union
 import torch
 from torch import nn
 
-from nodetracker.datasets.transforms import InvertibleTransform, InvertibleTransformWithStd
+from nodetracker.datasets.transforms import InvertibleTransform, InvertibleTransformWithVariance
 from nodetracker.node.core.odevae import NODEDecoder
 from nodetracker.node.odernn.utils import LightningGaussianModel, run_simple_lightning_guassian_model_test
 from nodetracker.node.utils import LightningTrainConfig
@@ -66,7 +66,7 @@ class LightningRNNODE(LightningGaussianModel):
         hidden_dim: int,
 
         model_gaussian: bool = False,
-        transform_func: Optional[Union[InvertibleTransform, InvertibleTransformWithStd]] = None,
+        transform_func: Optional[Union[InvertibleTransform, InvertibleTransformWithVariance]] = None,
 
         n_encoder_rnn_layers: int = 1,
 

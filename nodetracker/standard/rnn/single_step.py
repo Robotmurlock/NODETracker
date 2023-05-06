@@ -6,7 +6,7 @@ from typing import Optional, Tuple, Union
 import torch
 from torch import nn
 
-from nodetracker.datasets.transforms import InvertibleTransform, InvertibleTransformWithStd
+from nodetracker.datasets.transforms import InvertibleTransform, InvertibleTransformWithVariance
 from nodetracker.library import time_series
 from nodetracker.library.building_blocks import MLP
 from nodetracker.node.utils import LightningModuleForecaster, LightningTrainConfig
@@ -78,7 +78,7 @@ class LightningSingleStepRNN(LightningModuleForecaster):
         rnn_n_layers: int = 1,
 
         model_gaussian: bool = False,
-        transform_func: Optional[Union[InvertibleTransform, InvertibleTransformWithStd]] = None,
+        transform_func: Optional[Union[InvertibleTransform, InvertibleTransformWithVariance]] = None,
 
         train_config: Optional[LightningTrainConfig] = None
     ):

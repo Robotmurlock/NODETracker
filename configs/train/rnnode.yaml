@@ -1,24 +1,29 @@
-experiment: 'RNNODE-lasot-exp04-128dim-no-occ-no-oov-long-train-inverse-func'
-description: 'RNNODE - full dataset - 128dim. No out of view and occlusion in training. Using inverse transform func before.'
+experiment: 'RNNODE-MOT-exp04-64dim-guassian-with-giou-gradient-clip-longer-train-higher-lr'
+description: 'RNNODE - 64dim. Using inverse transform func before loss calculation. Higher starting lr.'
 batch_size: 64
-learning_rate: 1e-2
-max_epochs: 20
+learning_rate: 1e-3
+max_epochs: 30
 
 inverse_transform_before_loss: True
+gradient_clip_val: 10
+gradient_clip_algorithm: value
 
 train_params:
   optim_name: adamw
-  learning_rate: 1e-2
+  learning_rate: 1e-3
   sched_lr_gamma: 0.1
-  sched_lr_step: 5
-  weight_decay: 0.0001
+  sched_lr_step: 8
+  weight_decay: 0.001
 
-  loss_name: 'gaussian_nllloss'
+  loss_name: 'hybrid_gaussian_nllloss_giou'
+  loss_params:
+    w_nllloss: 0.9
+    w_giou: 0.1
 
 logging_cfg:
   path: 'logs'
   log_every_n_steps: 1
 
 checkpoint_cfg:
-  metric_monitor: 'val/loss'
+  metric_monitor: 'val-epoch/loss'
   resume_from: null

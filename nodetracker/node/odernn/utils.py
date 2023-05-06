@@ -3,7 +3,7 @@ from typing import Optional, Tuple, Type, Dict, Any, Union
 import torch
 from torch import nn
 
-from nodetracker.datasets.transforms import InvertibleTransform, InvertibleTransformWithStd
+from nodetracker.datasets.transforms import InvertibleTransform, InvertibleTransformWithVariance
 from nodetracker.node.utils.training import LightningModuleForecaster, LightningTrainConfig
 
 
@@ -16,7 +16,7 @@ class LightningGaussianModel(LightningModuleForecaster):
         model: nn.Module,
         model_gaussian: bool = False,
         train_config: Optional[LightningTrainConfig] = None,
-        transform_func: Optional[Union[InvertibleTransform, InvertibleTransformWithStd]] = None
+        transform_func: Optional[Union[InvertibleTransform, InvertibleTransformWithVariance]] = None
     ):
         super().__init__(
             train_config=train_config,

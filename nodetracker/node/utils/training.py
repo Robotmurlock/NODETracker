@@ -9,10 +9,10 @@ import pytorch_lightning as pl
 import torch
 from torch import nn
 
+from nodetracker.datasets.transforms import InvertibleTransformWithVariance, InvertibleTransform
 from nodetracker.node.losses import factory_loss_function
 from nodetracker.utils import torch_helper
 from nodetracker.utils.meter import MetricMeter
-from nodetracker.datasets.transforms import InvertibleTransformWithStd, InvertibleTransform
 
 
 @dataclass
@@ -103,7 +103,7 @@ class LightningModuleForecaster(LightningModuleBase):
         train_config: Optional[LightningTrainConfig],
         model: nn.Module,
         model_gaussian: bool = False,
-        transform_func: Optional[Union[InvertibleTransform, InvertibleTransformWithStd]] = None
+        transform_func: Optional[Union[InvertibleTransform, InvertibleTransformWithVariance]] = None
     ):
         """
         Args:
@@ -121,7 +121,7 @@ class LightningModuleForecaster(LightningModuleBase):
             if train_config is not None:
                 assert 'gaussian_nllloss' in train_config.loss_name, 'Failed to find "gaussian_nllloss" in loss function name!'
             if transform_func is not None:
-                assert isinstance(transform_func, InvertibleTransformWithStd), \
+                assert isinstance(transform_func, InvertibleTransformWithVariance), \
                     f'Expected transform function to be of type "InvertibleTransformWithStd" but got "{type(transform_func)}"'
         self._transform_func = transform_func
 
@@ -167,10 +167,8 @@ class LightningModuleForecaster(LightningModuleBase):
                 _, bboxes_unobs_hat_mean, *_ = self._transform_func.inverse([bboxes_obs, bboxes_unobs_hat_mean], shallow=False)
                 _, bboxes_unobs, *_ = self._transform_func.inverse([bboxes_obs, bboxes_unobs], shallow=False)
 
-                # Invert std
-                bboxes_unobs_hat_std = torch.sqrt(bboxes_unobs_hat_var)
-                bboxes_unobs_hat_std = self._transform_func.inverse_std(bboxes_unobs_hat_std)
-                bboxes_unobs_hat_var = torch.square(bboxes_unobs_hat_std)
+                # Invert var
+                bboxes_unobs_hat_var = self._transform_func.inverse_var(bboxes_unobs_hat_var)
 
             return self._loss_func(bboxes_unobs_hat_mean, bboxes_unobs, bboxes_unobs_hat_var)
 
@@ -180,7 +178,7 @@ class LightningModuleForecaster(LightningModuleBase):
 
         return self._loss_func(bboxes_unobs_hat, bboxes_unobs)
 
-    def _log_loss(self, loss: Union[torch.Tensor, Dict[str, torch.Tensor]], prefix: str) -> None:
+    def _log_loss(self, loss: Union[torch.Tensor, Dict[str, torch.Tensor]], prefix: str, log_step: bool = True) -> None:
         """
         Helper function to log loss. Options:
         - Single value: logged as "{prefix}/loss"
@@ -200,25 +198,28 @@ class LightningModuleForecaster(LightningModuleBase):
                 f'When returning loss as dictionary it has to have key "loss". Found: {list(loss.keys())}'
             for name, value in loss.items():
                 assert not torch.isnan(value).any(), f'Got nan value for key "{name}"!'
-                self._meter.push(f'{prefix}/{name}', value)
+                self._meter.push(f'{prefix}-epoch/{name}', value)
+                if log_step:
+                    self.log(f'{prefix}/{name}', value, prog_bar=False)
         else:
             assert not torch.isnan(loss).any(), f'Got nan value!'
-            self._meter.push(f'{prefix}/loss', loss)
+            self._meter.push(f'{prefix}-epoch/loss', loss)
+            if log_step:
+                self.log(f'{prefix}/loss', loss, prog_bar=False)
 
     def training_step(self, batch: Tuple[torch.Tensor, ...], *args, **kwargs) -> torch.Tensor:
-        bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, _ = batch
+        bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, orig_bboxes_obs, metadata = batch
         bboxes_unobs_hat, *_ = self.forward(bboxes_obs, ts_obs, ts_unobs)
-        loss = self._calc_loss(bboxes_obs, bboxes_unobs, bboxes_unobs_hat)
-        self._log_loss(loss, prefix='training')
+        loss = self._calc_loss(orig_bboxes_obs, bboxes_unobs, bboxes_unobs_hat)
+        self._log_loss(loss, prefix='training', log_step=True)
         return loss
 
     def validation_step(self, batch: Tuple[torch.Tensor, ...], *args, **kwargs) -> torch.Tensor:
-        bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, _ = batch
+        bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, orig_bboxes_obs, metadata = batch
         bboxes_unobs_hat, *_ = self.forward(bboxes_obs, ts_obs, ts_unobs)
-        loss = self._calc_loss(bboxes_obs, bboxes_unobs, bboxes_unobs_hat)
-        self._log_loss(loss, prefix='val')
+        loss = self._calc_loss(orig_bboxes_obs, bboxes_unobs, bboxes_unobs_hat)
+        self._log_loss(loss, prefix='val', log_step=False)
         return loss
-
 
 
 class LightningModuleForecasterWithTeacherForcing(LightningModuleForecaster):
@@ -230,7 +231,7 @@ class LightningModuleForecasterWithTeacherForcing(LightningModuleForecaster):
         train_config: Optional[LightningTrainConfig],
         model: nn.Module,
         model_gaussian: bool = False,
-        transform_func: Optional[Union[InvertibleTransform, InvertibleTransformWithStd]] = None,
+        transform_func: Optional[Union[InvertibleTransform, InvertibleTransformWithVariance]] = None,
         teacher_forcing: bool = False
     ):
         """

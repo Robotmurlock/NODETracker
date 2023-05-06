@@ -29,7 +29,7 @@ class OdeDataloaderCollateFunctional:
             self._augmentation = IdentityAugmentation()
 
     def __call__(self, items: List[torch.Tensor]) \
-            -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, dict]:
+            -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, dict]:
         """
         ODE's collate func: Standard way to batch sequences of dimension (T, *shape)
         where T is time dimension and shape is feature dimension is to create batch
@@ -42,14 +42,14 @@ class OdeDataloaderCollateFunctional:
         Returns:
             collated tensors
         """
-        x_obss, t_obss, x_unobss, t_unobss, metadata = zip(*items)
-        x_obs, t_obs, x_unobs, t_unobs = [torch.stack(v, dim=1) for v in [x_obss, t_obss, x_unobss, t_unobss]]
+        x_obss, t_obss, x_unobss, t_unobss, orig_bboxes_obs, metadata = zip(*items)
+        x_obs, t_obs, x_unobs, t_unobs, orig_bboxes_obs = [torch.stack(v, dim=1) for v in [x_obss, t_obss, x_unobss, t_unobss, orig_bboxes_obs]]
         metadata = default_collate(metadata)
 
         # Apply augmentations at batch level (optional)
         x_obs, t_obs, x_unobs, t_unobs = self._augmentation(x_obs, t_obs, x_unobs, t_unobs)
 
-        return x_obs, t_obs, x_unobs, t_unobs, metadata
+        return x_obs, t_obs, x_unobs, t_unobs, orig_bboxes_obs, metadata
 
 
 def preprocess_batch(batch: tuple) -> tuple:
@@ -62,10 +62,10 @@ def preprocess_batch(batch: tuple) -> tuple:
     Returns:
         Preprocessing batch
     """
-    bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, metadata = batch
+    bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, metadata, orig_bboxes = batch
     ts_all = torch.cat([ts_obs, ts_unobs], dim=0)
     bboxes_all = torch.cat([bboxes_obs, bboxes_unobs], dim=0)
-    return bboxes_obs, bboxes_unobs, bboxes_all, ts_obs, ts_unobs, ts_all, metadata
+    return bboxes_obs, bboxes_unobs, bboxes_all, ts_obs, ts_unobs, ts_all, orig_bboxes, metadata
 
 
 def split_trajectory_observed_unobserved(frame_ids: List[int], bboxes: np.ndarray, history_len: int):

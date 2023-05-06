@@ -7,9 +7,9 @@ from typing import Optional, Tuple, Union
 import torch
 from torch import nn
 
+from nodetracker.datasets.transforms import InvertibleTransform, InvertibleTransformWithVariance
 from nodetracker.library.building_blocks import MLP
 from nodetracker.node.core.odevae import MLPODEF, NODEDecoder
-from nodetracker.datasets.transforms import InvertibleTransform, InvertibleTransformWithStd
 from nodetracker.node.core.original import NeuralODE
 from nodetracker.node.core.solver import ode_solver_factory
 from nodetracker.node.odernn.utils import LightningGaussianModel, run_simple_lightning_guassian_model_test
@@ -138,7 +138,7 @@ class LightningODERNN(LightningGaussianModel):
         hidden_dim: int,
 
         model_gaussian: bool = False,
-        transform_func: Optional[Union[InvertibleTransform, InvertibleTransformWithStd]] = None,
+        transform_func: Optional[Union[InvertibleTransform, InvertibleTransformWithVariance]] = None,
 
         n_encoder_rnn_layers: int = 1,
 

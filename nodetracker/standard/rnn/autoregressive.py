@@ -8,7 +8,7 @@ from torch import nn
 
 from nodetracker.library import time_series
 from nodetracker.library.building_blocks import MLP, ResnetMLPBlock
-from nodetracker.datasets.transforms import InvertibleTransform, InvertibleTransformWithStd
+from nodetracker.datasets.transforms import InvertibleTransform, InvertibleTransformWithVariance
 from nodetracker.node.utils import LightningModuleForecasterWithTeacherForcing, LightningTrainConfig
 
 
@@ -140,7 +140,7 @@ class LightningARRNN(LightningModuleForecasterWithTeacherForcing):
         rnn_n_layers: int = 1,
 
         model_gaussian: bool = False,
-        transform_func: Optional[Union[InvertibleTransform, InvertibleTransformWithStd]] = None,
+        transform_func: Optional[Union[InvertibleTransform, InvertibleTransformWithVariance]] = None,
         teacher_forcing: bool = False,
 
         train_config: Optional[LightningTrainConfig] = None

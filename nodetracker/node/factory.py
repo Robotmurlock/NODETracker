@@ -14,7 +14,7 @@ from nodetracker.node.utils.training import LightningModuleForecaster
 from nodetracker.standard.mlp import LightningMLPForecaster
 from nodetracker.standard.rnn import LightningRNNSeq2Seq, LightningARRNN, LightningSingleStepRNN
 from nodetracker.standard.trainable_kalman_filter import LightningAdaptiveKalmanFilter
-from nodetracker.datasets.transforms import InvertibleTransform, InvertibleTransformWithStd
+from nodetracker.datasets.transforms import InvertibleTransform, InvertibleTransformWithVariance
 
 
 class ModelType(enum.Enum):
@@ -54,7 +54,7 @@ def load_or_create_model(
     params: dict,
     checkpoint_path: Optional[str] = None,
     train_params: Optional[dict] = None,
-    transform_func: Optional[Union[InvertibleTransform, InvertibleTransformWithStd]] = None
+    transform_func: Optional[Union[InvertibleTransform, InvertibleTransformWithVariance]] = None
 ) -> Union[LightningModuleForecaster, LightningModule]:
     """
     Loads trained (if given checkpoint path) or creates new model given name and parameters.
