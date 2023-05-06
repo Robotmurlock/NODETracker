@@ -2,8 +2,10 @@
 Implementation of SOT (single-object-tracking) metrics.
 """
 import numpy as np
+import torch
+
 from nodetracker.library.cv.bbox import BBox
-from typing import List, Tuple, Union, Optional
+from typing import List, Tuple, Union, Optional, Dict
 
 
 ThresholdType = Union[float, List[float], np.ndarray]
@@ -200,3 +202,21 @@ def norm_precision(gt_traj: np.ndarray, pred_traj: np.ndarray, threshold: Option
         score = (distance <= t).astype(np.float32).mean()
         scores.append(score)
     return np.array(scores).mean()
+
+
+def metrics_func(gt_traj: np.ndarray, pred_traj: np.ndarray) -> Dict[str, float]:
+    """
+    Calculates Accuracy, Success and NormPrecision. Supports only default metric parameters.
+
+    Args:
+        gt_traj: Ground Truth Trajectory
+        pred_traj: Prediction Trajectory
+
+    Returns:
+        Mappings for each metric
+    """
+    return {
+        'Accuracy': accuracy(gt_traj, pred_traj),
+        'Success': success(gt_traj, pred_traj),
+        'NormPrecision': norm_precision(gt_traj, pred_traj)
+    }

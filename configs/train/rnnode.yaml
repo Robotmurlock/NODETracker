@@ -1,4 +1,4 @@
-experiment: 'RNNODE-MOT-exp04-64dim-guassian-with-giou-gradient-clip-longer-train-higher-lr'
+experiment: 'RNNODE-REPRODUCE-MOT-exp04-64dim-guassian-with-giou-gradient-clip-longer-train-higher-lr'
 description: 'RNNODE - 64dim. Using inverse transform func before loss calculation. Higher starting lr.'
 batch_size: 64
 learning_rate: 1e-3
