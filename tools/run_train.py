@@ -71,7 +71,9 @@ def main(cfg: DictConfig):
                 save_last=True,
                 save_top_k=1
             )
-        ]
+        ],
+        gradient_clip_val=cfg.train.gradient_clip_val,
+        gradient_clip_algorithm=cfg.train.gradient_clip_algorithm
     )
 
     if cfg.train.checkpoint_cfg.resume_from:
@@ -81,7 +83,7 @@ def main(cfg: DictConfig):
         model=model,
         train_dataloaders=train_loader,
         val_dataloaders=val_loader,
-        ckpt_path=cfg.train.checkpoint_cfg.resume_from
+        ckpt_path=cfg.train.checkpoint_cfg.resume_from,
     )
 
 

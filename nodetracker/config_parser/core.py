@@ -164,7 +164,10 @@ class TrainConfig:
     checkpoint_cfg: TrainCheckpointConfig
 
     inverse_transform_before_loss: bool = field(default=False)
-    train_params: Optional[dict] = field(default_factory=dict)  # default: empty dict
+    train_params: Optional[dict] = field(default_factory=dict)  # Model train params
+
+    gradient_clip_val: Optional[float] = field(default=None)
+    gradient_clip_algorithm: Optional[str] = field(default=None)
 
 
 @dataclass
