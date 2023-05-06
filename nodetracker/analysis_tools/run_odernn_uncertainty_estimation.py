@@ -90,7 +90,7 @@ def run_odernn_model_gaussian_inference_and_visualization(
     model: LightningODERNN,
     accelerator: str,
     data_loader: DataLoader,
-    transform: transforms.InvertibleTransformWithStd,
+    transform: transforms.InvertibleTransformWithVariance,
     experiment_name: str,
     max_plots: int,
     visualize: bool

@@ -82,7 +82,7 @@ class ODETorchTensorBuffer:
 
 
 class ODERNNFilter:
-    def __init__(self, model: LightningGaussianModel, transform: transforms.InvertibleTransformWithStd, accelerator: str):
+    def __init__(self, model: LightningGaussianModel, transform: transforms.InvertibleTransformWithVariance, accelerator: str):
         self._model = model
         self._transform = transform
 

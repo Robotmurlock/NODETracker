@@ -3,7 +3,7 @@ Transform factory method.
 """
 from nodetracker.datasets.transforms import (
     InvertibleTransform,
-    InvertibleTransformWithStd,
+    InvertibleTransformWithVariance,
     IdentityTransform,
     BboxFirstOrderDifferenceTransform,
     BBoxStandardizationTransform,
@@ -14,7 +14,7 @@ from nodetracker.datasets.transforms import (
 from typing import Union
 
 
-def transform_factory(name: str, params: dict) -> Union[InvertibleTransform, InvertibleTransformWithStd]:
+def transform_factory(name: str, params: dict) -> Union[InvertibleTransform, InvertibleTransformWithVariance]:
     """
     Create transform object based on given name and constructor parameters.
 

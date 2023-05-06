@@ -9,10 +9,10 @@ from typing import Union, List, Optional
 
 import torch
 
-from nodetracker.datasets.transforms.base import InvertibleTransformWithStd, TensorCollection
+from nodetracker.datasets.transforms.base import InvertibleTransformWithVariance, TensorCollection
 
 
-class BboxFirstOrderDifferenceTransform(InvertibleTransformWithStd):
+class BboxFirstOrderDifferenceTransform(InvertibleTransformWithVariance):
     """
     Applies first difference transformation:
     Y[i] = X[i] - X[i-1]
@@ -52,6 +52,14 @@ class BboxFirstOrderDifferenceTransform(InvertibleTransformWithStd):
 
     def inverse_std(self, t_std: torch.Tensor, additional_data: Optional[TensorCollection] = None, shallow: bool = True) \
             -> TensorCollection:
+        # Check `inverse_var`
+        t_var = torch.square(t_std)
+        t_var_cumsum = torch.cumsum(t_var, dim=0)
+        t_std_cumsum = torch.sqrt(t_var_cumsum)
+        return t_std_cumsum
+
+    def inverse_var(self, t_var: torch.Tensor, additional_data: Optional[TensorCollection] = None, shallow: bool = True) \
+            -> TensorCollection:
         # In order to estimate std for inverse two assumptions are added
         # 1. Random variables y[i-1] and y[i] are independent
         # 2. Variance of last observed bbox coordinate is 0 (i.e. var(x[-1]) = 0)
@@ -63,13 +71,10 @@ class BboxFirstOrderDifferenceTransform(InvertibleTransformWithStd):
         # => var(x[1]) = var(y[1]) + var(x[0]) = var(y[0]) + var(y[1]))  # from (1)
         # ...
         # => var(x[i]) = var(y[i]) + var(x[i-1]) = sum[j=0,i] var(y[j])
-        t_var = torch.square(t_std)
-        t_var_cumsum = torch.cumsum(t_var, dim=0)
-        t_std_cumsum = torch.sqrt(t_var_cumsum)
-        return t_std_cumsum
+        return torch.cumsum(t_var, dim=0)
 
 
-class BBoxStandardizationTransform(InvertibleTransformWithStd):
+class BBoxStandardizationTransform(InvertibleTransformWithVariance):
     """
     Applies standardization transformation:
     Y[i] = (X[i] - mean(X)) / std(X)
@@ -127,8 +132,14 @@ class BBoxStandardizationTransform(InvertibleTransformWithStd):
         std = self._std.to(t_std)
         return t_std * std
 
+    def inverse_var(self, t_std: torch.Tensor, additional_data: Optional[TensorCollection] = None, shallow: bool = True) \
+            -> TensorCollection:
+        # Similar to `inverse_std`
+        std = self._std.to(t_std)
+        return t_std * torch.square(std)
 
-class BBoxStandardizedFirstOrderDifferenceTransform(InvertibleTransformWithStd):
+
+class BBoxStandardizedFirstOrderDifferenceTransform(InvertibleTransformWithVariance):
     """
     Step 1: Applies first difference transformation:
     Y[i] = X[i] - X[i-1]
@@ -158,8 +169,14 @@ class BBoxStandardizedFirstOrderDifferenceTransform(InvertibleTransformWithStd):
         std = self._first_difference.inverse_std(std, additional_data, shallow=shallow)
         return std
 
+    def inverse_var(self, t_var: torch.Tensor, additional_data: Optional[TensorCollection] = None, shallow: bool = True) \
+            -> TensorCollection:
+        var = self._standardization.inverse_var(t_var, additional_data, shallow=shallow)
+        var = self._first_difference.inverse_std(var, additional_data, shallow=shallow)
+        return var
 
-class BBoxRelativeToLastObsTransform(InvertibleTransformWithStd):
+
+class BBoxRelativeToLastObsTransform(InvertibleTransformWithVariance):
     """
     * For all observed coordinates:
     Y[i] = X[-1] - X[i]
@@ -199,9 +216,13 @@ class BBoxRelativeToLastObsTransform(InvertibleTransformWithStd):
     def inverse_std(self, t_std: torch.Tensor, additional_data: Optional[TensorCollection] = None, shallow: bool = True) -> TensorCollection:
         return t_std  # It's assumed that last observed element has variance equal to 0
 
+    def inverse_var(self, t_var: torch.Tensor, additional_data: Optional[TensorCollection] = None, shallow: bool = True) \
+            -> TensorCollection:
+        return t_var  # It's assumed that last observed element has variance equal to 0
+
 
 # noinspection DuplicatedCode
-class BBoxStandardizedRelativeToLastObsTransform(InvertibleTransformWithStd):
+class BBoxStandardizedRelativeToLastObsTransform(InvertibleTransformWithVariance):
     """
     Step 1: Applies first difference transformation:
     * For all observed coordinates:
@@ -234,6 +255,12 @@ class BBoxStandardizedRelativeToLastObsTransform(InvertibleTransformWithStd):
         std = self._standardization.inverse_std(t_std, additional_data, shallow=shallow)
         std = self._relative_to_last_obs.inverse_std(std, additional_data, shallow=shallow)
         return std
+
+    def inverse_var(self, t_var: torch.Tensor, additional_data: Optional[TensorCollection] = None, shallow: bool = True) \
+            -> TensorCollection:
+        var = self._standardization.inverse_var(t_var, additional_data, shallow=shallow)
+        var = self._relative_to_last_obs.inverse_std(var, additional_data, shallow=shallow)
+        return var
 
 
 # noinspection DuplicatedCode

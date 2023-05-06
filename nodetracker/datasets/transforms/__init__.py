@@ -4,7 +4,7 @@ Set of data transformations
 from nodetracker.datasets.transforms.base import (
     Transform,
     InvertibleTransform,
-    InvertibleTransformWithStd,
+    InvertibleTransformWithVariance,
     IdentityTransform
 )
 from nodetracker.datasets.transforms.bbox import (

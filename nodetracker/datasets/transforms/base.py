@@ -69,9 +69,9 @@ class InvertibleTransform(Transform, ABC):
         pass
 
 
-class InvertibleTransformWithStd(InvertibleTransform):
+class InvertibleTransformWithVariance(InvertibleTransform):
     """
-    Extended InvertibleTransform with inverse for std
+    Extended InvertibleTransform with inverse for std/var
     """
     def __init__(self, name: str):
         super().__init__(name=name)
@@ -88,6 +88,21 @@ class InvertibleTransformWithStd(InvertibleTransform):
 
         Returns:
             "Untransformed" std
+        """
+        pass
+
+    @abstractmethod
+    def inverse_var(self, t_var: torch.Tensor, additional_data: Optional[TensorCollection] = None, shallow: bool = True) -> TensorCollection:
+        """
+        Performs "inverse" transformation on variance given the transformed data.
+
+        Args:
+            t_var: Transformed variance
+            additional_data: Data required to perform inverse std operation
+            shallow: Take shallow copy of data (may cause side effects)
+
+        Returns:
+            "Untransformed" variance
         """
         pass
 
