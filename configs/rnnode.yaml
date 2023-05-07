@@ -1,10 +1,11 @@
 defaults:
   - resources: cuda.yaml
-  - dataset: mot.yaml
-  - transform: standardized_relative_to_last_obs.yaml
+  - dataset: lasot.yaml
+  - transform: lasot/standardized_relative_to_last_obs.yaml
   - model: rnnode.yaml
   - train: rnnode.yaml
   - eval: rnnode.yaml
   - visualize: default.yaml
   - augmentations: default.yaml
+  - path: lasot.yaml
   - _self_

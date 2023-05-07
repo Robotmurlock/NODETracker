@@ -13,7 +13,7 @@ from typing import Union, List, Optional
 import torch
 
 from nodetracker.datasets.transforms.base import InvertibleTransformWithVariance, TensorCollection
-from nodetracker.common.project import OUTPUTS_PATH
+from nodetracker.utils.lookup import LookupTable
 
 
 class BboxFirstOrderDifferenceTransform(InvertibleTransformWithVariance):
@@ -257,11 +257,17 @@ class BBoxStandardizedRelativeToLastObsTransform(BBoxCompositeTransform):
 
         super().__init__(transforms=transforms)
 
-class BBoxAddOneHotLabelTransform(InvertibleTransformWithVariance):
+class BBoxAddLabelTransform(InvertibleTransformWithVariance):
+    def __init__(self, mappings: dict):
+        super().__init__(name='bbox_add_one_hot_label')
+        self._lookup = LookupTable.deserialize(mappings)
+
     def apply(self, data: TensorCollection, shallow: bool = True) -> TensorCollection:
-        bboxes_obs, bboxes_unobs, frame_ts_obs, frame_ts_unobs, metadata = data
+        bboxes_obs, bboxes_unobs, frame_ts_obs, frame_ts_unobs, orig_bboxes_obs, metadata = data
         category = metadata['category']
-        
+        category_index = self._lookup[category] * torch.ones(*bboxes_obs.shape[:-1], 1, dtype=torch.long)
+        bboxes_obs = torch.concat([bboxes_obs, category_index], dim=-1)
+        return bboxes_obs, bboxes_unobs, frame_ts_obs, frame_ts_unobs, orig_bboxes_obs, metadata
 
     def inverse(self, data: TensorCollection, shallow: bool = True) -> TensorCollection:
         return data
@@ -282,7 +288,7 @@ def run_test_first_difference() -> None:
     ts_unobs = torch.randn(3, 2, 1)
     first_diff = BboxFirstOrderDifferenceTransform()
 
-    transformed_bbox_obs, transformed_bbox_unobs, _, _ = \
+    transformed_bbox_obs, transformed_bbox_unobs, *_ = \
         first_diff.apply([bbox_obs, bbox_unobs, ts_obs, ts_unobs], shallow=False)
     assert transformed_bbox_obs.shape == (1, 2, 4)
     assert transformed_bbox_unobs.shape == (3, 2, 4)
@@ -298,7 +304,7 @@ def run_standardization() -> None:
     ts_unobs = torch.randn(3, 2, 1)
     first_diff = BBoxStandardizationTransform(1, 2.0)
 
-    _, transformed_bbox_unobs, _, _ = \
+    _, transformed_bbox_unobs, *_ = \
         first_diff.apply([bbox_obs, bbox_unobs, ts_obs, ts_unobs], shallow=False)
 
     _, inv_transformed_bbox_unobs = first_diff.inverse([bbox_obs, transformed_bbox_unobs])
@@ -313,7 +319,7 @@ def run_test_standardized_first_difference() -> None:
     ts_unobs = torch.randn(3, 2, 1)
     first_diff = BBoxStandardizedFirstOrderDifferenceTransform(1, 2.0)
 
-    transformed_bbox_obs, transformed_bbox_unobs, _, _ = \
+    transformed_bbox_obs, transformed_bbox_unobs, *_ = \
         first_diff.apply([bbox_obs, bbox_unobs, ts_obs, ts_unobs], shallow=False)
     assert transformed_bbox_obs.shape == (1, 2, 4)
     assert transformed_bbox_unobs.shape == (3, 2, 4)
@@ -330,7 +336,7 @@ def run_test_relative_to_last_obs() -> None:
     ts_unobs = torch.randn(3, 2, 1)
     first_diff = BBoxRelativeToLastObsTransform()
 
-    transformed_bbox_obs, transformed_bbox_unobs, _, _ = \
+    transformed_bbox_obs, transformed_bbox_unobs, *_ = \
         first_diff.apply([bbox_obs, bbox_unobs, ts_obs, ts_unobs], shallow=False)
     assert transformed_bbox_obs.shape == (1, 2, 4)
     assert transformed_bbox_unobs.shape == (3, 2, 4)
@@ -347,12 +353,38 @@ def run_test_standardized_relative_to_last_obs() -> None:
     ts_unobs = torch.randn(3, 2, 1)
     first_diff = BBoxStandardizedRelativeToLastObsTransform(1, 2.0)
 
-    transformed_bbox_obs, transformed_bbox_unobs, _, _ = \
+    transformed_bbox_obs, transformed_bbox_unobs, *_ = \
         first_diff.apply([bbox_obs, bbox_unobs, ts_obs, ts_unobs], shallow=False)
     assert transformed_bbox_obs.shape == (1, 2, 4)
     assert transformed_bbox_unobs.shape == (3, 2, 4)
 
     _, inv_transformed_bbox_unobs = first_diff.inverse([bbox_obs, transformed_bbox_unobs])
+    assert torch.abs(inv_transformed_bbox_unobs - bbox_unobs).sum().item() < 1e-3
+
+
+def run_add_category_label_index() -> None:
+    bbox_obs = torch.randn(2, 2, 4)
+    bbox_unobs = torch.randn(3, 2, 4)
+    ts_obs = torch.randn(2, 2, 1)
+    ts_unobs = torch.randn(3, 2, 1)
+    orig_bbox_obs = bbox_obs.clone()
+    metadata = {'category': 'dog'}
+    add_label = BBoxAddLabelTransform({
+        'token_to_index': {
+            '<unk>': 0,
+            'dog': 1,
+            'cat': 2
+        },
+        'unknown_token': '<unk>',
+        'add_unknown_token': True
+    })
+
+    transformed_bbox_obs, transformed_bbox_unobs, *_ = \
+        add_label.apply([bbox_obs, bbox_unobs, ts_obs, ts_unobs, orig_bbox_obs, metadata], shallow=False)
+    assert transformed_bbox_obs.shape == (2, 2, 5)
+    assert transformed_bbox_unobs.shape == (3, 2, 4)
+
+    _, inv_transformed_bbox_unobs = add_label.inverse([bbox_obs, transformed_bbox_unobs])
     assert torch.abs(inv_transformed_bbox_unobs - bbox_unobs).sum().item() < 1e-3
 
 
@@ -362,3 +394,4 @@ if __name__ == '__main__':
     run_test_standardized_first_difference()
     run_test_relative_to_last_obs()
     run_test_standardized_relative_to_last_obs()
+    run_add_category_label_index()

@@ -1,0 +1,84 @@
+name: 'composite'
+params:
+  transforms:
+    - name: 'standardized_relative_to_last_obs'
+      params:
+        mean: [ -3.220816324756015e-06, 2.2988066120888107e-05, 1.509633057139581e-05, 6.674266478512436e-05 ]
+        std: [ 0.027728525921702385, 0.03423177823424339, 0.018333032727241516, 0.024016927927732468 ]
+    - name: 'add_label'
+      params:
+        unknown_token: '<unk>'
+        add_unknown_token: True
+        token_to_index:
+          '<unk>': 0
+          book: 1
+          hand: 2
+          volleyball: 3
+          hippo: 4
+          frog: 5
+          monkey: 6
+          zebra: 7
+          racing: 8
+          guitar: 9
+          train: 10
+          turtle: 11
+          sheep: 12
+          licenseplate: 13
+          mouse: 14
+          robot: 15
+          tiger: 16
+          umbrella: 17
+          kite: 18
+          bus: 19
+          goldfish: 20
+          bicycle: 21
+          gecko: 22
+          bottle: 23
+          rubicCube: 24
+          rabbit: 25
+          deer: 26
+          cup: 27
+          bear: 28
+          drone: 29
+          swing: 30
+          electricfan: 31
+          giraffe: 32
+          leopard: 33
+          pig: 34
+          cat: 35
+          cattle: 36
+          person: 37
+          lion: 38
+          surfboard: 39
+          helmet: 40
+          fox: 41
+          gametarget: 42
+          pool: 43
+          tank: 44
+          shark: 45
+          spider: 46
+          yoyo: 47
+          boat: 48
+          coin: 49
+          lizard: 50
+          airplane: 51
+          car: 52
+          skateboard: 53
+          chameleon: 54
+          microphone: 55
+          sepia: 56
+          flag: 57
+          gorilla: 58
+          crocodile: 59
+          dog: 60
+          hat: 61
+          crab: 62
+          tmp: 63
+          elephant: 64
+          basketball: 65
+          motorcycle: 66
+          squirrel: 67
+          truck: 68
+          bird: 69
+          horse: 70
+          kangaroo: 71
