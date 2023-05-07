@@ -309,6 +309,7 @@ class LaSOTDataset(TrajectoryDataset):
         # Metadata
         # scene == object for SOT but data is duplicated for MOT compatability
         metadata = {
+            'category': category,
             'scene_name': sequence_name,
             'object_id': sequence_name,
             'frame_ids': frame_ids,

@@ -21,7 +21,7 @@ def run_dataset_test(dataset: TrajectoryDataset) -> None:
     print(f'Torch sample example: {torch_dataset[5]}')
 
     torch_dataloader = DataLoader(torch_dataset, batch_size=4, collate_fn=OdeDataloaderCollateFunctional())
-    for bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, metadata in torch_dataloader:
+    for bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, _, metadata in torch_dataloader:
         print(f'Torch batch sample example shapes: bboxes_obs={bboxes_obs.shape}, bboxes_unobs={bboxes_unobs.shape}, '
               f'ts_obs={ts_obs.shape}, ts_unobs={ts_unobs.shape}')
         print('Torch batch metadata', metadata)

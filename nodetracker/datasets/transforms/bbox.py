@@ -13,6 +13,7 @@ from typing import Union, List, Optional
 import torch
 
 from nodetracker.datasets.transforms.base import InvertibleTransformWithVariance, TensorCollection
+from nodetracker.common.project import OUTPUTS_PATH
 
 
 class BboxFirstOrderDifferenceTransform(InvertibleTransformWithVariance):
@@ -255,6 +256,23 @@ class BBoxStandardizedRelativeToLastObsTransform(BBoxCompositeTransform):
         ]
 
         super().__init__(transforms=transforms)
+
+class BBoxAddOneHotLabelTransform(InvertibleTransformWithVariance):
+    def apply(self, data: TensorCollection, shallow: bool = True) -> TensorCollection:
+        bboxes_obs, bboxes_unobs, frame_ts_obs, frame_ts_unobs, metadata = data
+        category = metadata['category']
+        
+
+    def inverse(self, data: TensorCollection, shallow: bool = True) -> TensorCollection:
+        return data
+
+    def inverse_std(self, t_std: torch.Tensor, additional_data: Optional[TensorCollection] = None, shallow: bool = True) -> TensorCollection:
+        return t_std
+
+    def inverse_var(self, t_var: torch.Tensor, additional_data: Optional[TensorCollection] = None, shallow: bool = True) \
+            -> TensorCollection:
+        return t_var
+
 
 # noinspection DuplicatedCode
 def run_test_first_difference() -> None:

@@ -312,6 +312,7 @@ class MOTDataset(TrajectoryDataset):
         # Metadata
         frame_ids = [item['frame_id'] for item in raw_traj]
         metadata = {
+            'category': 'pedestrian',
             'scene_name': scene_name,
             'object_id': object_id,
             'frame_ids': frame_ids,
