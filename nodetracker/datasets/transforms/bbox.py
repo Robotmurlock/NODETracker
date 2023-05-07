@@ -3,6 +3,9 @@ BBox transformations. Contains
 - BBox trajectory first order difference transformation
 - BBox coordination standardization to N(0, 1)
 - BBox trajectory standardized first order difference transformation
+- BBox trajectory relative to the last observed point
+- BBox trajectory standardized relative to the last observed point transformation
+- BBox transform composition
 """
 
 from typing import Union, List, Optional
@@ -139,8 +142,36 @@ class BBoxStandardizationTransform(InvertibleTransformWithVariance):
         return t_std * torch.square(std)
 
 
-class BBoxStandardizedFirstOrderDifferenceTransform(InvertibleTransformWithVariance):
+class BBoxCompositeTransform(InvertibleTransformWithVariance):
+    def __init__(self, transforms: List[InvertibleTransformWithVariance]):
+        super().__init__(name='composite')
+        self._transforms = transforms
+
+    def apply(self, data: TensorCollection, shallow: bool = True) -> TensorCollection:
+        for t in self._transforms:
+            data = t.apply(data, shallow=shallow)
+        return data
+
+    def inverse(self, data: TensorCollection, shallow: bool = True) -> TensorCollection:
+        for t in self._transforms[::-1]:
+            data = t.inverse(data, shallow=shallow)
+        return data
+
+    def inverse_std(self, t_std: torch.Tensor, additional_data: Optional[TensorCollection] = None, shallow: bool = True) -> TensorCollection:
+        for t in self._transforms[::-1]:
+            t_std = t.inverse_std(t_std, shallow=shallow)
+        return t_std
+
+    def inverse_var(self, t_var: torch.Tensor, additional_data: Optional[TensorCollection] = None, shallow: bool = True) -> TensorCollection:
+        for t in self._transforms[::-1]:
+            t_var = t.inverse(t_var, shallow=shallow)
+        return t_var
+
+
+class BBoxStandardizedFirstOrderDifferenceTransform(BBoxCompositeTransform):
     """
+    This is still here for back-compatibility...
+
     Step 1: Applies first difference transformation:
     Y[i] = X[i] - X[i-1]
     Y[0] is removed
@@ -149,31 +180,11 @@ class BBoxStandardizedFirstOrderDifferenceTransform(InvertibleTransformWithVaria
     Z[i] = (Y[i] - mean(Y)) / std(Y)
     """
     def __init__(self, mean: float, std: float):
-        super().__init__(name='standardized_first_difference')
-        self._first_difference = BboxFirstOrderDifferenceTransform()
-        self._standardization = BBoxStandardizationTransform(mean=mean, std=std)
-
-    def apply(self, data: TensorCollection, shallow: bool = True) -> TensorCollection:
-        data = self._first_difference.apply(data, shallow=shallow)
-        data = self._standardization.apply(data, shallow=False)
-        return data
-
-    def inverse(self, data: TensorCollection, shallow: bool = True, n_samples: int = 1) -> TensorCollection:
-        data = self._standardization.inverse(data, shallow=shallow, n_samples=n_samples)
-        data = self._first_difference.inverse(data, shallow=False)
-        return data
-
-    def inverse_std(self, t_std: torch.Tensor, additional_data: Optional[TensorCollection] = None, shallow: bool = True) \
-            -> TensorCollection:
-        std = self._standardization.inverse_std(t_std, additional_data, shallow=shallow)
-        std = self._first_difference.inverse_std(std, additional_data, shallow=shallow)
-        return std
-
-    def inverse_var(self, t_var: torch.Tensor, additional_data: Optional[TensorCollection] = None, shallow: bool = True) \
-            -> TensorCollection:
-        var = self._standardization.inverse_var(t_var, additional_data, shallow=shallow)
-        var = self._first_difference.inverse_std(var, additional_data, shallow=shallow)
-        return var
+        transforms = [
+            BboxFirstOrderDifferenceTransform(),
+            BBoxStandardizationTransform(mean=mean, std=std)
+        ]
+        super().__init__(transforms=transforms)
 
 
 class BBoxRelativeToLastObsTransform(InvertibleTransformWithVariance):
@@ -222,8 +233,10 @@ class BBoxRelativeToLastObsTransform(InvertibleTransformWithVariance):
 
 
 # noinspection DuplicatedCode
-class BBoxStandardizedRelativeToLastObsTransform(InvertibleTransformWithVariance):
+class BBoxStandardizedRelativeToLastObsTransform(BBoxCompositeTransform):
     """
+    This is still here for back-compatibility...
+
     Step 1: Applies first difference transformation:
     * For all observed coordinates:
     Y[i] = X[-1] - X[i]
@@ -236,32 +249,12 @@ class BBoxStandardizedRelativeToLastObsTransform(InvertibleTransformWithVariance
     Z[i] = (Y[i] - mean(Y)) / std(Y)
     """
     def __init__(self, mean: float, std: float):
-        super().__init__(name='standardized_relative_to_last_obs')
-        self._relative_to_last_obs = BBoxRelativeToLastObsTransform()
-        self._standardization = BBoxStandardizationTransform(mean=mean, std=std)
+        transforms = [
+            BBoxRelativeToLastObsTransform(),
+            BBoxStandardizationTransform(mean=mean, std=std)
+        ]
 
-    def apply(self, data: TensorCollection, shallow: bool = True) -> TensorCollection:
-        data = self._relative_to_last_obs.apply(data, shallow=shallow)
-        data = self._standardization.apply(data, shallow=False)
-        return data
-
-    def inverse(self, data: TensorCollection, shallow: bool = True, n_samples: int = 1) -> TensorCollection:
-        data = self._standardization.inverse(data, shallow=shallow, n_samples=n_samples)
-        data = self._relative_to_last_obs.inverse(data, shallow=False)
-        return data
-
-    def inverse_std(self, t_std: torch.Tensor, additional_data: Optional[TensorCollection] = None, shallow: bool = True) \
-            -> TensorCollection:
-        std = self._standardization.inverse_std(t_std, additional_data, shallow=shallow)
-        std = self._relative_to_last_obs.inverse_std(std, additional_data, shallow=shallow)
-        return std
-
-    def inverse_var(self, t_var: torch.Tensor, additional_data: Optional[TensorCollection] = None, shallow: bool = True) \
-            -> TensorCollection:
-        var = self._standardization.inverse_var(t_var, additional_data, shallow=shallow)
-        var = self._relative_to_last_obs.inverse_std(var, additional_data, shallow=shallow)
-        return var
-
+        super().__init__(transforms=transforms)
 
 # noinspection DuplicatedCode
 def run_test_first_difference() -> None:
@@ -311,6 +304,7 @@ def run_test_standardized_first_difference() -> None:
     assert torch.abs(inv_transformed_bbox_unobs - bbox_unobs).sum().item() < 1e-3
 
 
+# noinspection DuplicatedCode
 def run_test_relative_to_last_obs() -> None:
     bbox_obs = torch.randn(2, 2, 4)
     bbox_unobs = torch.randn(3, 2, 4)
@@ -327,6 +321,7 @@ def run_test_relative_to_last_obs() -> None:
     assert torch.abs(inv_transformed_bbox_unobs - bbox_unobs).sum().item() < 1e-3
 
 
+# noinspection DuplicatedCode
 def run_test_standardized_relative_to_last_obs() -> None:
     bbox_obs = torch.randn(2, 2, 4)
     bbox_unobs = torch.randn(3, 2, 4)

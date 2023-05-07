@@ -12,6 +12,7 @@ from nodetracker.datasets.transforms.bbox import (
     BBoxStandardizationTransform,
     BBoxStandardizedFirstOrderDifferenceTransform,
     BBoxRelativeToLastObsTransform,
-    BBoxStandardizedRelativeToLastObsTransform
+    BBoxStandardizedRelativeToLastObsTransform,
+    BBoxCompositeTransform
 )
 from nodetracker.datasets.transforms.factory import transform_factory
