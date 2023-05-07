@@ -1,0 +1,29 @@
+experiment: 'CategoryRNNODE-lasot-exp01-embedding-dim-8'
+description: 'Embedding dim - 8'
+batch_size: 64
+learning_rate: 1e-3
+max_epochs: 30
+
+inverse_transform_before_loss: True
+gradient_clip_val: 10
+gradient_clip_algorithm: value
+
+train_params:
+  optim_name: adamw
+  learning_rate: 1e-3
+  sched_lr_gamma: 0.1
+  sched_lr_step: 8
+  weight_decay: 0.0001
+
+  loss_name: 'hybrid_gaussian_nllloss_giou'
+  loss_params:
+    w_nllloss: 0.8
+    w_giou: 0.2
+
+logging_cfg:
+  path: 'logs'
+  log_every_n_steps: 1
+
+checkpoint_cfg:
+  metric_monitor: 'val-epoch/loss'
+  resume_from: null

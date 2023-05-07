@@ -4,7 +4,7 @@ defaults:
   - transform: standardized_first_difference_v2.yaml
   - model: single_step_rnn.yaml
   - train: single_step_rnn.yaml
-  - eval: single_step_rnn.yaml
+  - eval: default.yaml
   - visualize: default.yaml
   - augmentations: default.yaml
   - _self_

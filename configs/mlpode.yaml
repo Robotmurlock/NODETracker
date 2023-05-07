@@ -4,7 +4,7 @@ defaults:
   - transform: standardized_relative_to_last_obs_with_noise.yaml
   - model: mlpode.yaml
   - train: mlpode.yaml
-  - eval: mlpode.yaml
+  - eval: default.yaml
   - visualize: default.yaml
   - augmentations: detector_noise.yaml
   - _self_

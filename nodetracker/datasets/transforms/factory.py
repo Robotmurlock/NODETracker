@@ -41,7 +41,6 @@ def transform_factory(name: str, params: dict) -> Union[InvertibleTransform, Inv
     cls = catalog[name]
 
     if name == 'composite':
-        params['transforms'] = [transform_factory(child_name, child_params)
-                                for child_name, child_params in params['transforms'].items()]
+        params['transforms'] = [transform_factory(child['name'], child['params']) for child in params['transforms']]
 
     return cls(**params)

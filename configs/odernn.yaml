@@ -4,7 +4,7 @@ defaults:
   - transform: standardized_relative_to_last_obs_with_noise.yaml
   - model: odernn.yaml
   - train: odernn.yaml
-  - eval: odernn.yaml
+  - eval: default.yaml
   - visualize: default.yaml
   - augmentations: detector_noise_var_traj_length.yaml
   - _self_

@@ -160,12 +160,12 @@ class BBoxCompositeTransform(InvertibleTransformWithVariance):
 
     def inverse_std(self, t_std: torch.Tensor, additional_data: Optional[TensorCollection] = None, shallow: bool = True) -> TensorCollection:
         for t in self._transforms[::-1]:
-            t_std = t.inverse_std(t_std, shallow=shallow)
+            t_std = t.inverse_std(t_std, additional_data=additional_data, shallow=shallow)
         return t_std
 
     def inverse_var(self, t_var: torch.Tensor, additional_data: Optional[TensorCollection] = None, shallow: bool = True) -> TensorCollection:
         for t in self._transforms[::-1]:
-            t_var = t.inverse(t_var, shallow=shallow)
+            t_var = t.inverse_var(t_var, additional_data=additional_data, shallow=shallow)
         return t_var
 
 
@@ -258,16 +258,20 @@ class BBoxStandardizedRelativeToLastObsTransform(BBoxCompositeTransform):
         super().__init__(transforms=transforms)
 
 class BBoxAddLabelTransform(InvertibleTransformWithVariance):
-    def __init__(self, mappings: dict):
+    def __init__(self, token_to_index: Optional[dict] = None, unknown_token: str = '<unk>', add_unknown_token: bool = True):
         super().__init__(name='bbox_add_one_hot_label')
-        self._lookup = LookupTable.deserialize(mappings)
+        self._lookup = LookupTable(
+            token_to_index=token_to_index,
+            unknown_token=unknown_token,
+            add_unknown_token=add_unknown_token
+        )
 
     def apply(self, data: TensorCollection, shallow: bool = True) -> TensorCollection:
-        bboxes_obs, bboxes_unobs, frame_ts_obs, frame_ts_unobs, orig_bboxes_obs, metadata = data
+        bboxes_obs, bboxes_unobs, frame_ts_obs, frame_ts_unobs, metadata = data
         category = metadata['category']
-        category_index = self._lookup[category] * torch.ones(*bboxes_obs.shape[:-1], 1, dtype=torch.long)
+        category_index = self._lookup[category] * torch.ones(*bboxes_obs.shape[:-1], 1, dtype=torch.float32)
         bboxes_obs = torch.concat([bboxes_obs, category_index], dim=-1)
-        return bboxes_obs, bboxes_unobs, frame_ts_obs, frame_ts_unobs, orig_bboxes_obs, metadata
+        return bboxes_obs, bboxes_unobs, frame_ts_obs, frame_ts_unobs, metadata
 
     def inverse(self, data: TensorCollection, shallow: bool = True) -> TensorCollection:
         return data

@@ -4,7 +4,7 @@ defaults:
   - transform: standardized_first_difference_v2.yaml
   - model: odernnvae.yaml
   - train: odernnvae.yaml
-  - eval: odernnvae.yaml
+  - eval: default.yaml
   - visualize: default.yaml
   - augmentations: default.yaml
   - _self_

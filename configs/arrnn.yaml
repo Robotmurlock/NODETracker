@@ -4,7 +4,7 @@ defaults:
   - transform: standardized_first_difference_v2.yaml
   - model: arrnn.yaml
   - train: arrnn.yaml
-  - eval: arrnn.yaml
+  - eval: default.yaml
   - visualize: default.yaml
   - augmentations: default.yaml
   - _self_

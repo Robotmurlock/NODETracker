@@ -1,0 +1,13 @@
+type: category_rnnode
+params:
+  observable_dim: 4
+  hidden_dim: 128
+
+  num_embeddings: 71  # Lasot - 71, MOT - 1
+  embedding_dim: 8
+
+  model_gaussian: true
+
+  solver_name: 'rk4'
+  solver_params:
+    max_step_size: 0.25

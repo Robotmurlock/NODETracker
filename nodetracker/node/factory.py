@@ -15,6 +15,7 @@ from nodetracker.standard.mlp import LightningMLPForecaster
 from nodetracker.standard.rnn import LightningRNNSeq2Seq, LightningARRNN, LightningSingleStepRNN
 from nodetracker.standard.trainable_kalman_filter import LightningAdaptiveKalmanFilter
 from nodetracker.datasets.transforms import InvertibleTransform, InvertibleTransformWithVariance
+from nodetracker.node.nlp import LightningCategoryRNNODE
 
 
 class ModelType(enum.Enum):
@@ -28,6 +29,7 @@ class ModelType(enum.Enum):
     SINGLE_STEP_RNN = 'single-step-rnn'
     RNN = 'rnn'
     RNNODE = 'rnnode'
+    CATEGORY_RNNODE = 'category_rnnode'
     MLP = 'mlp'
     MLPODE = 'mlpode'
     KALMAN_FILTER = 'kf'
@@ -87,7 +89,8 @@ def load_or_create_model(
         ModelType.MLP: LightningMLPForecaster,
         ModelType.MLPODE: LightningMLPODE,
         ModelType.KALMAN_FILTER: TorchConstantVelocityODKalmanFilter,
-        ModelType.TAKF: LightningAdaptiveKalmanFilter
+        ModelType.TAKF: LightningAdaptiveKalmanFilter,
+        ModelType.CATEGORY_RNNODE: LightningCategoryRNNODE
     }
 
     model_cls = catalog[model_type]

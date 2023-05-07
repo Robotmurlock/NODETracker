@@ -73,12 +73,11 @@ params:
           dog: 60
           hat: 61
           crab: 62
-          tmp: 63
-          elephant: 64
-          basketball: 65
-          motorcycle: 66
-          squirrel: 67
-          truck: 68
-          bird: 69
-          horse: 70
-          kangaroo: 71
+          elephant: 63
+          basketball: 64
+          motorcycle: 65
+          squirrel: 66
+          truck: 67
+          bird: 68
+          horse: 69
+          kangaroo: 70
