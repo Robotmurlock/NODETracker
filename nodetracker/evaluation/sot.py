@@ -34,6 +34,7 @@ def traj_bbox_xyhw_to_xyxy(bbox: np.ndarray, eps=1e-9) -> np.ndarray:
     Returns:
         Bbox in xyxy format
     """
+    bbox = bbox.copy()
     bbox[..., 2] = np.maximum(bbox[..., 0] + bbox[..., 2], bbox[..., 0] + eps)
     bbox[..., 3] = np.maximum(bbox[..., 1] + bbox[..., 3], bbox[..., 1] + eps)
     return bbox
