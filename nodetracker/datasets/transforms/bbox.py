@@ -6,9 +6,11 @@ BBox transformations. Contains
 - BBox trajectory relative to the last observed point
 - BBox trajectory standardized relative to the last observed point transformation
 - BBox transform composition
+- BBox coordination standardization to N(0, 1) (by category)
 """
 
-from typing import Union, List, Optional
+from typing import Union, List, Optional, Dict, Tuple
+import copy
 
 import torch
 
@@ -136,11 +138,11 @@ class BBoxStandardizationTransform(InvertibleTransformWithVariance):
         std = self._std.to(t_std)
         return t_std * std
 
-    def inverse_var(self, t_std: torch.Tensor, additional_data: Optional[TensorCollection] = None, shallow: bool = True) \
+    def inverse_var(self, t_var: torch.Tensor, additional_data: Optional[TensorCollection] = None, shallow: bool = True) \
             -> TensorCollection:
         # Similar to `inverse_std`
-        std = self._std.to(t_std)
-        return t_std * torch.square(std)
+        std = self._std.to(t_var)
+        return t_var * torch.square(std)
 
 
 class BBoxCompositeTransform(InvertibleTransformWithVariance):
@@ -233,7 +235,6 @@ class BBoxRelativeToLastObsTransform(InvertibleTransformWithVariance):
         return t_var  # It's assumed that last observed element has variance equal to 0
 
 
-# noinspection DuplicatedCode
 class BBoxStandardizedRelativeToLastObsTransform(BBoxCompositeTransform):
     """
     This is still here for back-compatibility...
@@ -282,6 +283,135 @@ class BBoxAddLabelTransform(InvertibleTransformWithVariance):
     def inverse_var(self, t_var: torch.Tensor, additional_data: Optional[TensorCollection] = None, shallow: bool = True) \
             -> TensorCollection:
         return t_var
+
+class BBoxCategoryStandardizationTransform(InvertibleTransformWithVariance):
+    """
+    Applies standardization transformation by category:
+    Y[i] = (X[i] - mean_category(X)) / std_category(X)
+    """
+    def __init__(self, stats: Dict[str, Dict[str, Union[float, List[float], torch.Tensor]]]):
+        super().__init__(name='standardization_by_category')
+        stats = copy.deepcopy(stats)
+
+        for stat in stats.values():
+            assert set(stat.keys()) == {'mean', 'std'}, f'Expected "mean" and "std" keys but found {list(stats.keys())}!'
+
+            if isinstance(stat['mean'], float):
+                # Convert to list
+                stat['mean'] = [stat['mean']] * 4
+
+            if isinstance(stat['std'], float):
+                # Convert to list
+                stat['std'] = [stat['std']] * 4
+
+            stat['mean'] = torch.tensor(stat['mean'], dtype=torch.float32)
+            stat['std'] = torch.tensor(stat['std'], dtype=torch.float32)
+
+        self._stats = stats
+
+    def _get_mean_std(self, category: str, device: Union[torch.device, str]) -> Tuple[torch.Tensor, torch.Tensor]:
+        """
+        Fetches mean and std stats for queries category.
+
+        Args:
+            category: Category
+
+        Returns:
+            Mean, Std
+        """
+        mean = self._stats[category]['mean'].to(device)
+        std = self._stats[category]['std'].to(device)
+        return mean, std
+
+    def apply(self, data: TensorCollection, shallow: bool = True) -> TensorCollection:
+        bbox_obs, bbox_unobs, ts_obs, ts_unobs, metadata, *other = data
+        if len(bbox_obs.shape) == 3:
+            # Batch operation
+            n_batches = bbox_obs.shape[1]
+            for batch_index in range(n_batches):
+                mean, std = self._get_mean_std(metadata['category'][batch_index], bbox_obs.device)
+
+                bbox_obs[:, batch_index, :] = (bbox_obs[:, batch_index, :] - mean) / std
+                # During live inference, bbox_unobs are not known (this is for training only)
+                bbox_unobs[:, batch_index, :] = (bbox_unobs[:, batch_index, :] - mean) / std \
+                    if bbox_unobs is not None else None
+        elif len(bbox_obs.shape) == 2:
+            # Single sample operation
+            mean, std = self._get_mean_std(metadata['category'], bbox_obs.device)
+
+            bbox_obs = (bbox_obs - mean) / std
+            # During live inference, bbox_unobs are not known (this is for training only)
+            bbox_unobs = (bbox_unobs - mean) / std if bbox_unobs is not None else None
+        else:
+            raise AssertionError(f'Invalid bbox shape {bbox_obs.shape}')
+
+        return bbox_obs, bbox_unobs, ts_obs, ts_unobs, metadata, *other
+
+    def inverse(self, data: TensorCollection, shallow: bool = True) -> TensorCollection:
+        bbox_obs, bbox_unobs, metadata, *other = data
+
+        if len(bbox_obs.shape) == 3:
+            # Batch operation
+            n_batches = bbox_obs.shape[1]
+            for batch_index in range(n_batches):
+                mean, std = self._get_mean_std(metadata['category'][batch_index], bbox_obs.device)
+
+                bbox_unobs[:, batch_index, :] = bbox_unobs[:, batch_index, :] * std + mean
+        elif len(bbox_obs.shape) == 2:
+            # Single sample operation
+            mean, std = self._get_mean_std(metadata['category'], bbox_obs.device)
+
+            bbox_unobs = bbox_unobs * std + mean
+        else:
+            raise AssertionError(f'Invalid bbox shape {bbox_obs.shape}')
+
+        return bbox_obs, bbox_unobs, *other
+
+    def inverse_std(self, t_std: torch.Tensor, additional_data: Optional[TensorCollection] = None, shallow: bool = True) \
+            -> TensorCollection:
+        metadata, *other = additional_data
+        new_std = None
+
+        if len(t_std.shape) == 3:
+            # Batch operation
+            n_batches = t_std.shape[1]
+            for batch_index in range(n_batches):
+                _, std = self._get_mean_std(metadata['category'][batch_index], t_std.device)
+
+                new_std = t_std * std
+
+        elif len(t_std.shape) == 2:
+            # Single sample operation
+            _, std = self._get_mean_std(metadata['category'], t_std.device)
+
+            new_std = t_std * std
+        else:
+            raise AssertionError(f'Invalid bbox shape {t_std.shape}')
+
+        return new_std
+
+    def inverse_var(self, t_var: torch.Tensor, additional_data: Optional[TensorCollection] = None, shallow: bool = True) \
+            -> TensorCollection:
+        metadata, *other = additional_data
+        new_var = None
+
+        if len(t_var.shape) == 3:
+            # Batch operation
+            n_batches = t_var.shape[1]
+            for batch_index in range(n_batches):
+                _, std = self._get_mean_std(metadata['category'][batch_index], t_var.device)
+
+                new_var = t_var * torch.square(std)
+
+        elif len(t_var.shape) == 2:
+            # Single sample operation
+            _, std = self._get_mean_std(metadata['category'], t_var.device)
+
+            new_var = t_var * torch.square(std)
+        else:
+            raise AssertionError(f'Invalid bbox shape {t_var.shape}')
+
+        return new_var
 
 
 # noinspection DuplicatedCode

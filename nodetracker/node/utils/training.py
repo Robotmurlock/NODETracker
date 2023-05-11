@@ -150,7 +150,8 @@ class LightningModuleForecaster(LightningModuleBase):
         self,
         bboxes_obs: torch.Tensor,
         bboxes_unobs: torch.Tensor,
-        bboxes_unobs_hat: torch.Tensor
+        bboxes_unobs_hat: torch.Tensor,
+        metadata: dict
     ) -> Tuple[Union[torch.Tensor, Dict[str, torch.Tensor]], Dict[str, float]]:
         """
         Calculates loss based on set loss function.
@@ -171,11 +172,11 @@ class LightningModuleForecaster(LightningModuleBase):
 
             if self._transform_func is not None:
                 # Invert mean
-                _, bboxes_unobs_hat_mean, *_ = self._transform_func.inverse([bboxes_obs, bboxes_unobs_hat_mean], shallow=False)
-                _, bboxes_unobs, *_ = self._transform_func.inverse([bboxes_obs, bboxes_unobs], shallow=False)
+                _, bboxes_unobs_hat_mean, *_ = self._transform_func.inverse([bboxes_obs, bboxes_unobs_hat_mean, metadata, None], shallow=False)
+                _, bboxes_unobs, *_ = self._transform_func.inverse([bboxes_obs, bboxes_unobs, metadata, None], shallow=False)
 
                 # Invert var
-                bboxes_unobs_hat_var = self._transform_func.inverse_var(bboxes_unobs_hat_var)
+                bboxes_unobs_hat_var = self._transform_func.inverse_var(bboxes_unobs_hat_var, additional_data=[metadata, None])
 
             gt_traj = bboxes_unobs.detach().cpu().numpy()
             pred_traj = bboxes_unobs_hat_mean.detach().cpu().numpy()
@@ -184,8 +185,8 @@ class LightningModuleForecaster(LightningModuleBase):
             return self._loss_func(bboxes_unobs_hat_mean, bboxes_unobs, bboxes_unobs_hat_var), metrics
 
         if self._transform_func is not None:
-            _, bboxes_unobs_hat, *_ = self._transform_func.inverse([bboxes_obs, bboxes_unobs_hat], shallow=False)
-            _, bboxes_unobs, *_ = self._transform_func.inverse([bboxes_obs, bboxes_unobs], shallow=False)
+            _, bboxes_unobs_hat, *_ = self._transform_func.inverse([bboxes_obs, bboxes_unobs_hat, metadata, None], shallow=False)
+            _, bboxes_unobs, *_ = self._transform_func.inverse([bboxes_obs, bboxes_unobs, metadata, None], shallow=False)
 
         gt_traj = bboxes_unobs.detach().cpu().numpy()
         pred_traj = bboxes_unobs_hat.detach().cpu().numpy()
@@ -232,20 +233,22 @@ class LightningModuleForecaster(LightningModuleBase):
             self._meter.push(f'{prefix}-metrics/{name}', value)
 
     def training_step(self, batch: Tuple[torch.Tensor, ...], *args, **kwargs) -> torch.Tensor:
-        bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, orig_bboxes_obs, _ = batch
+        bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, orig_bboxes_obs, metadata = batch
         bboxes_unobs_hat, *_ = self.forward(bboxes_obs, ts_obs, ts_unobs)
 
-        loss, metrics = self._calc_loss_and_metrics(orig_bboxes_obs, bboxes_unobs, bboxes_unobs_hat)
+        # noinspection PyTypeChecker
+        loss, metrics = self._calc_loss_and_metrics(orig_bboxes_obs, bboxes_unobs, bboxes_unobs_hat, metadata)
         self._log_loss(loss, prefix='training', log_step=True)
         self._log_metrics(metrics, prefix='training')
 
         return loss
 
     def validation_step(self, batch: Tuple[torch.Tensor, ...], *args, **kwargs) -> torch.Tensor:
-        bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, orig_bboxes_obs, _ = batch
+        bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, orig_bboxes_obs, metadata = batch
         bboxes_unobs_hat, *_ = self.forward(bboxes_obs, ts_obs, ts_unobs)
 
-        loss, metrics = self._calc_loss_and_metrics(orig_bboxes_obs, bboxes_unobs, bboxes_unobs_hat)
+        # noinspection PyTypeChecker
+        loss, metrics = self._calc_loss_and_metrics(orig_bboxes_obs, bboxes_unobs, bboxes_unobs_hat, metadata)
         self._log_loss(loss, prefix='val', log_step=False)
         self._log_metrics(metrics, prefix='val')
 

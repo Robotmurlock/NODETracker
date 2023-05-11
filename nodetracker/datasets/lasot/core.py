@@ -281,7 +281,8 @@ class LaSOTDataset(TrajectoryDataset):
             'bbox': bbox,
             'image_path': image_path,
             'occ': occlusion,
-            'oov': out_of_view
+            'oov': out_of_view,
+            'category': category
         }
 
     def get_object_data_label_by_frame_index(self, object_id: str, frame_index: int, relative_bbox_coords: bool = True) -> Optional[dict]:

@@ -7,7 +7,7 @@ from typing import Collection, Union, Optional
 import torch
 
 
-TensorCollection = Union[torch.Tensor, Collection[torch.Tensor]]
+TensorCollection = Union[torch.Tensor, Collection[torch.Tensor], dict, None]
 
 
 class Transform(ABC):

@@ -197,8 +197,8 @@ class TorchTrajectoryDataset(Dataset):
         bboxes_obs, bboxes_unobs, ts_obs, ts_unobs = \
             self._augmentation_before_transform(orig_bboxes_obs, bboxes_unobs, ts_obs, ts_unobs)
 
-        bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, metadata = \
-            self._transform([bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, metadata], shallow=False)
+        bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, metadata, _ = \
+            self._transform([bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, metadata, None], shallow=False)
 
         bboxes_obs, bboxes_unobs, ts_obs, ts_unobs = \
             self._augmentation_after_transform(bboxes_obs, bboxes_unobs, ts_obs, ts_unobs)
