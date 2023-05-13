@@ -1,0 +1,11 @@
+type: compose_rnnode
+params:
+  observable_dim: 4
+  hidden_dim: 128
+  n_categories: 71
+
+  model_gaussian: true
+
+  solver_name: 'rk4'
+  solver_params:
+    max_step_size: 0.25

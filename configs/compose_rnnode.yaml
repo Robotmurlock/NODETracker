@@ -1,0 +1,11 @@
+defaults:
+  - resources: cuda.yaml
+  - dataset: lasot.yaml
+  - transform: lasot/embedding_relative_to_last_obs.yaml
+  - model: compose_rnnode.yaml
+  - train: compose_rnnode.yaml
+  - eval: default.yaml
+  - visualize: default.yaml
+  - augmentations: default.yaml
+  - path: lasot.yaml
+  - _self_

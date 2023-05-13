@@ -96,6 +96,7 @@ class LaSOTDataset(TrajectoryDataset):
         history_len: int,
         future_len: int,
         sequence_list: Optional[List[str]] = None,
+        category_list: Optional[List[str]] = None,
         skip_occlusion: bool = False,
         skip_out_of_view: bool = False,
         **kwargs
@@ -114,7 +115,8 @@ class LaSOTDataset(TrajectoryDataset):
 
         self._sequence_index = self._create_dataset_index(
             path=path,
-            sequence_list=sequence_list
+            sequence_list=sequence_list,
+            category_list=category_list
         )
         self._trajectory_index = self._create_trajectory_index(
             sequence_index=self._sequence_index,
@@ -126,7 +128,11 @@ class LaSOTDataset(TrajectoryDataset):
 
     # noinspection PyUnresolvedReferences
     @staticmethod
-    def _create_dataset_index(path: str, sequence_list: Optional[Dict[str, List[str]]]) -> SequenceInfoIndex:
+    def _create_dataset_index(
+        path: str,
+        sequence_list: Optional[List[str]],
+        category_list: Optional[List[str]]
+    ) -> SequenceInfoIndex:
         """
         Indexes all dataset metadata (loads everything except images) given the path
 
@@ -142,6 +148,9 @@ class LaSOTDataset(TrajectoryDataset):
         sequences = file_system.listdir(path)
         for sequence_name in tqdm(sequences, unit='sequences', desc='Indexing sequences'):
             category, _ = sequence_name.split('-')
+            if category_list is not None and category not in category_list:
+                continue
+
             if sequence_list is not None and sequence_name not in sequence_list:
                 continue
 
@@ -207,15 +216,16 @@ class LaSOTDataset(TrajectoryDataset):
         for category, category_data in tqdm(sequence_index.items(), total=len(sequence_index), unit='category', desc='Creating trajectory index'):
             for sequence_name, sequence_info in category_data.items():
                 traj_time_points = list(range(sequence_info.seqlength - trajectory_len + 1))
-                if skip_occlusion:
-                    if any(sequence_info.occlusions[i] for i in traj_time_points):
-                        continue
-
-                if skip_out_of_view:
-                    if any(sequence_info.out_of_views[i] for i in traj_time_points):
-                        continue
 
                 for i in traj_time_points:
+                    if skip_occlusion:
+                        if any(sequence_info.occlusions[j] for j in range(i, i + trajectory_len)):
+                            continue
+
+                    if skip_out_of_view:
+                        if any(sequence_info.out_of_views[j] for j in range(i, i + trajectory_len)):
+                            continue
+
                     traj_index.append((category, sequence_name, i, i + trajectory_len))
 
         return traj_index

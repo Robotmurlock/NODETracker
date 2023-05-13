@@ -48,6 +48,7 @@ OCCLUSION_AS_SKIP_DETECTION = True
 VISUALIZE = False
 VISUALIZE_SHOW_IOU = True
 SCENE_REGEX_FILTER = None
+CATEGORY_LIST = ['swing']
 
 
 class ODETorchTensorBuffer:
@@ -135,7 +136,10 @@ def main(cfg: DictConfig):
         path=cfg.dataset.fullpath,
         sequence_list=cfg.dataset.split_index[cfg.eval.split],
         history_len=1,  # Not relevant
-        future_len=1  # not relevant
+        future_len=1,  # not relevant
+        additional_params={
+            'category_list': CATEGORY_LIST
+        } if cfg.dataset.name == 'LaSOT' else {}
     )
 
     transform_func = transforms.transform_factory(cfg.transform.name, cfg.transform.params)

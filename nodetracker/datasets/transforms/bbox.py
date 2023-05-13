@@ -268,11 +268,11 @@ class BBoxAddLabelTransform(InvertibleTransformWithVariance):
         )
 
     def apply(self, data: TensorCollection, shallow: bool = True) -> TensorCollection:
-        bboxes_obs, bboxes_unobs, frame_ts_obs, frame_ts_unobs, metadata = data
+        bboxes_obs, bboxes_unobs, frame_ts_obs, frame_ts_unobs, metadata, *other = data
         category = metadata['category']
         category_index = self._lookup[category] * torch.ones(*bboxes_obs.shape[:-1], 1, dtype=torch.float32)
         bboxes_obs = torch.concat([bboxes_obs, category_index], dim=-1)
-        return bboxes_obs, bboxes_unobs, frame_ts_obs, frame_ts_unobs, metadata
+        return bboxes_obs, bboxes_unobs, frame_ts_obs, frame_ts_unobs, metadata, *other
 
     def inverse(self, data: TensorCollection, shallow: bool = True) -> TensorCollection:
         return data
