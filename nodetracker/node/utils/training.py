@@ -216,6 +216,7 @@ class LightningModuleForecaster(LightningModuleBase):
                 if log_step:
                     self.log(f'{prefix}/{name}', value, prog_bar=False)
         else:
+            loss = loss.detach().cpu()
             assert not torch.isnan(loss).any(), f'Got nan value!'
             loss = loss.detach().cpu()
             self._meter.push(f'{prefix}-epoch/loss', loss)

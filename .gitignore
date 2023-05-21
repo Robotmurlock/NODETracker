@@ -1,9 +1,13 @@
 # Storage
 playground/
 assets/
+tmp/
 outputs/
 .idea/
 **/.DS_store
+
+# YOLOv8
+runs/ 
 
 # Logs
 out.txt
