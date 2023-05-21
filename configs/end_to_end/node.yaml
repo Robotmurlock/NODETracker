@@ -1,0 +1,4 @@
+filter:
+  type: 'node'
+  params:
+    test: test
