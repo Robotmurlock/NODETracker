@@ -6,6 +6,7 @@ import logging
 import os
 from pathlib import Path
 import json
+from typing import List
 
 import yaml
 from tqdm import tqdm
@@ -32,13 +33,20 @@ def parse_args() -> argparse.Namespace:
                         help='Path where yolo data is stored.')
     parser.add_argument('--skip-oov', action='store_false', help='Skip out-of-view objects.')
     parser.add_argument('--skip-occ', action='store_false', help='Skip occluded objects.')
+    parser.add_argument('--sampling-step', type=int, required=False, default=30,
+                        help='Sample data from sequences. Default: One image per second (with 30 fps assumption)')
+    parser.add_argument('--dataset-name', type=str, required=False, default='YOLO-Dataset', help='Dataset name.')
+    parser.add_argument('--category-filter', type=str, required=False, default=None, help='Filter categories.')
     return parser.parse_args()
 
 
 def main(args: argparse.Namespace) -> None:
-    yolo_dataset_path = os.path.join(args.output_path, 'YOLO-Dataset')
-    yolo_config_path = os.path.join(args.output_path, 'config.yaml')
-    yolo_lookup_path = os.path.join(args.output_path, 'lookup.json')
+    assert args.sampling_step >= 1, f'Invalid value {args.sampling_step} for sampling step!'
+    category_filter = args.category_filter.split(',') if args.category_filter is not None else None
+
+    yolo_dataset_path = os.path.join(args.output_path, args.dataset_name)
+    yolo_config_path = os.path.join(yolo_dataset_path, 'config.yaml')
+    yolo_lookup_path = os.path.join(yolo_dataset_path, 'lookup.json')
 
     with open(args.split_index_path, 'r', encoding='utf-8') as f:
         split_index = yaml.safe_load(f)
@@ -48,8 +56,10 @@ def main(args: argparse.Namespace) -> None:
     for split in split_index.keys():
         images_path = os.path.join(yolo_dataset_path, split, 'images')
         annots_path = os.path.join(yolo_dataset_path, split, 'labels')
+        image_index_path = os.path.join(yolo_dataset_path, split, 'index.txt')
         Path(images_path).mkdir(parents=True, exist_ok=True)
         Path(annots_path).mkdir(parents=True, exist_ok=True)
+        image_index: List[str] = []
         n_total, n_skipped = 0, 0
 
         dataset = LaSOTDataset(args.dataset_path, history_len=1, future_len=1, sequence_list=split_index[split])
@@ -60,11 +70,17 @@ def main(args: argparse.Namespace) -> None:
             for object_id in object_ids:
                 n_data_points = dataset.get_object_data_length(object_id)
                 for index in range(n_data_points):
+                    if (index + 1) % args.sampling_step != 0:
+                        continue
+
                     data = dataset.get_object_data_label(object_id, index)
 
                     # Extract data
                     bbox = data['bbox']
                     category = data['category']
+                    if category_filter is not None and category not in category_filter:
+                        continue
+
                     frame_id = data['frame_id']
                     image_path = data['image_path']
                     occ, oov = data['occ'], data['oov']
@@ -91,6 +107,7 @@ def main(args: argparse.Namespace) -> None:
                     new_image_path = os.path.join(images_path, new_image_name)
                     os.symlink(image_path, new_image_path)
                     assert os.path.exists(new_image_path), f'Failed to create symlink "{new_image_path}".'
+                    image_index.append(new_image_path)
 
                     # Write annotation
                     x_center = x_min + width / 2
@@ -106,6 +123,9 @@ def main(args: argparse.Namespace) -> None:
         logger.info(f'Total number of samples for split "{split}" is {n_total}. '
                     f'Number of skipped samples is {n_skipped}')
 
+        with open(image_index_path, 'w', encoding='utf-8') as f:
+            f.write(os.linesep.join(image_index))
+
     logger.info(f'Created YOLO dataset at path "{yolo_dataset_path}"')
 
     # Create config
@@ -115,7 +135,7 @@ def main(args: argparse.Namespace) -> None:
         'names': lookup.tokens
     }
     for split in split_index:
-        config[split] = f'{split}/images'
+        config[split] = f'{split}/index.txt'
 
     logger.info(f'Config:\n{yaml.safe_dump(config)}')
     with open(yolo_config_path, 'w', encoding='utf-8') as f:
