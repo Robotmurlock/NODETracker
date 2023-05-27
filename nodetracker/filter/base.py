@@ -40,6 +40,20 @@ class StateModelFilter(ABC):
         pass
 
     @abstractmethod
+    def multistep_predict(self, state: State, n_steps: int) -> State:
+        """
+        Estimates prior state for multiple steps ahead
+
+        Args:
+            state: Current state
+            n_steps: Number of prediction steps
+
+        Returns:
+            Estimations for n_steps ahead
+        """
+        pass
+
+    @abstractmethod
     def update(self, state: State, measurement: torch.Tensor) -> State:
         """
         Updates state model based on new measurement.

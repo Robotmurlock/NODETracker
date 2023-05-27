@@ -107,7 +107,7 @@ class InvertibleTransformWithVariance(InvertibleTransform):
         pass
 
 
-class IdentityTransform(InvertibleTransform):
+class IdentityTransform(InvertibleTransformWithVariance):
     """
     Transformation neutral operator.
     """
@@ -119,3 +119,11 @@ class IdentityTransform(InvertibleTransform):
 
     def inverse(self, data: TensorCollection, shallow: bool = True) -> TensorCollection:
         return data
+
+    def inverse_std(self, t_std: torch.Tensor, additional_data: Optional[TensorCollection] = None,
+                    shallow: bool = True) -> TensorCollection:
+        return t_std
+
+    def inverse_var(self, t_var: torch.Tensor, additional_data: Optional[TensorCollection] = None,
+                    shallow: bool = True) -> TensorCollection:
+        return t_var

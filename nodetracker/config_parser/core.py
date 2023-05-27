@@ -95,6 +95,7 @@ class AugmentationsConfig:
             after_batch_collate_config=create_identity_augmentation_config()
         )
 
+
 @dataclass
 class ModelConfig:
     """

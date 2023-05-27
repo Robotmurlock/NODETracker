@@ -2,6 +2,7 @@
 Utility functions (often used functions)
 """
 from typing import Optional, List
+from torch import nn
 
 from torch.utils.data import DataLoader
 
@@ -10,6 +11,9 @@ from nodetracker.datasets import TorchTrajectoryDataset, dataset_factory
 from nodetracker.datasets.augmentations import TrajectoryAugmentation
 from nodetracker.datasets.transforms import InvertibleTransform
 from nodetracker.datasets.utils import OdeDataloaderCollateFunctional
+from nodetracker.common import conventions
+from nodetracker.node.factory import load_or_create_model
+from nodetracker.node.utils.autoregressive import AutoregressiveForecasterDecorator
 
 
 def create_dataloader(
@@ -67,3 +71,32 @@ def create_dataloader(
         num_workers=cfg.resources.num_workers,
         shuffle=shuffle
     )
+
+
+def create_inference_model(
+    cfg: GlobalConfig,
+    experiment_path: str
+) -> nn.Module:
+    """
+    Creates model from config for inference.
+
+    Args:
+        cfg: Config
+        experiment_path: Model experiment path
+
+    Returns:
+        Initialized model
+    """
+    checkpoint_path = conventions.get_checkpoint_path(experiment_path, cfg.eval.checkpoint) \
+        if cfg.eval.checkpoint else None
+    model = load_or_create_model(
+        model_type=cfg.model.type,
+        params=cfg.model.params,
+        checkpoint_path=checkpoint_path
+    )
+    model = AutoregressiveForecasterDecorator(model, keep_history=cfg.eval.autoregressive_keep_history) \
+        if cfg.eval.autoregressive else model
+    model.to(cfg.resources.accelerator)
+    model.eval()
+
+    return model

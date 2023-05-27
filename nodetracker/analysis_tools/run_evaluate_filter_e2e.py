@@ -27,7 +27,7 @@ from nodetracker.library.cv.bbox import BBox
 from nodetracker.library.cv import color_palette
 from nodetracker.library.cv.video_writer import MP4Writer
 from nodetracker.library.cv import drawing
-from nodetracker.filter import BotSortKalmanFilterWrapper
+from nodetracker.filter import BotSortKalmanFilterWrapper, NODEFilter
 from nodetracker.utils.logging import configure_logging
 
 METRICS = [
@@ -234,7 +234,13 @@ def kf_trak_eval(
     """
     object_id, traj_data = object_id_traj_data
 
+    from ultralytics import YOLO
+    yolo = YOLO('/home/robotmurlock/Desktop/projects/NODETracker/runs/detect/LaSOT-baseline-40epoch-airplane/weights/last.pt')
+    yolo.to('cuda:0')
+    images_paths = [ti['image_path'] for ti in traj_data]
     measurements = [ti['bbox'] for ti in traj_data]
+
+    # measurements = [ti['bbox'] for ti in traj_data]
     frame_ids = [ti['frame_id'] for ti in traj_data]
     occlusions = [ti['occ'] for ti in traj_data]
     out_of_view = [ti['oov'] for ti in traj_data]
@@ -244,13 +250,38 @@ def kf_trak_eval(
     sample_metrics: Dict = defaultdict(list)
     inference = {k: {} for k in ['prior', 'posterior']}
 
-    n_data_points = len(measurements)
+    n_data_points = len(frame_ids)
     n_inf_steps = n_data_points - n_pred_steps
     if n_inf_steps <= 0:
         return None
 
     for index in range(n_inf_steps):
         measurement = measurements[index]
+        image_path = images_paths[index+1]
+        # noinspection PyUnresolvedReferences
+        image = cv2.imread(image_path)
+        h, w, _ = image.shape
+        prediction_raw = yolo.predict(image, verbose=False)[0]
+
+        prediction = prediction_raw.boxes.xyxy
+        if prediction.shape[0] > 0 and posterior_state is not None:
+            min_dist = None
+            pred_index = None
+            posterior_proj, _ = kf.project(posterior_state)
+            for i, pred in enumerate(prediction):
+                dist = np.sum(np.abs(pred.detach().cpu().numpy() - posterior_proj.detach().cpu().numpy()))
+                if min_dist is None or dist < min_dist:
+                    min_dist = dist
+                    pred_index = i
+
+            prediction = prediction[pred_index].detach().cpu().numpy()
+            prediction[[0, 2]] /= w
+            prediction[[1, 3]] /= h
+            prediction[2:] -= prediction[:2]  # xyxy to xywh
+
+        else:
+            prediction = None
+
         frame_id = frame_ids[index]
         oov = out_of_view[index]
         occ = occlusions[index]
@@ -260,7 +291,7 @@ def kf_trak_eval(
         measurement = torch.tensor(measurement, dtype=torch.float32)
 
         if occlusion_as_skip_detection:
-            if oov or occ:
+            if oov or occ or prediction is None:
                 skip_detection = True
 
         if skip_oov:
@@ -288,7 +319,7 @@ def kf_trak_eval(
             else:
                 # noinspection PyBroadException
                 try:
-                    posterior_state = kf.update(prior_state, measurement)  # Posterior
+                    posterior_state = kf.update(prior_state, prediction)  # Posterior
                 except:
                     logger.error(f'Error occurred on update: {traceback.format_exc()}!')
                     posterior_state = prior_state

@@ -1,4 +1,14 @@
 filter:
   type: 'node'
   params:
-    test: test
+    accelerator: 'cuda:0'
+    det_std: [0.0, 0.0, 0.0, 0.0]
+
+    n_pred_steps: 5
+
+    buffer_size: 10
+    buffer_min_size: 1
+
+object_detection:
+  type: 'ground_truth'
+  params: {}

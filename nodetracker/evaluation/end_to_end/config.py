@@ -10,6 +10,11 @@ class FilterConfig:
 
 
 @dataclass
+class ObjectDetectionInferenceConfig:
+    type: str
+    params: dict
+
+@dataclass
 class JitterConfig:
     detection_noise_sigma: float = field(default=0.0)
     detection_skip_proba: float = field(default=0.0)
@@ -18,14 +23,14 @@ class JitterConfig:
 @dataclass
 class Evaluation:
     n_steps: int = field(default=5)
-    skip_occlusion: bool = field(default=False)
-    skip_out_of_view: bool = field(default=False)
     occlusion_as_skip_detection: bool = field(default=True)
 
 
 @dataclass
 class Visualization:
     enable: bool = field(default=False)
+    prior: bool = field(default=True)
+    posterior: bool = field(default=True)
     show_iou: bool = field(default=True)
 
 
@@ -37,6 +42,7 @@ class SelectionFilter:
 @dataclass
 class E2EConfig:
     filter: FilterConfig
+    object_detection: ObjectDetectionInferenceConfig
 
     jitter: JitterConfig = field(default_factory=JitterConfig)
     eval: Evaluation = field(default_factory=Evaluation)
@@ -52,4 +58,5 @@ class ExtendedE2EGlobalConfig(GlobalConfig):
         """
         Validation
         """
+        super().__post_init__()
         assert self.end_to_end is not None, 'E2E config needs to be defined!'

@@ -22,10 +22,8 @@ from nodetracker.config_parser import GlobalConfig
 from nodetracker.datasets import transforms, dataset_factory, TorchTrajectoryDataset
 from nodetracker.datasets.utils import OdeDataloaderCollateFunctional
 from nodetracker.library.cv import BBox
-from nodetracker.node import load_or_create_model
-from nodetracker.node.utils.autoregressive import AutoregressiveForecasterDecorator
-from nodetracker.node.utils.training import LightningModuleForecaster
 from nodetracker.utils import pipeline
+from tools.utils import create_inference_model
 
 logger = logging.getLogger('InferenceScript')
 
@@ -36,7 +34,7 @@ _METRIC_NAMES = ['MSE', 'Accuracy']
 
 @torch.no_grad()
 def run_inference(
-    model: LightningModuleForecaster,
+    model: nn.Module,
     accelerator: str,
     data_loader: DataLoader,
     transform: transforms.InvertibleTransform,
@@ -270,17 +268,7 @@ def main(cfg: DictConfig):
         shuffle=True
     )
 
-    checkpoint_path = conventions.get_checkpoint_path(experiment_path, cfg.eval.checkpoint) \
-        if cfg.eval.checkpoint else None
-    model = load_or_create_model(
-        model_type=cfg.model.type,
-        params=cfg.model.params,
-        checkpoint_path=checkpoint_path
-    )
-    model = AutoregressiveForecasterDecorator(model, keep_history=cfg.eval.autoregressive_keep_history) \
-        if cfg.eval.autoregressive else model
-    accelerator = cfg.resources.accelerator
-    model.to(accelerator)
+    model = create_inference_model(cfg, experiment_path)
 
     inference_dirpath = conventions.get_inference_path(
         experiment_path=experiment_path,
@@ -293,7 +281,7 @@ def main(cfg: DictConfig):
 
     dataset_chunked_metrics = []
     for first_chunk, inf_predictions, eval_sample_metrics, eval_dataset_metrics \
-            in run_inference(model, accelerator, data_loader, transform=postprocess_transform):
+            in run_inference(model, cfg.resources.accelerator, data_loader, transform=postprocess_transform):
         save_inference(
             predictions=inf_predictions,
             sample_metrics=eval_sample_metrics,

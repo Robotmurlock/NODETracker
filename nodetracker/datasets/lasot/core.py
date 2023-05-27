@@ -86,6 +86,7 @@ def parse_sequence(sequence_path: str) -> Tuple[List[FrameData], str]:
 SequenceInfoIndex = Dict[str, Dict[str, SequenceInfo]]  # Category -> (SequenceName -> SequenceInfo)
 TrajectoryIndex = List[Tuple[str, str, int, int]]
 
+
 class LaSOTDataset(TrajectoryDataset):
     """
     Indexes and loads LaSOT data.
@@ -213,7 +214,13 @@ class LaSOTDataset(TrajectoryDataset):
         trajectory_len = history_len + future_len
         traj_index: TrajectoryIndex = []
 
-        for category, category_data in tqdm(sequence_index.items(), total=len(sequence_index), unit='category', desc='Creating trajectory index'):
+        pbar = tqdm(
+            iterable=sequence_index.items(),
+            total=len(sequence_index),
+            unit='category',
+            desc='Creating trajectory index'
+        )
+        for category, category_data in pbar:
             for sequence_name, sequence_info in category_data.items():
                 traj_time_points = list(range(sequence_info.seqlength - trajectory_len + 1))
 
@@ -232,7 +239,8 @@ class LaSOTDataset(TrajectoryDataset):
 
     @property
     def scenes(self) -> List[str]:
-        return [sequence for category_sequences in self._sequence_index.values() for sequence in category_sequences.keys()]
+        return [sequence for category_sequences in self._sequence_index.values()
+                for sequence in category_sequences.keys()]
 
     def get_scene_info(self, scene_name: str) -> Any:
         category = self._get_sequence_category(scene_name)
@@ -295,7 +303,12 @@ class LaSOTDataset(TrajectoryDataset):
             'category': category
         }
 
-    def get_object_data_label_by_frame_index(self, object_id: str, frame_index: int, relative_bbox_coords: bool = True) -> Optional[dict]:
+    def get_object_data_label_by_frame_index(
+        self,
+        object_id: str,
+        frame_index: int,
+        relative_bbox_coords: bool = True
+    ) -> Optional[dict]:
         return self.get_object_data_label(object_id, frame_index, relative_bbox_coords=relative_bbox_coords)
 
     def get_scene_image_path(self, scene_name: str, frame_id: int) -> str:
@@ -303,7 +316,6 @@ class LaSOTDataset(TrajectoryDataset):
         category = self._get_sequence_category(scene_name)
         sequence_info = self._sequence_index[category][scene_name]
         return sequence_info.image_paths[frame_id]
-
 
     def __len__(self) -> int:
         return len(self._trajectory_index)
@@ -327,7 +339,8 @@ class LaSOTDataset(TrajectoryDataset):
             'image_paths': image_paths
         }
 
-        bboxes_obs, bboxes_unobs, frame_ts_obs, frame_ts_unobs = split_trajectory_observed_unobserved(frame_ids, bboxes, self._history_len)
+        bboxes_obs, bboxes_unobs, frame_ts_obs, frame_ts_unobs = \
+            split_trajectory_observed_unobserved(frame_ids, bboxes, self._history_len)
         return bboxes_obs, bboxes_unobs, frame_ts_obs, frame_ts_unobs, metadata
 
 
