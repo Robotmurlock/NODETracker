@@ -150,7 +150,7 @@ def success(gt_traj: np.ndarray, pred_traj: np.ndarray, threshold: Optional[Thre
     for t in threshold:
         score = (iou_scores >= t).astype(np.float32).mean()
         scores.append(score)
-    return np.array(scores).mean()
+    return float(np.array(scores).mean())
 
 
 def precision(gt_traj: np.ndarray, pred_traj: np.ndarray, imheight: int, imwidth: int, threshold: Optional[ThresholdType] = None) -> float:
@@ -190,7 +190,7 @@ def precision(gt_traj: np.ndarray, pred_traj: np.ndarray, imheight: int, imwidth
     for t in threshold:
         score = (distance <= t).astype(np.float32).mean()
         scores.append(score)
-    return np.array(scores).mean()
+    return float(np.array(scores).mean())
 
 
 def norm_precision(gt_traj: np.ndarray, pred_traj: np.ndarray, threshold: Optional[ThresholdType] = None) -> float:
@@ -222,7 +222,7 @@ def norm_precision(gt_traj: np.ndarray, pred_traj: np.ndarray, threshold: Option
     for t in threshold:
         score = (distance <= t).astype(np.float32).mean()
         scores.append(score)
-    return np.array(scores).mean()
+    return float(np.array(scores).mean())
 
 
 def metrics_func(gt_traj: np.ndarray, pred_traj: np.ndarray) -> Dict[str, float]:

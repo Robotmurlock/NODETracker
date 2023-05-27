@@ -1,11 +1,16 @@
 import functools
-from typing import Any, Tuple, Optional
+from typing import Any, Tuple, Optional, Union
 
 import torch
 
 from nodetracker.node.utils.training import LightningModuleBase, LightningTrainConfig
 from nodetracker.standard.trainable_kalman_filter.core import TrainingAKFMode, TrainableAdaptiveKalmanFilter
 from nodetracker.standard.trainable_kalman_filter.loss import LinearGaussianEnergyFunction
+from nodetracker.datasets.transforms import InvertibleTransform, InvertibleTransformWithVariance
+import logging
+
+
+logger = logging.getLogger('LightningTAKF')
 
 
 class LightningAdaptiveKalmanFilter(LightningModuleBase):
@@ -27,6 +32,7 @@ class LightningAdaptiveKalmanFilter(LightningModuleBase):
         first_principles_add_jitter_motion_mat: bool = False,
 
         training_mode: str = 'all',
+        transform_func: Optional[Union[InvertibleTransform, InvertibleTransformWithVariance]] = None,
         optimize_likelihood: bool = True,
         train_config: Optional[LightningTrainConfig] = None
     ):
@@ -49,6 +55,9 @@ class LightningAdaptiveKalmanFilter(LightningModuleBase):
             optimize_likelihood: Optimize negative log likelihood instead of MSE
             train_config: Training configuration
         """
+        if transform_func is not None:
+            logger.warning('TAKF does not support inverse transform before loss calculation. It will be ignored!')
+
         super().__init__(train_config=train_config)
         training_mode = TrainingAKFMode.from_str(training_mode)
         if train_config is not None:
@@ -139,13 +148,13 @@ class LightningAdaptiveKalmanFilter(LightningModuleBase):
         return total_loss / (n_steps - 1)
 
     def training_step(self, batch: Tuple[torch.Tensor, ...], *args, **kwargs) -> torch.Tensor:
-        zs_obs, zs_unobs, _, _, _ = batch
+        zs_obs, zs_unobs, _, _, _, _ = batch
         loss =  self.forward_loss_step(zs_obs, zs_unobs)
         self._meter.push('training/loss', loss)
         return loss
 
     def validation_step(self, batch: Tuple[torch.Tensor, ...], *args, **kwargs) -> torch.Tensor:
-        zs_obs, zs_unobs, _, _, _ = batch
+        zs_obs, zs_unobs, _, _, _, _ = batch
         loss =  self.forward_loss_step(zs_obs, zs_unobs)
         self._meter.push('val/loss', loss)
         return loss

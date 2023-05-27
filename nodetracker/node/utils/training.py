@@ -210,12 +210,14 @@ class LightningModuleForecaster(LightningModuleBase):
             assert 'loss' in loss, \
                 f'When returning loss as dictionary it has to have key "loss". Found: {list(loss.keys())}'
             for name, value in loss.items():
+                value = value.detach().cpu()
                 assert not torch.isnan(value).any(), f'Got nan value for key "{name}"!'
                 self._meter.push(f'{prefix}-epoch/{name}', value)
                 if log_step:
                     self.log(f'{prefix}/{name}', value, prog_bar=False)
         else:
             assert not torch.isnan(loss).any(), f'Got nan value!'
+            loss = loss.detach().cpu()
             self._meter.push(f'{prefix}-epoch/loss', loss)
             if log_step:
                 self.log(f'{prefix}/loss', loss, prog_bar=False)
