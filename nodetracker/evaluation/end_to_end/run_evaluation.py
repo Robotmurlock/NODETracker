@@ -205,7 +205,6 @@ def greedy_pick(
     max_dist_threshold = 0.1
 
     prior_bbox, _ = prior_state
-    prior_bbox = prior_bbox[0, 0, :]
     prior_bbox_center = prior_bbox[:2] + prior_bbox[2:4] / 2
 
     picked_bbox = None
@@ -321,7 +320,7 @@ def main(cfg: DictConfig):
 
                     multistep_score = {k: 0.0 for k, _ in METRICS}
                     prior_multistep, _ = smf.project(prior_multistep_state)
-                    prior_multistep_numpy = prior_multistep[:, 0, :].detach().cpu().numpy()  # Removing batch dimension
+                    prior_multistep_numpy = prior_multistep.detach().cpu().numpy()  # Removing batch dimension
 
                     for p_index in range(n_pred_steps):
                         gt = np.array(measurements[index + p_index], dtype=np.float32)
@@ -337,7 +336,7 @@ def main(cfg: DictConfig):
                             scene_metrics[f'prior-{metric_name}'].append(multistep_score[metric_name] / n_pred_steps)
 
                     posterior, _ = smf.project(posterior_state)
-                    posterior_numpy = posterior[0, 0, :].detach().cpu().numpy()
+                    posterior_numpy = posterior.detach().cpu().numpy()
 
                     if evaluate_step:
                         gt = np.array(measurements[index], dtype=np.float32)
@@ -362,11 +361,13 @@ def main(cfg: DictConfig):
             )
 
         if cfg.end_to_end.visualization:
+            video_dirpath = os.path.join(experiment_path, 'visualization',
+                                         f'end_to_end_{cfg.end_to_end.filter.type}')
             visualize_video(
                 scene_name=scene_name,
                 inference_visualization_cache=inference_visualization_cache,
                 dataset=dataset,
-                video_dirpath=os.path.join(experiment_path, 'visualization'),
+                video_dirpath=video_dirpath,
                 model_name=smf.__class__.__name__,
                 show_iou=cfg.end_to_end.visualization.show_iou,
                 draw_prior=cfg.end_to_end.visualization.prior,
@@ -377,7 +378,8 @@ def main(cfg: DictConfig):
 
     # Save metrics
     logger.info(f'Metrics: \n{json.dumps(metrics, indent=2)}')
-    metrics_path = os.path.join(experiment_path, 'end_to_end')
+    metrics_path = os.path.join(experiment_path, 'evaluation', f'end_to_end_{cfg.end_to_end.filter.type}.json')
+    Path(metrics_path).parent.mkdir(parents=True, exist_ok=True)
     with open(metrics_path, 'w', encoding='utf-8') as f:
         json.dump(metrics, f, indent=2)
 

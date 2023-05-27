@@ -1,0 +1,78 @@
+augmentations:
+  after_batch_collate_config:
+    _target_: nodetracker.datasets.augmentations.trajectory.ShortenTrajectoryAugmentation
+    min_length: 2
+    proba: 0.25
+  after_transform_config:
+    _target_: nodetracker.datasets.augmentations.trajectory.IdentityAugmentation
+  before_transform_config:
+    _target_: nodetracker.datasets.augmentations.trajectory.DetectorNoiseAugmentation
+    proba: 0.5
+    sigma: 0.05
+dataset:
+  future_len: 5
+  history_len: 10
+  name: MOT20
+  test_path: MOT20/test
+  train_path: MOT20/train
+  val_path: MOT20/val
+eval:
+  autoregressive: false
+  autoregressive_keep_history: false
+  batch_size: 320
+  checkpoint: last.ckpt
+  experiment: ODERNN-iter03-exp10-5f-um-AdamW-detector-noise-and-var-traj
+  inference_name: initial
+  split: val
+model:
+  params:
+    hidden_dim: 32
+    model_gaussian: true
+    observable_dim: 4
+    solver_name: rk4
+    solver_params:
+      max_step_size: 0.25
+  type: odernn
+path:
+  assets: /home/robotmurlock/Desktop/projects/NODETracker/assets
+  master: /home/robotmurlock/Desktop/projects/NODETracker/outputs
+resources:
+  accelerator: cuda
+  gpus: 1
+  num_workers: 8
+train:
+  batch_size: 32
+  checkpoint_cfg:
+    metric_monitor: val/loss
+    resume_from: null
+  description: ODERNN with uncertainty modeling - like exp09 but with variable trajectory
+    augmentation
+  experiment: ODERNN-iter03-exp10-5f-um-AdamW-detector-noise-and-var-traj
+  logging_cfg:
+    log_every_n_steps: 1
+    path: logs
+  max_epochs: 15
+  train_params:
+    learning_rate: 0.001
+    optim_name: adamw
+    sched_lr_gamma: 0.1
+    sched_lr_step: 4
+    weight_decay: 0.01
+transform:
+  name: standardized_relative_to_last_obs_with_noise
+  params:
+    mean:
+    - 0.0007548918947577477
+    - -0.002222316572442651
+    - 4.563947004498914e-05
+    - -3.306450253148796e-06
+    std:
+    - 0.0050649880431592464
+    - 0.008449506014585495
+    - 0.002395019168034196
+    - 0.006979358848184347
+visualize:
+  fps: 10
+  resolution:
+  - 600
+  - 400

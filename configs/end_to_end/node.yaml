@@ -2,9 +2,7 @@ filter:
   type: 'node'
   params:
     accelerator: 'cuda:0'
-    det_std: [0.0, 0.0, 0.0, 0.0]
-
-    n_pred_steps: 5
+    det_std: [0.05, 0.05, 0.05, 0.05]
 
     buffer_size: 10
     buffer_min_size: 1
