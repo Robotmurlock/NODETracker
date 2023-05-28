@@ -268,6 +268,10 @@ class LaSOTDataset(TrajectoryDataset):
 
         return object_id, object_id
 
+    def get_object_category(self, object_id: str) -> str:
+        category, _ = self.parse_object_id(object_id)
+        return category
+
     def get_scene_object_ids(self, scene_name: str) -> List[str]:
         return [scene_name]  # Only one object per scene (equivalent to object_id) for SOT
 

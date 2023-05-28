@@ -21,6 +21,9 @@ from nodetracker.datasets.utils import split_trajectory_observed_unobserved
 from nodetracker.utils.logging import configure_logging
 
 
+CATEGORY = 'pedestrian'
+
+
 class LabelType(enum.Enum):
     DETECTION = 'det'
     GROUND_TRUTH = 'gt'
@@ -69,6 +72,7 @@ class MOTDataset(TrajectoryDataset):
         future_len: int,
         sequence_list: Optional[List[str]] = None,
         label_type: LabelType = LabelType.GROUND_TRUTH,
+        skip_corrupted: bool = False,
         **kwargs
     ) -> None:
         """
@@ -76,15 +80,16 @@ class MOTDataset(TrajectoryDataset):
             path: Path to dataset
             history_len: Number of observed data points
             future_len: Number of unobserved data points
+            sequence_list: Sequence filter by defined list
             label_type: Label Type
-
+            skip_corrupted: Skip corrupted scenes (otherwise error is raised)
         """
         super().__init__(history_len=history_len, future_len=future_len, sequence_list=sequence_list, **kwargs)
 
         self._path = path
         self._label_type = label_type
 
-        self._scene_info_index = self._index_dataset(path, label_type, sequence_list)
+        self._scene_info_index = self._index_dataset(path, label_type, sequence_list, skip_corrupted)
         self._data_labels, self._n_labels, self._frame_to_data_index_lookup = self._parse_labels(self._scene_info_index)
         self._trajectory_index = self._create_trajectory_index(self._data_labels, self._history_len, self._future_len)
 
@@ -103,6 +108,9 @@ class MOTDataset(TrajectoryDataset):
         assert object_id in self._data_labels, f'Unknown object id "{object_id}".'
         scene_name, scene_object_id = object_id.split('_')
         return scene_name, scene_object_id
+
+    def get_object_category(self, object_id: str) -> str:
+        return CATEGORY
 
     def get_scene_object_ids(self, scene_name: str) -> List[str]:
         assert scene_name in self.scenes, f'Unknown scene "{scene_name}". Dataset scenes: {self.scenes}.'
@@ -139,7 +147,7 @@ class MOTDataset(TrajectoryDataset):
     ) -> Optional[dict]:
         index = self._frame_to_data_index_lookup[object_id].get(frame_index)
         if index is None:
-            return index
+            return None
 
         return self.get_object_data_label(object_id, index, relative_bbox_coords=relative_bbox_coords)
 
@@ -184,7 +192,8 @@ class MOTDataset(TrajectoryDataset):
     def _index_dataset(
         path: str,
         label_type: LabelType,
-        sequence_list: Optional[List[str]]
+        sequence_list: Optional[List[str]],
+        skip_corrupted: bool
     ) -> SceneInfoIndex:
         """
         Index dataset content. Format: { {scene_name}: {scene_labels_path} }
@@ -193,6 +202,7 @@ class MOTDataset(TrajectoryDataset):
             path: Path to dataset
             label_type: Use ground truth bboxes or detections
             sequence_list: Filter scenes
+            skip_corrupted: Skips incomplete scenes
 
         Returns:
             Index to scenes
@@ -208,11 +218,24 @@ class MOTDataset(TrajectoryDataset):
 
             scene_directory = os.path.join(path, scene_name)
             scene_files = os.listdir(scene_directory)
-            assert label_type.value in scene_files, f'Ground truth file "{label_type.value}" not found. ' \
-                                                    f'Contents: {scene_files}'
-            gt_path = os.path.join(scene_directory, label_type.value, f'{label_type.value}.txt')
 
-            assert 'seqinfo.ini' in scene_files, f'Scene config file "seqinfo.ini" not found. Contents: {scene_files}'
+            # Scene content validation
+            skip_scene = False
+            for filename in [label_type.value, 'seqinfo.ini']:
+                if label_type.value not in scene_files:
+                    msg = f'Ground truth file "{filename}" not found. Contents: {scene_files}'
+                    if not skip_corrupted:
+                        raise FileNotFoundError(msg)
+
+                    logger.warning(f'Skipping scene "{scene_name}". Reason: `{msg}`')
+                    skip_scene = True
+                    break
+
+            if skip_scene:
+                continue
+
+            # Extracting scene data
+            gt_path = os.path.join(scene_directory, label_type.value, f'{label_type.value}.txt')
             scene_info_path = os.path.join(scene_directory, 'seqinfo.ini')
             raw_info = configparser.ConfigParser()
             raw_info.read(scene_info_path)
@@ -220,7 +243,7 @@ class MOTDataset(TrajectoryDataset):
             raw_info['gt_path'] = gt_path
             raw_info['dirpath'] = scene_directory
 
-            scene_info = SceneInfo(**raw_info, category='pedestrian')
+            scene_info = SceneInfo(**raw_info, category=CATEGORY)
             scene_info_index[scene_name] = scene_info
             logger.debug(f'Scene info {scene_info}.')
 
@@ -317,7 +340,7 @@ class MOTDataset(TrajectoryDataset):
         # Metadata
         frame_ids = [item['frame_id'] for item in raw_traj]
         metadata = {
-            'category': 'pedestrian',
+            'category': CATEGORY,
             'scene_name': scene_name,
             'object_id': object_id,
             'frame_ids': frame_ids,

@@ -56,6 +56,18 @@ class TrajectoryDataset(ABC):
         """
 
     @abstractmethod
+    def get_object_category(self, object_id: str) -> str:
+        """
+        Gets category for object.
+
+        Args:
+            object_id: Object id
+
+        Returns:
+            Object category
+        """
+
+    @abstractmethod
     def get_scene_object_ids(self, scene_name: str) -> List[str]:
         """
         Gets object ids for given scene name
