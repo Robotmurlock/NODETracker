@@ -243,46 +243,32 @@ class LaSOTDataset(TrajectoryDataset):
                 for sequence in category_sequences.keys()]
 
     def get_scene_info(self, scene_name: str) -> Any:
-        category = self._get_sequence_category(scene_name)
+        category = self.get_object_category(scene_name)
         return self._sequence_index[category][scene_name]
 
-    @staticmethod
-    def _get_sequence_category(sequence_id: str) -> str:
-        """
-        Extracts category from `sequence_id`.
-
-        Args:
-            sequence_id: Sequence id
-
-        Returns:
-            Sequence category
-        """
-        parts = sequence_id.split('-')
-        assert len(parts) == 2, f'Failed to parse "{sequence_id}"!'
-        return parts[0]
-
     def parse_object_id(self, object_id: str) -> Tuple[str, str]:
-        category = self._get_sequence_category(object_id)
+        category = self.get_object_category(object_id)
         assert category in self._sequence_index, f'Failed to find category "{category}"!'
         assert object_id in self._sequence_index[category], f'Failed to find sequence "{object_id}"!'
 
         return object_id, object_id
 
     def get_object_category(self, object_id: str) -> str:
-        category, _ = self.parse_object_id(object_id)
-        return category
+        parts = object_id.split('-')
+        assert len(parts) == 2, f'Failed to parse "{object_id}"!'
+        return parts[0]
 
     def get_scene_object_ids(self, scene_name: str) -> List[str]:
         return [scene_name]  # Only one object per scene (equivalent to object_id) for SOT
 
     def get_object_data_length(self, object_id: str) -> int:
-        category = self._get_sequence_category(object_id)
+        category = self.get_object_category(object_id)
         sequence_info = self._sequence_index[category][object_id]
         return sequence_info.seqlength
 
     def get_object_data_label(self, object_id: str, index: int, relative_bbox_coords: bool = True) -> dict:
         # scene_name == object_id
-        category = self._get_sequence_category(object_id)
+        category = self.get_object_category(object_id)
         sequence_info = self._sequence_index[category][object_id]
 
         bbox = sequence_info.bboxes[index]
@@ -317,7 +303,7 @@ class LaSOTDataset(TrajectoryDataset):
 
     def get_scene_image_path(self, scene_name: str, frame_id: int) -> str:
         # scene_name == object_id
-        category = self._get_sequence_category(scene_name)
+        category = self.get_object_category(scene_name)
         sequence_info = self._sequence_index[category][scene_name]
         return sequence_info.image_paths[frame_id]
 
