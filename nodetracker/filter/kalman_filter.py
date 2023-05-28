@@ -70,6 +70,9 @@ class BotSortKalmanFilterWrapper(StateModelFilter):
         mean, covariance = self._all_to_tensor([mean, covariance])
         return mean, covariance
 
+    def missing(self, state: State) -> State:
+        return state  # Use prior instead of posterior
+
     def project(self, state: State) -> Tuple[torch.Tensor, torch.Tensor]:
         mean, covariance = self._all_to_numpy(state)
         if len(mean.shape) == 1:

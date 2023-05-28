@@ -4,7 +4,7 @@ BBox implementation
 import enum
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional, List, Tuple
+from typing import Optional, List, Tuple, Union
 
 import cv2
 import numpy as np
@@ -395,7 +395,7 @@ class PredBBox(BBox):
     """
     BBox with class label and detection confidence (optional).
     """
-    label: int = -1
+    label: Union[int, str] = -1
     conf: Optional[float] = field(default=None)
 
     @property

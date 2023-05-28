@@ -293,7 +293,8 @@ class MOTDataset(TrajectoryDataset):
                         'bbox': row.values.tolist(),
                         'image_path': MOTDataset._get_image_path(scene_info, frame_id),
                         'occ': False,
-                        'oov': False
+                        'oov': False,
+                        'category': CATEGORY
                     })
                     frame_to_data_index_lookup[object_global_id][frame_id] = len(data[object_global_id]) - 1
 

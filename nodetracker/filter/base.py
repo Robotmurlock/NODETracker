@@ -68,6 +68,18 @@ class StateModelFilter(ABC):
         pass
 
     @abstractmethod
+    def missing(self, state: State) -> State:
+        """
+        Update state when measurement is missing (replacement for update function for that case).
+
+        Args:
+            state: State (prior)
+
+        Returns:
+            Updated state
+        """
+
+    @abstractmethod
     def project(self, state: State) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Projects state to the measurement space (estimation with uncertainty)

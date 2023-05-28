@@ -42,12 +42,14 @@ class Visualization:
 @dataclass
 class SelectionFilter:
     scene: Optional[str] = field(default=None)
+    eval_split_only: bool = field(default=True)
 
 
 @dataclass
 class E2EConfig:
     filter: FilterConfig
     object_detection: ObjectDetectionInferenceConfig
+    lookup_path: str
 
     jitter: JitterConfig = field(default_factory=JitterConfig)
     eval: Evaluation = field(default_factory=Evaluation)
