@@ -1,3 +1,6 @@
+"""
+Energy function for KF parameter estimation.
+"""
 import torch
 import torch.linalg as LA
 from torch import nn

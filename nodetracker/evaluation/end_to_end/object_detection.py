@@ -10,6 +10,9 @@ import ultralytics
 
 
 class ObjectDetectionInference(ABC):
+    """
+    ObjectDetection inference interface.
+    """
     @abstractmethod
     def predict(self, data: dict) -> torch.Tensor:
         """
@@ -25,6 +28,9 @@ class ObjectDetectionInference(ABC):
 
 
 class GroundTruthInference(ObjectDetectionInference):
+    """
+    Object Detection Mock (returns ground truths).
+    """
     def __init__(self, **kwargs):
         pass  # Compatibility with factory method
 
@@ -33,6 +39,9 @@ class GroundTruthInference(ObjectDetectionInference):
 
 
 class YOLOv8Inference(ObjectDetectionInference):
+    """
+    Object Detection - YOLOv8
+    """
     def __init__(self, model_path: str, accelerator: str, verbose: bool = False):
         self._yolo = ultralytics.YOLO(model_path)
         self._yolo.to(accelerator)

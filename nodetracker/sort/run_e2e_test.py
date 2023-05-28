@@ -30,7 +30,7 @@ def create_gt_mp4(df: pd.DataFrame, mp4_path: str) -> None:
     groups = df.groupby('frame_id')
 
     Path(mp4_path).parent.mkdir(parents=True, exist_ok=True)
-    with MP4Writer(mp4_path, fps=15, resolution=(1920, 1080), resize=True) as writer:
+    with MP4Writer(mp4_path, fps=15, shape=(1920, 1080), resize=True) as writer:
         for _, df_grp in tqdm(groups, desc='Visualizing', unit='frame'):
             image_path = df_grp.iloc[0]['image_path']
 
@@ -89,7 +89,7 @@ def create_tracker_mp4(
     groups = df.groupby('frame_id')
 
     Path(mp4_path).parent.mkdir(parents=True, exist_ok=True)
-    with MP4Writer(mp4_path, fps=15, resolution=(1920, 1080), resize=True) as writer:
+    with MP4Writer(mp4_path, fps=15, shape=(1920, 1080), resize=True) as writer:
         for _, df_grp in tqdm(groups, desc='Visualizing', unit='frame'):
             image_path = df_grp.iloc[0]['image_path']
 

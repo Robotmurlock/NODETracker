@@ -1,3 +1,6 @@
+"""
+Evaluation tests.
+"""
 import unittest
 import numpy as np
 
@@ -6,6 +9,9 @@ from evaluation import sot as sot_eval
 
 # noinspection DuplicatedCode
 class TestEvalMetrics(unittest.TestCase):
+    """
+    Tests SOT evaluation metrics.
+    """
     def test_mse(self):
         # Arrange
         gt_traj = np.array([

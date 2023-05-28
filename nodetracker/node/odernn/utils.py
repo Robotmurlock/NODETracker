@@ -1,3 +1,6 @@
+"""
+Support for Gaussian models.
+"""
 from typing import Optional, Tuple, Type, Dict, Any, Union
 
 import torch

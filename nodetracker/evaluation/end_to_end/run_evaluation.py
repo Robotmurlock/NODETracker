@@ -268,7 +268,7 @@ def main(cfg: DictConfig):
             for index in range(n_data_points - n_pred_steps):
                 # Extract point data
                 point_data = data_points[index]
-                frame_id, image_path = point_data['frame_id'], point_data['image_path']
+                frame_id = point_data['frame_id']
                 measurement = torch.tensor(measurements[index], dtype=torch.float32)
                 oov, occ = point_data['oov'], point_data['occ']
                 evaluate_step = True

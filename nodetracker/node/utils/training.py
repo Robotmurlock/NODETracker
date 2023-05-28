@@ -18,6 +18,9 @@ from nodetracker.evaluation.sot import metrics_func
 
 @dataclass
 class LightningTrainConfig:
+    """
+    Training configuration for LightningForecaster.
+    """
     loss_name: str = field(default='mse')
     loss_params: dict = field(default_factory=dict)
 
@@ -53,7 +56,7 @@ class LightningModuleBase(pl.LightningModule):
             Return number of model parameters
         """
         trainable_parameters = filter(lambda p: p.requires_grad, self.parameters())
-        return sum([np.prod(p.size()) for p in trainable_parameters])
+        return sum(np.prod(p.size()) for p in trainable_parameters)
 
     def on_validation_epoch_end(self) -> None:
         for name, value in self._meter.get_all():
@@ -226,7 +229,7 @@ class LightningModuleForecaster(LightningModuleBase):
                     self.log(f'{prefix}/{name}', value, prog_bar=False)
         else:
             loss = loss.detach().cpu()
-            assert not torch.isnan(loss).any(), f'Got nan value!'
+            assert not torch.isnan(loss).any(), 'Got nan value!'
             loss = loss.detach().cpu()
             self._meter.push(f'{prefix}-epoch/loss', loss)
             if log_step:

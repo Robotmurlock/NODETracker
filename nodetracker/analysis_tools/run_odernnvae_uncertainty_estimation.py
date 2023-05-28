@@ -67,7 +67,8 @@ def plot_trajectory_estimation(
     fig, axs = plt.subplots(figsize=(4 * n_cols, 6), nrows=2, ncols=n_cols)
     for col in range(n_cols):
         ax_up, ax_down = axs[0][col], axs[1][col]  # up - sampled trajectories, down - estimated trajectories
-        ax_up.grid(), ax_down.grid()
+        ax_up.grid()
+        ax_down.grid()
         coord_name = coord_names[col]
 
         # Plot sampled trajectories

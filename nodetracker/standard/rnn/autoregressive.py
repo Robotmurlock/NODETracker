@@ -41,7 +41,7 @@ class ARRNN(nn.Module):
             output_dim=input_dim,
             n_layers=stem_n_layers
         )
-        self._resnet_block = ResnetMLPBlock(
+        self._resnet_block: Optional[ResnetMLPBlock] = ResnetMLPBlock(
             dim=input_dim,
             n_layers=resnet_n_layers,
             n_bottleneck_layers=resnet_n_bottleneck_layers

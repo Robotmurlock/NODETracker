@@ -166,7 +166,7 @@ class LaSOTDataset(TrajectoryDataset):
             h, w, _ = image.shape
 
             gt_path = os.path.join(sequence_path, 'groundtruth.txt')
-            with open(gt_path, 'r', encoding='utf-8') as f:
+            with open(gt_path, 'r', encoding='utf-8') as f:  # TODO: Why not use coords?
                 lines = f.readlines()
                 bboxes = [[int(v) for v in line.split(',')] for line in lines]
                 bboxes = [[b[0] / w, b[1] / h, b[2] / w, b[3] / h] for b in bboxes]

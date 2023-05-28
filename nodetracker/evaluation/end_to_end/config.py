@@ -1,6 +1,10 @@
+"""
+Extension of core config that supports additional parameters for E2E evaluation.
+"""
 from dataclasses import dataclass, field
-from nodetracker.config_parser import GlobalConfig
 from typing import Optional
+
+from nodetracker.config_parser import GlobalConfig
 
 
 @dataclass

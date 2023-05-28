@@ -25,7 +25,7 @@ class RNNEncoder(nn.Module):
         input_dim: int,
         hidden_dim: int,
         latent_dim: int,
-            
+
         rnn_n_layers: int = 1
     ):
         """
@@ -58,8 +58,8 @@ class RNNDecoder(nn.Module):
     """
     def __init__(
         self, 
-        observable_dim: int, 
-        hidden_dim: int, 
+        observable_dim: int,
+        hidden_dim: int,
         latent_dim: int,
 
         model_gaussian: bool = False,
@@ -113,9 +113,9 @@ class RNNSeq2Seq(nn.Module):
     - potential missing values (uses time diff)
     """
     def __init__(
-        self, 
-        observable_dim: int, 
-        hidden_dim: int, 
+        self,
+        observable_dim: int,
+        hidden_dim: int,
         latent_dim: int,
 
         model_gaussian: bool = False,
@@ -137,7 +137,7 @@ class RNNSeq2Seq(nn.Module):
             input_dim=observable_dim,
             hidden_dim=hidden_dim,
             latent_dim=latent_dim,
-            
+
             rnn_n_layers=encoder_rnn_n_layers
         )
         self._decoder = RNNDecoder(
@@ -146,7 +146,7 @@ class RNNSeq2Seq(nn.Module):
             latent_dim=latent_dim,
 
             model_gaussian=model_gaussian,
-            
+
             rnn_n_layers=decoder_rnn_n_layers
         )
 
@@ -184,8 +184,8 @@ class LightningRNNSeq2Seq(LightningGaussianModel):
             decoder_rnn_n_layers: Number of stacked RNN (GRU) layers for RNN Decoder
         """
         model = RNNSeq2Seq(
-            observable_dim=observable_dim, 
-            hidden_dim=hidden_dim, 
+            observable_dim=observable_dim,
+            hidden_dim=hidden_dim,
             latent_dim=latent_dim,
 
             model_gaussian=model_gaussian,

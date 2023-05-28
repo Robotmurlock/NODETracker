@@ -92,6 +92,9 @@ class LightningRNNODE(LightningGaussianModel):
 
 
 class ComposeRNNODE(nn.Module):
+    """
+    Composition of multiple RNNODE models. Each model is specialized in one category.
+    """
     def __init__(self, n_categories: int, *args, **kwargs):
         super().__init__()
         self._models = nn.ModuleDict({str(i): RNNODE(*args, **kwargs) for i in range(n_categories)})

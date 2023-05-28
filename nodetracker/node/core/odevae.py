@@ -178,7 +178,7 @@ class LightningODEVAE(LightningModuleBase):
         return self._model(x, t_obs, t_unobs, generate)
 
     def training_step(self, batch: Tuple[torch.Tensor, ...], *args, **kwargs) -> torch.Tensor:
-        bboxes_obs, _, bboxes_all, ts_obs, ts_unobs, _, _ = preprocess_batch(batch)
+        bboxes_obs, _, bboxes_all, ts_obs, ts_unobs, _, _, _ = preprocess_batch(batch)
 
         _, bboxes_hat_all, z0_mean, z0_log_var = self.forward(bboxes_obs, ts_obs, ts_unobs)
         loss, kl_div_loss, likelihood_loss = self._loss_func(bboxes_hat_all, bboxes_all, z0_mean, z0_log_var)
@@ -190,7 +190,7 @@ class LightningODEVAE(LightningModuleBase):
         return loss
 
     def validation_step(self, batch: Tuple[torch.Tensor, ...], *args, **kwargs) -> torch.Tensor:
-        bboxes_obs, bboxes_unobs, bboxes_all, ts_obs, ts_unobs, _, _ = preprocess_batch(batch)
+        bboxes_obs, bboxes_unobs, bboxes_all, ts_obs, ts_unobs, _, _, _ = preprocess_batch(batch)
 
         bboxes_unobs_hat, bboxes_all_hat, z0_mean, z0_log_var = self.forward(bboxes_obs, ts_obs, ts_unobs)
         all_loss, all_kl_div_loss, all_likelihood_loss = \

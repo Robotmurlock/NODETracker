@@ -1,3 +1,6 @@
+"""
+Implementation of NODEFilter - Gaussian Model.
+"""
 from typing import Tuple, List
 
 import torch

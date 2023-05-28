@@ -69,6 +69,9 @@ class TrainingAKFMode(enum.Enum):
 
 
 class TrainableAdaptiveKalmanFilter(nn.Module):
+    """
+    PyTorch's implementation of DeepSort adaptive Kalman Filter.
+    """
     def __init__(
         self,
         sigma_p: float = 0.05,
@@ -168,7 +171,7 @@ class TrainableAdaptiveKalmanFilter(nn.Module):
         """
         assert dt >= 0, f'Parameter `dt` can\'t be negative! Got {dt}.'
         assert not freeze_eye_diagonal_motion_mat or triu_motion_mat, \
-            f'Freezing eye diagonal requires `triu_motion_mat=True`'
+            'Freezing eye diagonal requires `triu_motion_mat=True`'
 
         if first_principles_motion_mat:
             A = torch.tensor([
@@ -296,7 +299,7 @@ class TrainableAdaptiveKalmanFilter(nn.Module):
             Initialized vector and covariance matrix
         """
         assert len(z.shape) == 2, f'Expected measurement shape is (batch_size, dim) but found: {z.shape}'
-        batch_size, n_dim = z.shape
+        batch_size, _ = z.shape
         z = z.unsqueeze(-1)
 
         x = torch.hstack([z, torch.zeros_like(z, dtype=torch.float32)])
