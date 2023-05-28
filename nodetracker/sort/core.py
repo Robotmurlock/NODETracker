@@ -1,4 +1,6 @@
 """
+TODO: REFACTOR
+
 Implementation of SORT algorithm variation
 https://arxiv.org/pdf/1602.00763.pdf
 

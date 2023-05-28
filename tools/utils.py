@@ -1,17 +1,17 @@
 """
 Utility functions (often used functions)
 """
-from typing import Optional, List
-from torch import nn
+from typing import Optional
 
+from torch import nn
 from torch.utils.data import DataLoader
 
+from nodetracker.common import conventions
 from nodetracker.config_parser import GlobalConfig
 from nodetracker.datasets import TorchTrajectoryDataset, dataset_factory
 from nodetracker.datasets.augmentations import TrajectoryAugmentation
 from nodetracker.datasets.transforms import InvertibleTransform
 from nodetracker.datasets.utils import OdeDataloaderCollateFunctional
-from nodetracker.common import conventions
 from nodetracker.node.factory import load_or_create_model
 from nodetracker.node.utils.autoregressive import AutoregressiveForecasterDecorator
 

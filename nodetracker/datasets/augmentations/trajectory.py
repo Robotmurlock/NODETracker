@@ -14,7 +14,7 @@ class TrajectoryAugmentation(ABC):
     """
     @abstractmethod
     def apply(self, x_obs: torch.Tensor, x_unobs: torch.Tensor, t_obs: torch.Tensor, t_unobs: torch.Tensor) \
-        -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+            -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Args:
             x_obs: Observed bboxes data
@@ -28,7 +28,7 @@ class TrajectoryAugmentation(ABC):
         pass
 
     def __call__(self, x_obs: torch.Tensor, x_unobs: torch.Tensor, t_obs: torch.Tensor, t_unobs: torch.Tensor) \
-        -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+            -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Alias for `apply` function.
 
@@ -48,8 +48,8 @@ class IdentityAugmentation(TrajectoryAugmentation):
     """
     Performs no transformations (identity).
     """
-    def apply(self, x_obs: torch.Tensor, x_unobs: torch.Tensor, t_obs: torch.Tensor, t_unobs: torch.Tensor) -> Tuple[
-        torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    def apply(self, x_obs: torch.Tensor, x_unobs: torch.Tensor, t_obs: torch.Tensor, t_unobs: torch.Tensor) \
+            -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         return x_obs, x_unobs, t_obs, t_unobs
 
 
@@ -64,8 +64,8 @@ class CompositionAugmentation(TrajectoryAugmentation):
         """
         self._augs = augs
 
-    def apply(self, x_obs: torch.Tensor, x_unobs: torch.Tensor, t_obs: torch.Tensor, t_unobs: torch.Tensor) -> Tuple[
-        torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    def apply(self, x_obs: torch.Tensor, x_unobs: torch.Tensor, t_obs: torch.Tensor, t_unobs: torch.Tensor) \
+            -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         for aug in self._augs:
             x_obs, x_unobs, t_obs, t_unobs = aug.apply(x_obs, t_obs, x_unobs, t_unobs)
         return x_obs, x_unobs, t_obs, t_unobs
@@ -103,10 +103,12 @@ class DetectorNoiseAugmentation(TrajectoryAugmentation):
             x_obs_noise[:, 1] *= x_obs[:, 3]  # `y` noise is proportional to the `w`
             x_obs_noise[:, 3] *= x_obs[:, 3]  # `w` noise is proportional to the `w`
         else:
-            raise AssertionError(f'DetectorNoiseAugmentation supports tensors 2D and 3D tensors only. Got {x_obs.shape}')
+            raise AssertionError(f'DetectorNoiseAugmentation supports tensors 2D and 3D tensors only. '
+                                 f'Got {x_obs.shape}')
 
         x_obs += x_obs_noise
         return x_obs, x_unobs, t_obs, t_unobs
+
 
 class ShortenTrajectoryAugmentation(TrajectoryAugmentation):
     """

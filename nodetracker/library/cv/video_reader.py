@@ -28,7 +28,7 @@ class MP4Reader:
     def next(self) -> Union[np.ndarray, None]:
         if not self._mp4_reader.isOpened():
             raise StopIteration
-        ret, frame =  self._mp4_reader.read()
+        ret, frame = self._mp4_reader.read()
         if not ret:
             return None
 

@@ -40,7 +40,7 @@ class LightningGaussianModel(LightningModuleForecaster):
 
     @staticmethod
     def extract_mean_and_std(bboxes_unobs_hat: torch.Tensor) \
-        -> Tuple[torch.Tensor, torch.Tensor]:
+            -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Helper function for Gaussian model postprocess
 
@@ -58,7 +58,8 @@ class LightningGaussianModel(LightningModuleForecaster):
 
         return bboxes_unobs_hat_mean, bboxes_unobs_hat_std
 
-    def inference(self, x: torch.Tensor, t_obs: torch.Tensor, t_unobs: Optional[torch.Tensor] = None) -> Tuple[torch.Tensor, ...]:
+    def inference(self, x: torch.Tensor, t_obs: torch.Tensor, t_unobs: Optional[torch.Tensor] = None) \
+            -> Tuple[torch.Tensor, ...]:
         output = self._model(x, t_obs, t_unobs)
         if isinstance(output, tuple):
             # Case 1: Model outputs single value

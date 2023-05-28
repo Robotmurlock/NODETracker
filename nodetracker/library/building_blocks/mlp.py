@@ -1,11 +1,10 @@
 """
 Building block: MultiLayerPerceptron
-
-TODO: Move outside of NODE
 """
+from typing import Optional
+
 import torch
 from torch import nn
-from typing import Optional
 
 
 class MLP(nn.Module):

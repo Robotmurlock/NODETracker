@@ -5,8 +5,8 @@ import argparse
 import logging
 import os
 import shutil
-from pathlib import Path
 import traceback
+from pathlib import Path
 
 from tqdm import tqdm
 

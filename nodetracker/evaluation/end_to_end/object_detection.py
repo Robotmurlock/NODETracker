@@ -1,9 +1,12 @@
+"""
+Object Detection support for E2E evaluation.
+Supports YOLOv8 realtime inference and Mock object detection with ground truths.
+"""
 from abc import ABC, abstractmethod
 
 import cv2
-import numpy as np
-import ultralytics
 import torch
+import ultralytics
 
 
 class ObjectDetectionInference(ABC):

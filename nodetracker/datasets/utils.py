@@ -43,7 +43,8 @@ class OdeDataloaderCollateFunctional:
             collated tensors
         """
         x_obss, t_obss, x_unobss, t_unobss, orig_bboxes_obs, metadata = zip(*items)
-        x_obs, t_obs, x_unobs, t_unobs, orig_bboxes_obs = [torch.stack(v, dim=1) for v in [x_obss, t_obss, x_unobss, t_unobss, orig_bboxes_obs]]
+        x_obs, t_obs, x_unobs, t_unobs, orig_bboxes_obs = \
+            [torch.stack(v, dim=1) for v in [x_obss, t_obss, x_unobss, t_unobss, orig_bboxes_obs]]
         metadata = default_collate(metadata)
 
         # Apply augmentations at batch level (optional)

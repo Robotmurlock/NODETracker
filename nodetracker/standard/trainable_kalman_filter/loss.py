@@ -1,6 +1,6 @@
 import torch
-from torch import nn
 import torch.linalg as LA
+from torch import nn
 
 
 class LinearGaussianEnergyFunction(nn.Module):
@@ -40,7 +40,8 @@ class LinearGaussianEnergyFunction(nn.Module):
         innovation_T = torch.transpose(innovation, dim0=-2, dim1=-1)
 
         if self._optimize_likelihood:
-            loss = (1 / 2) * torch.log(torch.norm(2 * torch.pi * P)) + (1 / 2) * torch.bmm(torch.bmm(innovation_T, LA.pinv(P)), innovation)
+            loss = (1 / 2) * torch.log(torch.norm(2 * torch.pi * P)) \
+                   + (1 / 2) * torch.bmm(torch.bmm(innovation_T, LA.pinv(P)), innovation)
         else:
             loss = torch.bmm(innovation_T, innovation)
 

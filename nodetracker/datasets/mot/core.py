@@ -131,7 +131,12 @@ class MOTDataset(TrajectoryDataset):
 
         return data
 
-    def get_object_data_label_by_frame_index(self, object_id: str, frame_index: int, relative_bbox_coords: bool = True) -> Optional[dict]:
+    def get_object_data_label_by_frame_index(
+        self,
+        object_id: str,
+        frame_index: int,
+        relative_bbox_coords: bool = True
+    ) -> Optional[dict]:
         index = self._frame_to_data_index_lookup[object_id].get(frame_index)
         if index is None:
             return index
@@ -325,7 +330,8 @@ class MOTDataset(TrajectoryDataset):
         bboxes[:, [0, 2]] /= scene_info.imwidth
         bboxes[:, [1, 3]] /= scene_info.imheight
 
-        bboxes_obs, bboxes_unobs, frame_ts_obs, frame_ts_unobs = split_trajectory_observed_unobserved(frame_ids, bboxes, self._history_len)
+        bboxes_obs, bboxes_unobs, frame_ts_obs, frame_ts_unobs = \
+            split_trajectory_observed_unobserved(frame_ids, bboxes, self._history_len)
         return bboxes_obs, bboxes_unobs, frame_ts_obs, frame_ts_unobs, metadata
 
 

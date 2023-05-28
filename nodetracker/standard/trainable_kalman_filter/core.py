@@ -29,7 +29,7 @@ import torch.linalg as LA
 
 class TrainingAKFMode(enum.Enum):
     FROZEN = 'frozen'  # Parameters are frozen
-    MOTION = 'motion' # Uncertainty parameters are frozen
+    MOTION = 'motion'  # Uncertainty parameters are frozen
     UNCERTAINTY = 'uncertainty'  # Motion parameters are frozen
     ALL = 'all'  # All parameters are unfrozen
 
@@ -69,7 +69,8 @@ class TrainingAKFMode(enum.Enum):
 
 
 class TrainableAdaptiveKalmanFilter(nn.Module):
-    def __init__(self,
+    def __init__(
+        self,
         sigma_p: float = 0.05,
         sigma_p_init_mult: float = 2.0,
         sigma_v: float = 0.00625,

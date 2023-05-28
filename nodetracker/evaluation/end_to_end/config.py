@@ -14,6 +14,7 @@ class ObjectDetectionInferenceConfig:
     type: str
     params: dict
 
+
 @dataclass
 class JitterConfig:
     detection_noise_sigma: float = field(default=0.0)

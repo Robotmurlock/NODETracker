@@ -77,7 +77,8 @@ def main(cfg: DictConfig):
     )
 
     if cfg.train.checkpoint_cfg.resume_from:
-        assert os.path.exists(cfg.train.checkpoint_cfg.resume_from), f'Failed to find checkpoint "{cfg.train.checkpoint_cfg.resume_from}".'
+        assert os.path.exists(cfg.train.checkpoint_cfg.resume_from), \
+            f'Failed to find checkpoint "{cfg.train.checkpoint_cfg.resume_from}".'
 
     trainer.fit(
         model=model,

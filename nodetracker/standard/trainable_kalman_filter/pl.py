@@ -1,14 +1,16 @@
+"""
+Kalman Filter trainer.
+"""
 import functools
+import logging
 from typing import Any, Tuple, Optional, Union
 
 import torch
 
+from nodetracker.datasets.transforms import InvertibleTransform, InvertibleTransformWithVariance
 from nodetracker.node.utils.training import LightningModuleBase, LightningTrainConfig
 from nodetracker.standard.trainable_kalman_filter.core import TrainingAKFMode, TrainableAdaptiveKalmanFilter
 from nodetracker.standard.trainable_kalman_filter.loss import LinearGaussianEnergyFunction
-from nodetracker.datasets.transforms import InvertibleTransform, InvertibleTransformWithVariance
-import logging
-
 
 logger = logging.getLogger('LightningTAKF')
 
@@ -149,13 +151,13 @@ class LightningAdaptiveKalmanFilter(LightningModuleBase):
 
     def training_step(self, batch: Tuple[torch.Tensor, ...], *args, **kwargs) -> torch.Tensor:
         zs_obs, zs_unobs, _, _, _, _ = batch
-        loss =  self.forward_loss_step(zs_obs, zs_unobs)
+        loss = self.forward_loss_step(zs_obs, zs_unobs)
         self._meter.push('training/loss', loss)
         return loss
 
     def validation_step(self, batch: Tuple[torch.Tensor, ...], *args, **kwargs) -> torch.Tensor:
         zs_obs, zs_unobs, _, _, _, _ = batch
-        loss =  self.forward_loss_step(zs_obs, zs_unobs)
+        loss = self.forward_loss_step(zs_obs, zs_unobs)
         self._meter.push('val/loss', loss)
         return loss
 

@@ -1,5 +1,7 @@
 """
-Visualize script
+Visualize script.
+
+TODO: Deprecated?
 """
 import logging
 import os

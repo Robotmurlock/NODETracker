@@ -121,10 +121,12 @@ class LightningModuleForecaster(LightningModuleBase):
             if train_config is not None else None
         if self._model_gaussian:
             if train_config is not None:
-                assert 'gaussian_nllloss' in train_config.loss_name, 'Failed to find "gaussian_nllloss" in loss function name!'
+                assert 'gaussian_nllloss' in train_config.loss_name, \
+                    'Failed to find "gaussian_nllloss" in loss function name!'
             if transform_func is not None:
                 assert isinstance(transform_func, InvertibleTransformWithVariance), \
-                    f'Expected transform function to be of type "InvertibleTransformWithStd" but got "{type(transform_func)}"'
+                    f'Expected transform function to be of type "InvertibleTransformWithStd" ' \
+                    f'but got "{type(transform_func)}"'
         self._transform_func = transform_func
 
     def forward(self, x: torch.Tensor, t_obs: torch.Tensor, t_unobs: Optional[torch.Tensor] = None, *args, **kwargs) \
@@ -134,7 +136,8 @@ class LightningModuleForecaster(LightningModuleBase):
     def inference(self, x: torch.Tensor, t_obs: torch.Tensor, t_unobs: Optional[torch.Tensor] = None) \
             -> Tuple[torch.Tensor, ...]:
         """
-        By default, this function is synonym for `forward` but optionally it can be overriden for preprocessing or postprocessing.
+        By default, this function is synonym for `forward`
+        but optionally it can be overriden for preprocessing or postprocessing.
 
         Args:
             x: Trajectory bboxes points
@@ -172,11 +175,15 @@ class LightningModuleForecaster(LightningModuleBase):
 
             if self._transform_func is not None:
                 # Invert mean
-                _, bboxes_unobs_hat_mean, *_ = self._transform_func.inverse([bboxes_obs, bboxes_unobs_hat_mean, metadata, None], shallow=False)
-                _, bboxes_unobs, *_ = self._transform_func.inverse([bboxes_obs, bboxes_unobs, metadata, None], shallow=False)
+                _, bboxes_unobs_hat_mean, *_ = \
+                    self._transform_func.inverse([bboxes_obs, bboxes_unobs_hat_mean, metadata, None], shallow=False)
+                _, bboxes_unobs, *_ = \
+                    self._transform_func.inverse([bboxes_obs, bboxes_unobs, metadata, None], shallow=False)
 
                 # Invert var
-                bboxes_unobs_hat_var = self._transform_func.inverse_var(bboxes_unobs_hat_var, additional_data=[metadata, None])
+                # noinspection PyTypeChecker
+                bboxes_unobs_hat_var = self._transform_func.inverse_var(bboxes_unobs_hat_var,
+                                                                        additional_data=[metadata, None])
 
             gt_traj = bboxes_unobs.detach().cpu().numpy()
             pred_traj = bboxes_unobs_hat_mean.detach().cpu().numpy()
@@ -185,8 +192,10 @@ class LightningModuleForecaster(LightningModuleBase):
             return self._loss_func(bboxes_unobs_hat_mean, bboxes_unobs, bboxes_unobs_hat_var), metrics
 
         if self._transform_func is not None:
-            _, bboxes_unobs_hat, *_ = self._transform_func.inverse([bboxes_obs, bboxes_unobs_hat, metadata, None], shallow=False)
-            _, bboxes_unobs, *_ = self._transform_func.inverse([bboxes_obs, bboxes_unobs, metadata, None], shallow=False)
+            _, bboxes_unobs_hat, *_ = self._transform_func.inverse([bboxes_obs, bboxes_unobs_hat, metadata, None],
+                                                                   shallow=False)
+            _, bboxes_unobs, *_ = self._transform_func.inverse([bboxes_obs, bboxes_unobs, metadata, None],
+                                                               shallow=False)
 
         gt_traj = bboxes_unobs.detach().cpu().numpy()
         pred_traj = bboxes_unobs_hat.detach().cpu().numpy()
@@ -277,14 +286,21 @@ class LightningModuleForecasterWithTeacherForcing(LightningModuleForecaster):
             model_gaussian: Model Gaussian
             teacher_forcing: Apply Teacher forcing method
         """
-        super().__init__(train_config=train_config, model=model, model_gaussian=model_gaussian, transform_func=transform_func)
+        super().__init__(
+            train_config=train_config,
+            model=model,
+            model_gaussian=model_gaussian,
+            transform_func=transform_func
+        )
         self._teacher_forcing = teacher_forcing
 
     def training_step(self, batch: Tuple[torch.Tensor, ...], *args, **kwargs) -> torch.Tensor:
-        bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, orig_bboxes_obs, _ = batch
-        bboxes_unobs_hat, *_ = self.forward(bboxes_obs, ts_obs, ts_unobs, x_tf=bboxes_unobs if self._teacher_forcing else None)
+        bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, orig_bboxes_obs, metadata = batch
+        bboxes_unobs_hat, *_ = self.forward(bboxes_obs, ts_obs, ts_unobs,
+                                            x_tf=bboxes_unobs if self._teacher_forcing else None)
 
-        loss, metrics = self._calc_loss_and_metrics(orig_bboxes_obs, bboxes_unobs, bboxes_unobs_hat)
+        # noinspection PyTypeChecker
+        loss, metrics = self._calc_loss_and_metrics(orig_bboxes_obs, bboxes_unobs, bboxes_unobs_hat, metadata)
         self._log_loss(loss, prefix='training', log_step=True)
         self._log_metrics(metrics, prefix='training')
 

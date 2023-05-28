@@ -2,7 +2,7 @@
 Custom model: RNN-ODE
 Like ODE-RNN but without ODE in encoder
 """
-from typing import Optional, Tuple, Union, Dict, List
+from typing import Optional, Tuple, Union, List
 
 import torch
 from torch import nn
@@ -12,7 +12,6 @@ from nodetracker.node.core.odevae import NODEDecoder
 from nodetracker.node.odernn.utils import LightningGaussianModel, run_simple_lightning_guassian_model_test
 from nodetracker.node.utils import LightningTrainConfig
 from nodetracker.standard.rnn.seq_to_seq import RNNEncoder
-from collections import defaultdict
 
 
 class RNNODE(nn.Module):

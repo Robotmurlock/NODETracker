@@ -56,16 +56,24 @@ class BboxFirstOrderDifferenceTransform(InvertibleTransformWithVariance):
 
         return orig_bbox_obs, bbox_hat, *other
 
-    def inverse_std(self, t_std: torch.Tensor, additional_data: Optional[TensorCollection] = None, shallow: bool = True) \
-            -> TensorCollection:
+    def inverse_std(
+        self,
+        t_std: torch.Tensor,
+        additional_data: Optional[TensorCollection] = None,
+        shallow: bool = True
+    ) -> TensorCollection:
         # Check `inverse_var`
         t_var = torch.square(t_std)
         t_var_cumsum = torch.cumsum(t_var, dim=0)
         t_std_cumsum = torch.sqrt(t_var_cumsum)
         return t_std_cumsum
 
-    def inverse_var(self, t_var: torch.Tensor, additional_data: Optional[TensorCollection] = None, shallow: bool = True) \
-            -> TensorCollection:
+    def inverse_var(
+        self,
+        t_var: torch.Tensor,
+        additional_data: Optional[TensorCollection] = None,
+        shallow: bool = True
+    ) -> TensorCollection:
         # In order to estimate std for inverse two assumptions are added
         # 1. Random variables y[i-1] and y[i] are independent
         # 2. Variance of last observed bbox coordinate is 0 (i.e. var(x[-1]) = 0)
@@ -128,8 +136,12 @@ class BBoxStandardizationTransform(InvertibleTransformWithVariance):
 
         return bbox_obs, bbox_unobs, *other
 
-    def inverse_std(self, t_std: torch.Tensor, additional_data: Optional[TensorCollection] = None, shallow: bool = True) \
-            -> TensorCollection:
+    def inverse_std(
+        self,
+        t_std: torch.Tensor,
+        additional_data: Optional[TensorCollection] = None,
+        shallow: bool = True
+    ) -> TensorCollection:
         # Std of inverse transformation in this case is trivial to calculate
         # y - transformed, x - original
         # y[i] = (x[i] - m) / s
@@ -138,8 +150,12 @@ class BBoxStandardizationTransform(InvertibleTransformWithVariance):
         std = self._std.to(t_std)
         return t_std * std
 
-    def inverse_var(self, t_var: torch.Tensor, additional_data: Optional[TensorCollection] = None, shallow: bool = True) \
-            -> TensorCollection:
+    def inverse_var(
+        self,
+        t_var: torch.Tensor,
+        additional_data: Optional[TensorCollection] = None,
+        shallow: bool = True
+    ) -> TensorCollection:
         # Similar to `inverse_std`
         std = self._std.to(t_var)
         return t_var * torch.square(std)
@@ -160,12 +176,22 @@ class BBoxCompositeTransform(InvertibleTransformWithVariance):
             data = t.inverse(data, shallow=shallow)
         return data
 
-    def inverse_std(self, t_std: torch.Tensor, additional_data: Optional[TensorCollection] = None, shallow: bool = True) -> TensorCollection:
+    def inverse_std(
+        self,
+        t_std: torch.Tensor,
+        additional_data: Optional[TensorCollection] = None,
+        shallow: bool = True
+    ) -> TensorCollection:
         for t in self._transforms[::-1]:
             t_std = t.inverse_std(t_std, additional_data=additional_data, shallow=shallow)
         return t_std
 
-    def inverse_var(self, t_var: torch.Tensor, additional_data: Optional[TensorCollection] = None, shallow: bool = True) -> TensorCollection:
+    def inverse_var(
+        self,
+        t_var: torch.Tensor,
+        additional_data: Optional[TensorCollection] = None,
+        shallow: bool = True
+    ) -> TensorCollection:
         for t in self._transforms[::-1]:
             t_var = t.inverse_var(t_var, additional_data=additional_data, shallow=shallow)
         return t_var
@@ -227,11 +253,20 @@ class BBoxRelativeToLastObsTransform(InvertibleTransformWithVariance):
 
         return orig_bbox_obs, bbox_hat, *other
 
-    def inverse_std(self, t_std: torch.Tensor, additional_data: Optional[TensorCollection] = None, shallow: bool = True) -> TensorCollection:
+    def inverse_std(
+        self,
+        t_std: torch.Tensor,
+        additional_data: Optional[TensorCollection] = None,
+        shallow: bool = True
+    ) -> TensorCollection:
         return t_std  # It's assumed that last observed element has variance equal to 0
 
-    def inverse_var(self, t_var: torch.Tensor, additional_data: Optional[TensorCollection] = None, shallow: bool = True) \
-            -> TensorCollection:
+    def inverse_var(
+        self,
+        t_var: torch.Tensor,
+        additional_data: Optional[TensorCollection] = None,
+        shallow: bool = True
+    ) -> TensorCollection:
         return t_var  # It's assumed that last observed element has variance equal to 0
 
 
@@ -258,8 +293,14 @@ class BBoxStandardizedRelativeToLastObsTransform(BBoxCompositeTransform):
 
         super().__init__(transforms=transforms)
 
+
 class BBoxAddLabelTransform(InvertibleTransformWithVariance):
-    def __init__(self, token_to_index: Optional[dict] = None, unknown_token: str = '<unk>', add_unknown_token: bool = True):
+    def __init__(
+        self,
+        token_to_index: Optional[dict] = None,
+        unknown_token: str = '<unk>',
+        add_unknown_token: bool = True
+    ):
         super().__init__(name='bbox_add_one_hot_label')
         self._lookup = LookupTable(
             token_to_index=token_to_index,
@@ -277,12 +318,22 @@ class BBoxAddLabelTransform(InvertibleTransformWithVariance):
     def inverse(self, data: TensorCollection, shallow: bool = True) -> TensorCollection:
         return data
 
-    def inverse_std(self, t_std: torch.Tensor, additional_data: Optional[TensorCollection] = None, shallow: bool = True) -> TensorCollection:
+    def inverse_std(
+        self,
+        t_std: torch.Tensor,
+        additional_data: Optional[TensorCollection] = None,
+        shallow: bool = True
+    ) -> TensorCollection:
         return t_std
 
-    def inverse_var(self, t_var: torch.Tensor, additional_data: Optional[TensorCollection] = None, shallow: bool = True) \
-            -> TensorCollection:
+    def inverse_var(
+        self,
+        t_var: torch.Tensor,
+        additional_data: Optional[TensorCollection] = None,
+        shallow: bool = True
+    ) -> TensorCollection:
         return t_var
+
 
 class BBoxCategoryStandardizationTransform(InvertibleTransformWithVariance):
     """
@@ -294,7 +345,8 @@ class BBoxCategoryStandardizationTransform(InvertibleTransformWithVariance):
         stats = copy.deepcopy(stats)
 
         for stat in stats.values():
-            assert set(stat.keys()) == {'mean', 'std'}, f'Expected "mean" and "std" keys but found {list(stats.keys())}!'
+            assert set(stat.keys()) == {'mean', 'std'}, \
+                f'Expected "mean" and "std" keys but found {list(stats.keys())}!'
 
             if isinstance(stat['mean'], float):
                 # Convert to list
@@ -367,8 +419,12 @@ class BBoxCategoryStandardizationTransform(InvertibleTransformWithVariance):
 
         return bbox_obs, bbox_unobs, *other
 
-    def inverse_std(self, t_std: torch.Tensor, additional_data: Optional[TensorCollection] = None, shallow: bool = True) \
-            -> TensorCollection:
+    def inverse_std(
+        self,
+        t_std: torch.Tensor,
+        additional_data: Optional[TensorCollection] = None,
+        shallow: bool = True
+    ) -> TensorCollection:
         metadata, *other = additional_data
         new_std = None
 
@@ -390,8 +446,12 @@ class BBoxCategoryStandardizationTransform(InvertibleTransformWithVariance):
 
         return new_std
 
-    def inverse_var(self, t_var: torch.Tensor, additional_data: Optional[TensorCollection] = None, shallow: bool = True) \
-            -> TensorCollection:
+    def inverse_var(
+        self,
+        t_var: torch.Tensor,
+        additional_data: Optional[TensorCollection] = None,
+        shallow: bool = True
+    ) -> TensorCollection:
         metadata, *other = additional_data
         new_var = None
 

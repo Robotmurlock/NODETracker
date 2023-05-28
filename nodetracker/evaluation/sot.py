@@ -153,7 +153,13 @@ def success(gt_traj: np.ndarray, pred_traj: np.ndarray, threshold: Optional[Thre
     return float(np.array(scores).mean())
 
 
-def precision(gt_traj: np.ndarray, pred_traj: np.ndarray, imheight: int, imwidth: int, threshold: Optional[ThresholdType] = None) -> float:
+def precision(
+    gt_traj: np.ndarray,
+    pred_traj: np.ndarray,
+    imheight: int,
+    imwidth: int,
+    threshold: Optional[ThresholdType] = None
+) -> float:
     """
     Calculates average precision between GT and PRED bbox.
 

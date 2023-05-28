@@ -52,7 +52,7 @@ class LookupTable:
         """
         Acquires token index if it exists in the table.
         In case the token does not exist in the lookup table:
-            - and unknown token is used then unkown token index is returned;
+            - and unknown token is used then unknown token index is returned;
             - otherwise KeyError is raised
 
         Raises:

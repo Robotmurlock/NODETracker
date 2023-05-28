@@ -31,8 +31,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--split-index-path', type=str, required=True, help='Split index path.')
     parser.add_argument('--output-path', type=str, required=False, default=OUTPUTS_PATH,
                         help='Path where yolo data is stored.')
-    parser.add_argument('--skip-oov', action='store_false', help='Skip out-of-view objects.')
-    parser.add_argument('--skip-occ', action='store_false', help='Skip occluded objects.')
+    parser.add_argument('--include-oov', action='store_true', help='Skip out-of-view objects.')
+    parser.add_argument('--include-occ', action='store_true', help='Skip occluded objects.')
     parser.add_argument('--sampling-step', type=int, required=False, default=30,
                         help='Sample data from sequences. Default: One image per second (with 30 fps assumption)')
     parser.add_argument('--dataset-name', type=str, required=False, default='YOLO-Dataset', help='Dataset name.')
@@ -88,7 +88,7 @@ def main(args: argparse.Namespace) -> None:
                     x_min, y_min, width, height = bbox
                     _, image_extension = os.path.splitext(image_path)
                     sample_id = f'{object_id}_{frame_id}'
-                    if (args.skip_oov and oov) or (args.skip_occ and occ):
+                    if (not args.include_oov and oov) or (not args.include_occ and occ):
                         n_skipped += 1
                         continue
 
@@ -150,4 +150,3 @@ def main(args: argparse.Namespace) -> None:
 if __name__ == '__main__':
     configure_logging(logging.INFO)
     main(parse_args())
-

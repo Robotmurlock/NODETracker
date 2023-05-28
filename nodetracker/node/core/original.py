@@ -46,7 +46,7 @@ class ODEF(nn.Module):
         #   which is exactly what we need for a, a_t and a_theta
         parameters = tuple(self.parameters())
         a_dfdz, a_dfdt, *a_dfdtheta = torch.autograd.grad(
-            outputs=(z_end,), # forward pass outputs
+            outputs=(z_end,),  # forward pass outputs
             inputs=(z, t) + parameters,  # z, t and theta
             grad_outputs=(a,),  # gradient vector of the loss
             allow_unused=True,

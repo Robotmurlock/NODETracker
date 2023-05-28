@@ -251,8 +251,14 @@ class BotSortKalmanFilter(object):
             kalman_gain, projected_cov, kalman_gain.T))
         return new_mean, new_covariance
 
-    def gating_distance(self, mean, covariance, measurements,
-                        only_position=False, metric='maha'):
+    def gating_distance(
+        self,
+        mean,
+        covariance,
+        measurements,
+        only_position=False,
+        metric='maha'
+    ):
         """Compute gating distance between state distribution and measurements.
         A suitable distance threshold can be obtained from `chi2inv95`. If
         `only_position` is False, the chi-square distribution has 4 degrees of
@@ -270,6 +276,8 @@ class BotSortKalmanFilter(object):
         only_position : Optional[bool]
             If True, distance computation is done with respect to the bounding
             box center position only.
+        metric : str
+            Distance metric
         Returns
         -------
         ndarray
@@ -297,7 +305,7 @@ class BotSortKalmanFilter(object):
             raise ValueError('invalid distance metric')
 
 
-# noinspection DuplicatedCode
+# noinspection DuplicatedCode,PyPep8Naming
 def run_kf_test():
     import cv2
     import os

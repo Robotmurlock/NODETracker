@@ -1,5 +1,5 @@
 """
-Kalman Filter torch wrapper
+Kalman Filter torch wrapper.
 """
 from typing import Optional, Tuple
 

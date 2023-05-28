@@ -13,7 +13,10 @@ def run_dataset_test(dataset: TrajectoryDataset) -> None:
 
     torch_dataset = TorchTrajectoryDataset(
         dataset=dataset,
-        transform=transforms.BBoxStandardizedFirstOrderDifferenceTransform(mean=-8.65566333861711e-05, std=0.0009227107879355021)
+        transform=transforms.BBoxStandardizedFirstOrderDifferenceTransform(
+            mean=-8.65566333861711e-05,
+            std=0.0009227107879355021
+        )
     )
 
     print(f'Torch Dataset size: {len(torch_dataset)}')
@@ -30,7 +33,10 @@ def run_dataset_test(dataset: TrajectoryDataset) -> None:
 
     torch_dataset_with_noise = TorchTrajectoryDataset(
         dataset=dataset,
-        transform=transforms.BBoxStandardizedFirstOrderDifferenceTransform(mean=-8.65566333861711e-05, std=0.0009227107879355021),
+        transform=transforms.BBoxStandardizedFirstOrderDifferenceTransform(
+            mean=-8.65566333861711e-05,
+            std=0.0009227107879355021
+        ),
         augmentation_before_transform=augmentations.DetectorNoiseAugmentation(sigma=0.05, proba=1.0)
     )
 

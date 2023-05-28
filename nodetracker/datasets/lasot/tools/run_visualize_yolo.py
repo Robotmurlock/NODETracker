@@ -64,4 +64,3 @@ def main(args: argparse.Namespace) -> None:
 if __name__ == '__main__':
     configure_logging(logging.INFO)
     main(parse_args())
-

@@ -77,7 +77,12 @@ class InvertibleTransformWithVariance(InvertibleTransform):
         super().__init__(name=name)
 
     @abstractmethod
-    def inverse_std(self, t_std: torch.Tensor, additional_data: Optional[TensorCollection] = None, shallow: bool = True) -> TensorCollection:
+    def inverse_std(
+        self,
+        t_std: torch.Tensor,
+        additional_data: Optional[TensorCollection] = None,
+        shallow: bool = True
+    ) -> TensorCollection:
         """
         Performs "inverse" transformation on std given the transformed data.
 
@@ -92,7 +97,12 @@ class InvertibleTransformWithVariance(InvertibleTransform):
         pass
 
     @abstractmethod
-    def inverse_var(self, t_var: torch.Tensor, additional_data: Optional[TensorCollection] = None, shallow: bool = True) -> TensorCollection:
+    def inverse_var(
+        self,
+        t_var: torch.Tensor,
+        additional_data: Optional[TensorCollection] = None,
+        shallow: bool = True
+    ) -> TensorCollection:
         """
         Performs "inverse" transformation on variance given the transformed data.
 

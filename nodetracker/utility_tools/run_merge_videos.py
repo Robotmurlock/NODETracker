@@ -27,18 +27,22 @@ def parse_args() -> argparse.Namespace:
 
 
 def main(cfg: argparse.Namespace):
-    with MP4Reader(cfg.left) as left_reader, MP4Reader(cfg.right) as right_reader, MP4Writer(cfg.merged, cfg.fps) as writer:
-        for (_, left_frame), (_, right_frame) in tqdm(zip(left_reader.iter(), right_reader.iter()), unit='frame', desc='Merging'):
-            assert left_frame.shape == right_frame.shape, \
-                f'Video resolutions do not match: {left_frame.shape} != {right_frame.shape}'
+    with MP4Reader(cfg.left) as left_reader, \
+            MP4Reader(cfg.right) as right_reader, \
+            MP4Writer(cfg.merged, cfg.fps) as writer:
 
-            h, w, _ = left_frame.shape
+        with tqdm(zip(left_reader.iter(), right_reader.iter()), unit='frame', desc='Merging') as pbar:
+            for (_, left_frame), (_, right_frame) in pbar:
+                assert left_frame.shape == right_frame.shape, \
+                    f'Video resolutions do not match: {left_frame.shape} != {right_frame.shape}'
 
-            merged_frame = np.zeros(shape=(h, 2 * w, 3), dtype=np.uint8)
-            merged_frame[:, :w, :] = left_frame
-            merged_frame[:, w:, :] = right_frame
+                h, w, _ = left_frame.shape
 
-            writer.write(merged_frame)
+                merged_frame = np.zeros(shape=(h, 2 * w, 3), dtype=np.uint8)
+                merged_frame[:, :w, :] = left_frame
+                merged_frame[:, w:, :] = right_frame
+
+                writer.write(merged_frame)
 
 
 if __name__ == '__main__':

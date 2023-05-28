@@ -182,7 +182,7 @@ class EvalConfig:
     - checkpoint: what checkpoint to use for evaluation
 
     - autoregressive: use autoregressive decorator
-    - autoregressive_keep_history: requires `autoregressive` - keeps all history when predicting (not droppping last)
+    - autoregressive_keep_history: requires `autoregressive` - keeps all history when predicting (not dropping last)
     """
     experiment: str
     batch_size: int

@@ -1,5 +1,6 @@
 """
-Torch dataset support. Any Dataset that implements `TrajectoryDataset` interface can be used for training and evaluation.
+Torch dataset support.
+Any Dataset that implements `TrajectoryDataset` interface can be used for training and evaluation.
 """
 from abc import abstractmethod, ABC
 from typing import Optional, Tuple, Dict, Any, List
@@ -105,7 +106,12 @@ class TrajectoryDataset(ABC):
         """
 
     @abstractmethod
-    def get_object_data_label_by_frame_index(self, object_id: str, frame_index: int, relative_bbox_coords: bool = True) -> Optional[dict]:
+    def get_object_data_label_by_frame_index(
+        self,
+        object_id: str,
+        frame_index: int,
+        relative_bbox_coords: bool = True
+    ) -> Optional[dict]:
         """
         Like `get_object_data_label` but data is relative to given frame_index.
         If object does not exist in given frame index then None is returned.
@@ -186,7 +192,8 @@ class TorchTrajectoryDataset(Dataset):
     def __len__(self) -> int:
         return len(self._dataset)
 
-    def __getitem__(self, index: int) -> Tuple[torch.tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, dict]:
+    def __getitem__(self, index: int) \
+            -> Tuple[torch.tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, dict]:
         bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, metadata = self._dataset[index]
         orig_bboxes_obs = torch.from_numpy(bboxes_obs)
         bboxes_unobs = torch.from_numpy(bboxes_unobs)

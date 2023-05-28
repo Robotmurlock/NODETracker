@@ -1,6 +1,11 @@
-import numpy as np
+"""
+Support module for image drawing.
+"""
 import cv2
+import numpy as np
+
 from nodetracker.library.cv import color_palette
+
 
 def draw_text(
     image: np.ndarray,
