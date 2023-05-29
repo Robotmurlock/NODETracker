@@ -1,5 +1,5 @@
-experiment: 'RNNODE-lasot-exp13-128dim-no-occ-no-oov-swing'
-description: 'RNNODE - 128dim'
+experiment: 'RNNODE-lasot-exp19-128dim-no-occ-no-oov-remove-random-trajectory-points-detector-noise'
+description: 'RNNODE - 128dim. Includes new augmentation: RemoveRandomPointsTrajectoryAugmentation and DetectorNoiseAugmentation'
 batch_size: 256
 learning_rate: 1e-3
 max_epochs: 30

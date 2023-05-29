@@ -144,6 +144,40 @@ class ShortenTrajectoryAugmentation(TrajectoryAugmentation):
         return x_obs, x_unobs, t_obs, t_unobs
 
 
+class RemoveRandomPointsTrajectoryAugmentation(TrajectoryAugmentation):
+    """
+    Remove random points from input trajectory.
+    """
+    def __init__(self, min_length: int, proba: float):
+        """
+        Args:
+            min_length: Min Trajectory length
+                - Augmented trajectory can't be shortened more than `min_length`
+            proba: Probability to apply
+        """
+        self._min_length = min_length
+        self._proba = proba
+
+    def apply(self, x_obs: torch.Tensor, x_unobs: torch.Tensor, t_obs: torch.Tensor, t_unobs: torch.Tensor) \
+            -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        r = random.uniform(0, 1)
+        if r > self._proba:
+            # Skip augmentation
+            return x_obs, x_unobs, t_obs, t_unobs
+
+        # Sample points to remove
+        n_points = x_obs.shape[0]
+        max_points_to_remove = max(0, n_points - self._min_length)
+        n_points_to_remove = random.randrange(0, max_points_to_remove)
+        all_point_indices = list(range(n_points))
+        points_to_remove = random.sample(all_point_indices, k=n_points_to_remove)
+        point_to_keep = [point for point in all_point_indices if point not in points_to_remove]
+
+        x_obs = x_obs[point_to_keep, :, :]
+        t_obs = t_obs[point_to_keep, :, :]
+        return x_obs, x_unobs, t_obs, t_unobs
+
+
 def create_identity_augmentation_config() -> dict:
     """
     Returns:
