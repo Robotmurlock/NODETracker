@@ -208,7 +208,7 @@ class BBoxStandardizedFirstOrderDifferenceTransform(BBoxCompositeTransform):
     Step 2: Applies standardization transformation:
     Z[i] = (Y[i] - mean(Y)) / std(Y)
     """
-    def __init__(self, mean: float, std: float):
+    def __init__(self, mean: Union[float, List[float]], std: Union[float, List[float]]):
         transforms = [
             BboxFirstOrderDifferenceTransform(),
             BBoxStandardizationTransform(mean=mean, std=std)
@@ -309,7 +309,7 @@ class BBoxAddLabelTransform(InvertibleTransformWithVariance):
         )
 
     def apply(self, data: TensorCollection, shallow: bool = True) -> TensorCollection:
-        bboxes_obs, bboxes_unobs, frame_ts_obs, frame_ts_unobs, metadata, *other = data
+        bboxes_obs, bboxes_unobs, frame_ts_obs, frame_ts_unobs, orig_bbox_obs, metadata, *other = data
         category = metadata['category']
         category_index = self._lookup[category] * torch.ones(*bboxes_obs.shape[:-1], 1, dtype=torch.float32)
         bboxes_obs = torch.concat([bboxes_obs, category_index], dim=-1)
@@ -563,18 +563,18 @@ def run_add_category_label_index() -> None:
     ts_unobs = torch.randn(3, 2, 1)
     orig_bbox_obs = bbox_obs.clone()
     metadata = {'category': 'dog'}
-    add_label = BBoxAddLabelTransform({
-        'token_to_index': {
+    add_label = BBoxAddLabelTransform(
+        token_to_index={
             '<unk>': 0,
             'dog': 1,
             'cat': 2
         },
-        'unknown_token': '<unk>',
-        'add_unknown_token': True
-    })
+        unknown_token='<unk>',
+        add_unknown_token=True
+    )
 
     transformed_bbox_obs, transformed_bbox_unobs, *_ = \
-        add_label.apply([bbox_obs, bbox_unobs, ts_obs, ts_unobs, orig_bbox_obs, metadata], shallow=False)
+        add_label.apply([bbox_obs, bbox_unobs, ts_obs, ts_unobs, orig_bbox_obs, metadata, None], shallow=False)
     assert transformed_bbox_obs.shape == (2, 2, 5)
     assert transformed_bbox_unobs.shape == (3, 2, 4)
 

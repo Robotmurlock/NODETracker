@@ -70,7 +70,7 @@ def run_inference(
     for bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, _, metadata in tqdm(data_loader, unit='sample',
                                                                         desc='Running inference'):
         # `t` prefix means that tensor is mapped to transformed space
-        t_bboxes_obs, _, t_ts_obs, t_ts_unobs = \
+        t_bboxes_obs, _, t_ts_obs, t_ts_unobs, metadata, *other = \
             transform.apply([bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, metadata, None], shallow=False)  # preprocess
         t_bboxes_obs, t_ts_obs, t_ts_unobs = [v.to(accelerator) for v in [t_bboxes_obs, t_ts_obs, t_ts_unobs]]
         output = model.inference(t_bboxes_obs, t_ts_obs, t_ts_unobs)  # inference

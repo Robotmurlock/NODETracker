@@ -10,10 +10,10 @@ import torch
 from torch import nn
 
 from nodetracker.datasets.transforms import InvertibleTransformWithVariance, InvertibleTransform
+from nodetracker.evaluation.sot import metrics_func
 from nodetracker.node.losses import factory_loss_function
 from nodetracker.utils import torch_helper
 from nodetracker.utils.meter import MetricMeter
-from nodetracker.evaluation.sot import metrics_func
 
 
 @dataclass
@@ -176,27 +176,22 @@ class LightningModuleForecaster(LightningModuleBase):
             bboxes_unobs_hat_log_var = bboxes_unobs_hat[..., 1]
             bboxes_unobs_hat_var = torch.exp(bboxes_unobs_hat_log_var)
 
+            loss = self._loss_func(bboxes_unobs_hat_mean, bboxes_unobs, bboxes_unobs_hat_var)
+
             if self._transform_func is not None:
                 # Invert mean
-                _, bboxes_unobs_hat_mean, *_ = \
-                    self._transform_func.inverse([bboxes_obs, bboxes_unobs_hat_mean, metadata, None], shallow=False)
-                _, bboxes_unobs, *_ = \
-                    self._transform_func.inverse([bboxes_obs, bboxes_unobs, metadata, None], shallow=False)
-
-                # Invert var
-                # noinspection PyTypeChecker
-                bboxes_unobs_hat_var = self._transform_func.inverse_var(bboxes_unobs_hat_var,
-                                                                        additional_data=[metadata, None])
+                _, bboxes_unobs_hat_mean, *_ = self._transform_func.inverse([bboxes_obs, bboxes_unobs_hat_mean, metadata, None], shallow=False)
+                _, bboxes_unobs, *_ = self._transform_func.inverse([bboxes_obs, bboxes_unobs, metadata, None], shallow=False)
 
             gt_traj = bboxes_unobs.detach().cpu().numpy()
             pred_traj = bboxes_unobs_hat_mean.detach().cpu().numpy()
             metrics = metrics_func(gt_traj, pred_traj)
 
-            return self._loss_func(bboxes_unobs_hat_mean, bboxes_unobs, bboxes_unobs_hat_var), metrics
+            return loss, metrics
 
+        loss = self._loss_func(bboxes_unobs_hat, bboxes_unobs)
         if self._transform_func is not None:
-            _, bboxes_unobs_hat, *_ = self._transform_func.inverse([bboxes_obs, bboxes_unobs_hat, metadata, None],
-                                                                   shallow=False)
+            _, bboxes_unobs_hat, *_ = self._transform_func.inverse([bboxes_obs, bboxes_unobs_hat, metadata, None], shallow=False)
             _, bboxes_unobs, *_ = self._transform_func.inverse([bboxes_obs, bboxes_unobs, metadata, None],
                                                                shallow=False)
 
@@ -204,7 +199,7 @@ class LightningModuleForecaster(LightningModuleBase):
         pred_traj = bboxes_unobs_hat.detach().cpu().numpy()
         metrics = metrics_func(gt_traj, pred_traj)
 
-        return self._loss_func(bboxes_unobs_hat, bboxes_unobs), metrics
+        return loss, metrics
 
     def _log_loss(self, loss: Union[torch.Tensor, Dict[str, torch.Tensor]], prefix: str, log_step: bool = True) -> None:
         """

@@ -13,6 +13,7 @@ from typing import Dict, Tuple, List, Any, Union, Optional
 
 import numpy as np
 import pandas as pd
+import torch
 from tqdm import tqdm
 
 from nodetracker.datasets.torch import TrajectoryDataset

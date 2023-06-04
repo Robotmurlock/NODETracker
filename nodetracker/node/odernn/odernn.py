@@ -69,15 +69,16 @@ class ODERNNEncoder(nn.Module):
         time_len, batch_size, _ = xs.shape
 
         hs = self._obs2hidden(xs)
-        prev_h0 = torch.zeros(self._n_rnn_layers, batch_size, self._hidden_dim).to(hs)
+        prev_h0 = torch.zeros(batch_size, self._hidden_dim).to(hs)
 
         h0 = None
         for i in range(time_len):
             ts = torch.tensor([0, 1], dtype=torch.float32).view(2, 1, 1).expand(2, batch_size, 1).to(hs)
-            h0 = hs[i]
 
-            h0 = self._node(h0, ts).unsqueeze(0)
+            prev_h0 = self._node(prev_h0, ts).unsqueeze(0)
+            h0 = hs[i:i+1]
             h0, prev_h0 = self._rnn(h0, prev_h0)
+            prev_h0 = prev_h0[0]
 
         assert h0 is not None, 'Zero ODERNN iterations performed!'
         assert h0.shape[0] == 1, f'Expected time (first) dimension to be equal to one. Found shape: {h0.shape[0]}.'
