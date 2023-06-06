@@ -84,12 +84,14 @@ class NODEDecoder(nn.Module):
 
         model_gaussian: bool = False,
 
+        n_mlp_layers: int = 2,
+
         solver_name: Optional[str] = None,
         solver_params: Optional[dict] = None
     ):
         super().__init__()
 
-        func = MLPODEF(latent_dim, hidden_dim, n_layers=2)
+        func = MLPODEF(latent_dim, hidden_dim, n_layers=n_mlp_layers)
         solver = ode_solver_factory(solver_name, solver_params)
 
         self._ode = NeuralODE(func=func, solver=solver)

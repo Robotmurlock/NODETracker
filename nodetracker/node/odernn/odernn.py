@@ -99,6 +99,7 @@ class ODERNN(nn.Module):
         model_gaussian: bool = False,
 
         n_encoder_rnn_layers: int = 1,
+        n_decoder_mlp_layers: int = 2,
 
         solver_name: Optional[str] = None,
         solver_params: Optional[dict] = None
@@ -116,6 +117,7 @@ class ODERNN(nn.Module):
             latent_dim=hidden_dim,
             hidden_dim=hidden_dim,
             output_dim=observable_dim,
+            n_mlp_layers=n_decoder_mlp_layers,
             solver_name=solver_name,
             solver_params=solver_params,
             model_gaussian=model_gaussian
@@ -142,6 +144,7 @@ class LightningODERNN(LightningGaussianModel):
         transform_func: Optional[Union[InvertibleTransform, InvertibleTransformWithVariance]] = None,
 
         n_encoder_rnn_layers: int = 1,
+        n_decoder_mlp_layers: int = 2,
 
         solver_name: Optional[str] = None,
         solver_params: Optional[dict] = None,
