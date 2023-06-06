@@ -1,3 +1,4 @@
+import copy
 import json
 import logging
 import os
@@ -12,7 +13,6 @@ import numpy as np
 import torch
 from omegaconf import DictConfig
 from tqdm import tqdm
-import copy
 
 from nodetracker.common.project import CONFIGS_PATH
 from nodetracker.datasets import transforms, TrajectoryDataset
@@ -28,6 +28,7 @@ from nodetracker.utils import pipeline
 from nodetracker.utils.collections import nesteddict
 from nodetracker.utils.lookup import LookupTable
 from tools.utils import create_inference_model
+from nodetracker.evaluation.end_to_end.inference_writer import InferenceWriter
 
 logger = logging.getLogger('E2EFilterEvaluation')
 
@@ -305,11 +306,18 @@ def main(cfg: DictConfig):
             measurements = [dp['bbox'] for dp in data_points]
             n_skipped_detection = 0
 
+            inference_writer = None
+            if cfg.end_to_end.save_inference:
+                object_inference_filepath = os.path.join(experiment_path, 'evaluation', 'object_inference', f'{object_id}.csv')
+                inference_writer = InferenceWriter(object_inference_filepath)
+                inference_writer.open()
+
             for index in range(n_data_points - n_pred_steps):
                 # Extract point data
                 point_data = data_points[index]
                 frame_id = point_data['frame_id']
                 measurement = torch.tensor(measurements[index], dtype=torch.float32)
+                measurement_numpy = measurement.detach().cpu().numpy()
                 oov, occ = point_data['oov'], point_data['occ']
                 evaluate_step = True
 
@@ -387,17 +395,27 @@ def main(cfg: DictConfig):
                     # Save data
                     prev_measurement = measurement.detach().cpu().numpy()
 
-                    if cfg.end_to_end.visualization.enable:
-                        prior, _ = smf.project(prior_state)
-                        prior_numpy = prior.detach().cpu().numpy()
-                        inf_bboxes_numpy = inf_bboxes.detach().cpu().numpy()
-                        inf_conf_numpy = inf_conf.detach().cpu().numpy()
+                    prior, _ = smf.project(prior_state)
+                    prior_numpy = prior.detach().cpu().numpy()
+                    inf_bboxes_numpy = inf_bboxes.detach().cpu().numpy()
+                    inf_conf_numpy = inf_conf.detach().cpu().numpy()
+                    bboxes_numpy = bboxes.detach().cpu().numpy()
 
+                    if cfg.end_to_end.visualization.enable:
                         inf_viz_cache[object_id]['inference_bboxes'][frame_id] = inf_bboxes_numpy.tolist()
                         inf_viz_cache[object_id]['inference_cls'][frame_id] = inf_classes
                         inf_viz_cache[object_id]['inference_conf'][frame_id] = inf_conf_numpy.tolist()
                         inf_viz_cache[object_id]['prior'][frame_id] = prior_numpy.tolist()
                         inf_viz_cache[object_id]['posterior'][frame_id] = posterior_numpy.tolist()
+
+                    if inference_writer is not None:
+                        inference_writer.write(
+                            frame_index=frame_id,
+                            prior=prior_numpy,
+                            posterior=posterior_numpy,
+                            ground_truth=measurement_numpy,
+                            od_prediction=bboxes_numpy
+                        )
 
             global_metrics = merge_metrics(
                 global_metrics=global_metrics,
@@ -405,6 +423,9 @@ def main(cfg: DictConfig):
                 scene_name=scene_name,
                 category=dataset.get_object_category(object_id)
             )
+
+            if inference_writer is not None:
+                inference_writer.close()
 
         if cfg.end_to_end.visualization.enable:
             video_dirpath = os.path.join(experiment_path, 'visualization',

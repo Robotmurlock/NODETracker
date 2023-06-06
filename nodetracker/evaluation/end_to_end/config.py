@@ -26,7 +26,7 @@ class JitterConfig:
 
 
 @dataclass
-class Evaluation:
+class EvaluationConfig:
     n_steps: int = field(default=5)
     occlusion_as_skip_detection: bool = field(default=True)
 
@@ -51,8 +51,9 @@ class E2EConfig:
     object_detection: ObjectDetectionInferenceConfig
     lookup_path: str
 
+    save_inference: bool = field(default=True)  # Only save prior and posterior
     jitter: JitterConfig = field(default_factory=JitterConfig)
-    eval: Evaluation = field(default_factory=Evaluation)
+    eval: EvaluationConfig = field(default_factory=EvaluationConfig)
     visualization: Visualization = field(default_factory=Visualization)
     selection: SelectionFilter = field(default_factory=SelectionFilter)
 

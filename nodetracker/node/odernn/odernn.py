@@ -157,7 +157,8 @@ class LightningODERNN(LightningGaussianModel):
             model_gaussian=model_gaussian,
             solver_name=solver_name,
             solver_params=solver_params,
-            n_encoder_rnn_layers=n_encoder_rnn_layers
+            n_encoder_rnn_layers=n_encoder_rnn_layers,
+            n_decoder_mlp_layers=n_decoder_mlp_layers
         )
         super().__init__(
             train_config=train_config,
