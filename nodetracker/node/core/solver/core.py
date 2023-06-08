@@ -85,6 +85,7 @@ class RungeKuttaMethod(ODESolver, ABC):
         """
         pass
 
+    # noinspection DuplicatedCode
     def solve(
             self,
             z0: torch.Tensor,
@@ -149,83 +150,3 @@ class RK4(RungeKuttaMethod):
         k4 = f(z4, t4)
 
         return (k1 + 2*k2 + 2*k3 + k4) / 6
-
-
-def ode_solver_factory(name: Optional[str] = None, params: Optional[dict] = None) -> ODESolver:
-    """
-    Factory for ODESolvers. Supports:
-    - EulerMethod
-    - RK4
-    If parameters and name are not set then returns DefaultODESolver
-    Args:
-        name: Solver name.
-        params: ODESolver parameters
-    Returns:
-        ODESolver
-    """
-    if name is None:
-        return RK4(  # Default ODESolver
-            max_step_size=0.05
-        )
-    else:
-        if params is None:
-            raise TypeError('Parameters are not set!')
-
-    catalog = {
-        'euler': EulerMethod,
-        'rk4': RK4
-    }
-
-    if name not in catalog:
-        raise ValueError(f'Unknown solver name "{name}". Valid options: {list(catalog.keys())}.')
-
-    return catalog[name](**params)
-
-
-def run_test(ode_solver: ODESolver, name: str):
-    def cosine_dynamics(x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
-        """
-        Cosine function
-
-        Args:
-            x: Previous state (not relevant but still keeping it as argument for consistency)
-            t: Time
-
-        Returns:
-            Cosine value of t
-        """
-        _ = x  # void(x)
-        return torch.cos(t)
-
-    ts = torch.linspace(1, 10, 100)
-    t0, t1 = torch.tensor(1.0), torch.tensor(10.0)
-    z0 = torch.sin(t0)
-    ode_true = torch.sin(ts)
-
-    zs_hat, ts_hat = ode_solver(z0, t0, t1, cosine_dynamics, return_all_states=True)
-
-    plt.plot(ts, ode_true, color='red', label='True dynamics')
-    plt.scatter(ts_hat, zs_hat, color='blue', s=10, label='Estimated dynamics states')
-    plt.title(f'{name} - Sinusoid dynamics')
-    plt.xlabel('Time')
-    plt.ylabel('State')
-    plt.legend()
-    plt.show()
-
-
-if __name__ == '__main__':
-    rk4_solver = ode_solver_factory(
-        name='rk4',
-        params={
-            'max_step_size': 0.5
-        }
-    )
-    run_test(rk4_solver, name='RK4')
-
-    euler_solver = ode_solver_factory(
-        name='euler',
-        params={
-            'max_step_size': 0.5
-        }
-    )
-    run_test(rk4_solver, name='Euler')

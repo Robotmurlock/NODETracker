@@ -474,6 +474,70 @@ class BBoxCategoryStandardizationTransform(InvertibleTransformWithVariance):
         return new_var
 
 
+class BBoxLogTransformRelativeToLastObs(InvertibleTransformWithVariance):
+    """
+    * For all observed coordinates:
+    Y[i] = ln(X[-1] / X[i])
+    Y[-1] is removed
+
+    * For all unobserved coordinates:
+    Y[i] = ln(X[i] / X[-1])
+    """
+    def __init__(self, clip_radius: Optional[float] = 1.0):
+        super().__init__(name='log_relative_to_last_obs')
+        self._min_clip = -clip_radius if clip_radius is not None else None
+        self._max_clip = clip_radius if clip_radius is not None else None
+
+    def apply(self, data: TensorCollection, shallow: bool = True) -> TensorCollection:
+        bbox_obs, bbox_unobs, ts_obs, *other = data
+        last_obs = bbox_obs[-1:]
+
+        if not shallow:
+            bbox_obs = bbox_obs.clone()
+            bbox_unobs = bbox_unobs.clone() if bbox_unobs is not None else None
+
+        bbox_obs, ts_obs = bbox_obs[:-1], ts_obs[:-1]  # Last element becomes redundant
+        bbox_obs = torch.nan_to_num(torch.log(last_obs.expand_as(bbox_obs) / bbox_obs), posinf=0, neginf=0)
+        bbox_obs = torch.clip(bbox_obs, min=self._min_clip, max=self._max_clip) if self._min_clip is not None else bbox_obs
+        if bbox_unobs is not None:
+            bbox_unobs = torch.nan_to_num(torch.log(bbox_unobs / last_obs.expand_as(bbox_unobs)), posinf=0, neginf=0)
+            bbox_unobs = torch.clip(bbox_unobs, min=self._min_clip, max=self._max_clip) if self._min_clip is not None else bbox_unobs
+
+        return bbox_obs, bbox_unobs, ts_obs, *other
+
+    def inverse(self, data: TensorCollection, shallow: bool = True) -> TensorCollection:
+        orig_bbox_obs, bbox_hat, *other = data
+        last_obs = orig_bbox_obs[-1:]
+
+        if not shallow:
+            bbox_hat = bbox_hat.clone()
+
+        bbox_hat = torch.exp(bbox_hat) * last_obs.expand_as(bbox_hat)
+
+        return orig_bbox_obs, bbox_hat, *other
+
+    def inverse_std(
+        self,
+        t_std: torch.Tensor,
+        additional_data: Optional[TensorCollection] = None,
+        shallow: bool = True
+    ) -> TensorCollection:
+        t_var = torch.square(t_std)
+        var = self.inverse_var(t_var)
+        std = torch.sqrt(var)
+        return std  # It's assumed that last observed element has variance equal to 0
+
+    def inverse_var(
+        self,
+        t_var: torch.Tensor,
+        additional_data: Optional[TensorCollection] = None,
+        shallow: bool = True
+    ) -> TensorCollection:
+        orig_bbox_obs, *other = additional_data
+        last_obs = torch.square(orig_bbox_obs[-1:])
+        return torch.exp(t_var) * last_obs.expand_as(t_var) # It's assumed that last observed element has variance equal to 0
+
+
 # noinspection DuplicatedCode
 def run_test_first_difference() -> None:
     bbox_obs = torch.randn(2, 2, 4)
@@ -483,11 +547,11 @@ def run_test_first_difference() -> None:
     first_diff = BboxFirstOrderDifferenceTransform()
 
     transformed_bbox_obs, transformed_bbox_unobs, *_ = \
-        first_diff.apply([bbox_obs, bbox_unobs, ts_obs, ts_unobs], shallow=False)
+        first_diff.apply([bbox_obs, bbox_unobs, ts_obs, ts_unobs, None], shallow=False)
     assert transformed_bbox_obs.shape == (1, 2, 4)
     assert transformed_bbox_unobs.shape == (3, 2, 4)
 
-    _, inv_transformed_bbox_unobs = first_diff.inverse([bbox_obs, transformed_bbox_unobs])
+    _, inv_transformed_bbox_unobs, *_ = first_diff.inverse([bbox_obs, transformed_bbox_unobs, None])
     assert torch.abs(inv_transformed_bbox_unobs - bbox_unobs).sum().item() < 1e-3
 
 
@@ -499,9 +563,9 @@ def run_standardization() -> None:
     first_diff = BBoxStandardizationTransform(1, 2.0)
 
     _, transformed_bbox_unobs, *_ = \
-        first_diff.apply([bbox_obs, bbox_unobs, ts_obs, ts_unobs], shallow=False)
+        first_diff.apply([bbox_obs, bbox_unobs, ts_obs, ts_unobs, None], shallow=False)
 
-    _, inv_transformed_bbox_unobs = first_diff.inverse([bbox_obs, transformed_bbox_unobs])
+    _, inv_transformed_bbox_unobs, *_ = first_diff.inverse([bbox_obs, transformed_bbox_unobs, None])
     assert torch.abs(inv_transformed_bbox_unobs - bbox_unobs).sum().item() < 1e-3
 
 
@@ -514,11 +578,11 @@ def run_test_standardized_first_difference() -> None:
     first_diff = BBoxStandardizedFirstOrderDifferenceTransform(1, 2.0)
 
     transformed_bbox_obs, transformed_bbox_unobs, *_ = \
-        first_diff.apply([bbox_obs, bbox_unobs, ts_obs, ts_unobs], shallow=False)
+        first_diff.apply([bbox_obs, bbox_unobs, ts_obs, ts_unobs, None], shallow=False)
     assert transformed_bbox_obs.shape == (1, 2, 4)
     assert transformed_bbox_unobs.shape == (3, 2, 4)
 
-    _, inv_transformed_bbox_unobs = first_diff.inverse([bbox_obs, transformed_bbox_unobs])
+    _, inv_transformed_bbox_unobs, *_ = first_diff.inverse([bbox_obs, transformed_bbox_unobs, None])
     assert torch.abs(inv_transformed_bbox_unobs - bbox_unobs).sum().item() < 1e-3
 
 
@@ -531,11 +595,11 @@ def run_test_relative_to_last_obs() -> None:
     first_diff = BBoxRelativeToLastObsTransform()
 
     transformed_bbox_obs, transformed_bbox_unobs, *_ = \
-        first_diff.apply([bbox_obs, bbox_unobs, ts_obs, ts_unobs], shallow=False)
+        first_diff.apply([bbox_obs, bbox_unobs, ts_obs, ts_unobs, None], shallow=False)
     assert transformed_bbox_obs.shape == (1, 2, 4)
     assert transformed_bbox_unobs.shape == (3, 2, 4)
 
-    _, inv_transformed_bbox_unobs = first_diff.inverse([bbox_obs, transformed_bbox_unobs])
+    _, inv_transformed_bbox_unobs, *_ = first_diff.inverse([bbox_obs, transformed_bbox_unobs, None])
     assert torch.abs(inv_transformed_bbox_unobs - bbox_unobs).sum().item() < 1e-3
 
 
@@ -548,11 +612,27 @@ def run_test_standardized_relative_to_last_obs() -> None:
     first_diff = BBoxStandardizedRelativeToLastObsTransform(1, 2.0)
 
     transformed_bbox_obs, transformed_bbox_unobs, *_ = \
-        first_diff.apply([bbox_obs, bbox_unobs, ts_obs, ts_unobs], shallow=False)
+        first_diff.apply([bbox_obs, bbox_unobs, ts_obs, ts_unobs, None], shallow=False)
     assert transformed_bbox_obs.shape == (1, 2, 4)
     assert transformed_bbox_unobs.shape == (3, 2, 4)
 
-    _, inv_transformed_bbox_unobs = first_diff.inverse([bbox_obs, transformed_bbox_unobs])
+    _, inv_transformed_bbox_unobs, *_ = first_diff.inverse([bbox_obs, transformed_bbox_unobs, None])
+    assert torch.abs(inv_transformed_bbox_unobs - bbox_unobs).sum().item() < 1e-3
+
+# noinspection DuplicatedCode
+def run_test_log_relative_to_last_obs() -> None:
+    bbox_obs = torch.abs(torch.randn(2, 2, 4))
+    bbox_unobs = torch.abs(torch.randn(3, 2, 4))
+    ts_obs = torch.randn(2, 2, 1)
+    ts_unobs = torch.randn(3, 2, 1)
+    log_transform = BBoxLogTransformRelativeToLastObs(clip_radius=None)
+
+    transformed_bbox_obs, transformed_bbox_unobs, *_ = \
+        log_transform.apply([bbox_obs, bbox_unobs, ts_obs, ts_unobs, None], shallow=False)
+    assert transformed_bbox_obs.shape == (1, 2, 4)
+    assert transformed_bbox_unobs.shape == (3, 2, 4)
+
+    _, inv_transformed_bbox_unobs, *_ = log_transform.inverse([bbox_obs, transformed_bbox_unobs, None])
     assert torch.abs(inv_transformed_bbox_unobs - bbox_unobs).sum().item() < 1e-3
 
 
@@ -578,7 +658,7 @@ def run_add_category_label_index() -> None:
     assert transformed_bbox_obs.shape == (2, 2, 5)
     assert transformed_bbox_unobs.shape == (3, 2, 4)
 
-    _, inv_transformed_bbox_unobs = add_label.inverse([bbox_obs, transformed_bbox_unobs])
+    _, inv_transformed_bbox_unobs, *_ = add_label.inverse([bbox_obs, transformed_bbox_unobs, None])
     assert torch.abs(inv_transformed_bbox_unobs - bbox_unobs).sum().item() < 1e-3
 
 
@@ -589,3 +669,4 @@ if __name__ == '__main__':
     run_test_relative_to_last_obs()
     run_test_standardized_relative_to_last_obs()
     run_add_category_label_index()
+    run_test_log_relative_to_last_obs()

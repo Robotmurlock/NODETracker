@@ -8,7 +8,8 @@ import numpy as np
 import torch
 from torch import nn
 
-from nodetracker.node.core.solver import ode_solver_factory, ODESolver
+from nodetracker.node.core.solver.core import ODESolver
+from nodetracker.node.core.solver.factory import ode_solver_factory
 
 
 class ODEF(nn.Module):

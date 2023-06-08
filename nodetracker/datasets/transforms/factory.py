@@ -12,7 +12,8 @@ from nodetracker.datasets.transforms import (
     BBoxStandardizedRelativeToLastObsTransform,
     BBoxCompositeTransform,
     BBoxAddLabelTransform,
-    BBoxCategoryStandardizationTransform
+    BBoxCategoryStandardizationTransform,
+    BBoxLogTransformRelativeToLastObs
 )
 from typing import Union
 
@@ -37,7 +38,8 @@ def transform_factory(name: str, params: dict) -> Union[InvertibleTransform, Inv
         'relative_to_last_obs': BBoxRelativeToLastObsTransform,
         'standardized_relative_to_last_obs': BBoxStandardizedRelativeToLastObsTransform,
         'add_label': BBoxAddLabelTransform,
-        'standardization_by_category': BBoxCategoryStandardizationTransform
+        'standardization_by_category': BBoxCategoryStandardizationTransform,
+        'log_relative_to_last_obs': BBoxLogTransformRelativeToLastObs
     }
 
     cls = catalog[name]

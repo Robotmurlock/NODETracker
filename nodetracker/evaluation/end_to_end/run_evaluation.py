@@ -399,7 +399,7 @@ def main(cfg: DictConfig):
                     prior_numpy = prior.detach().cpu().numpy()
                     inf_bboxes_numpy = inf_bboxes.detach().cpu().numpy()
                     inf_conf_numpy = inf_conf.detach().cpu().numpy()
-                    bboxes_numpy = bboxes.detach().cpu().numpy()
+                    bboxes_numpy = bboxes.detach().cpu().numpy() if bboxes is not None else np.array([None] * 4, dtype=np.float32)
 
                     if cfg.end_to_end.visualization.enable:
                         inf_viz_cache[object_id]['inference_bboxes'][frame_id] = inf_bboxes_numpy.tolist()
@@ -414,7 +414,9 @@ def main(cfg: DictConfig):
                             prior=prior_numpy,
                             posterior=posterior_numpy,
                             ground_truth=measurement_numpy,
-                            od_prediction=bboxes_numpy
+                            od_prediction=bboxes_numpy,
+                            occ=occ,
+                            oov=oov
                         )
 
             global_metrics = merge_metrics(

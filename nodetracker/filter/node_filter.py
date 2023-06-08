@@ -107,8 +107,8 @@ class NODEFilter(StateModelFilter):
             self._accelerator)
         t_x_unobs_mean_hat, t_x_unobs_std_hat, *_ = self._model.inference(t_x_obs, t_ts_obs, ts_unobs)
         t_x_unobs_mean_hat, t_x_unobs_std_hat = t_x_unobs_mean_hat.detach().cpu(), t_x_unobs_std_hat.detach().cpu()
-        _, prior_mean, *_ = self._transform.inverse(data=[x_obs, t_x_unobs_mean_hat], shallow=True)
-        prior_std = self._transform.inverse_std(t_x_unobs_std_hat)
+        _, prior_mean, *_ = self._transform.inverse(data=[x_obs, t_x_unobs_mean_hat], shallow=False)
+        prior_std = self._transform.inverse_std(t_x_unobs_std_hat, additional_data=[x_obs, None], shallow=False)
 
         prior_mean = prior_mean[:, 0, :]
         prior_std = prior_std[:, 0, :]

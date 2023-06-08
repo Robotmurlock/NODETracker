@@ -15,6 +15,7 @@ from nodetracker.datasets.transforms.bbox import (
     BBoxStandardizedRelativeToLastObsTransform,
     BBoxCompositeTransform,
     BBoxAddLabelTransform,
-    BBoxCategoryStandardizationTransform
+    BBoxCategoryStandardizationTransform,
+    BBoxLogTransformRelativeToLastObs
 )
 from nodetracker.datasets.transforms.factory import transform_factory

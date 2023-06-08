@@ -9,8 +9,8 @@ from torch import nn
 from nodetracker.datasets.utils import preprocess_batch
 from nodetracker.library import time_series
 from nodetracker.node.core import ODEF, NeuralODE, ode_solver_factory
-from nodetracker.node.utils import LightningModuleBase, LightningTrainConfig
 from nodetracker.node.losses.vae import ELBO
+from nodetracker.node.utils import LightningModuleBase, LightningTrainConfig
 
 
 class RNNEncoder(nn.Module):
@@ -72,6 +72,43 @@ class MLPODEF(ODEF):
         return self._model(xt)
 
 
+class MLPODEFWithGlobalState(ODEF):
+    """
+    Multi layer perceptron ODEF. Includes N consecutive layers of:
+    - Linear layer
+    - LayerNorm
+    - LeakyReLU
+    """
+    def __init__(self, dim: int, hidden_dim: int, n_layers: int = 2):
+        assert dim % 2 == 0 and hidden_dim % 2 == 0, f'Dimensions must by divisable by 2. Got {dim} and {hidden_dim}.'
+
+        super(ODEF, self).__init__()
+        assert n_layers >= 1, f'Minimum number of layers is 1 but found {n_layers}'
+        layers_args = [[hidden_dim, hidden_dim // 2] for _ in range(n_layers)]
+        layers_args[0][0] = dim + 1  # setting input dimension (including time dimension)
+        layers_args[-1][1] = dim // 2 # setting output dimension
+
+        self._model = nn.ModuleList([self._create_mlp_layer(*args) for args in layers_args])
+
+    @staticmethod
+    def _create_mlp_layer(input_dim: int, output_dim: int) -> nn.Module:
+        return nn.Sequential(
+            nn.Linear(input_dim, output_dim),
+            nn.LayerNorm(output_dim),
+            nn.LeakyReLU(0.1)
+        )
+
+    def forward(self, d: torch.Tensor, g: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
+        xt = torch.cat([d, g, t], dim=-1)
+        last_layer_index = len(self._model) - 1
+
+        for layer_index, layer in enumerate(self._model):
+            xt = layer(xt)
+            if layer_index != last_layer_index:
+                xt = torch.cat([xt, g], dim=-1)
+        return xt
+
+
 class NODEDecoder(nn.Module):
     """
     NODE decoder performs extrapolation at latent space which can be then used to reconstruct/forecast time-series.
@@ -85,13 +122,19 @@ class NODEDecoder(nn.Module):
         model_gaussian: bool = False,
 
         n_mlp_layers: int = 2,
+        global_state: bool = False,
 
         solver_name: Optional[str] = None,
         solver_params: Optional[dict] = None
     ):
         super().__init__()
 
-        func = MLPODEF(latent_dim, hidden_dim, n_layers=n_mlp_layers)
+        if global_state:
+            assert '_global' in solver_name, f'Solver "{solver_name}" does not have global state!'
+            func = MLPODEFWithGlobalState(latent_dim, hidden_dim, n_layers=n_mlp_layers)
+        else:
+            func = MLPODEF(latent_dim, hidden_dim, n_layers=n_mlp_layers)
+
         solver = ode_solver_factory(solver_name, solver_params)
 
         self._ode = NeuralODE(func=func, solver=solver)

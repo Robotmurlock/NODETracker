@@ -26,6 +26,7 @@ class RNNODE(nn.Module):
         model_gaussian: bool = False,
 
         n_encoder_rnn_layers: int = 1,
+        decoder_global_state: bool = False,
 
         solver_name: Optional[str] = None,
         solver_params: Optional[dict] = None
@@ -44,7 +45,8 @@ class RNNODE(nn.Module):
             output_dim=observable_dim,
             solver_name=solver_name,
             solver_params=solver_params,
-            model_gaussian=model_gaussian
+            model_gaussian=model_gaussian,
+            global_state=decoder_global_state
         )
 
     def forward(self, x: torch.Tensor, t_obs: torch.Tensor, t_unobs: Optional[torch.Tensor] = None) \
@@ -69,6 +71,7 @@ class LightningRNNODE(LightningGaussianModel):
         transform_func: Optional[Union[InvertibleTransform, InvertibleTransformWithVariance]] = None,
 
         n_encoder_rnn_layers: int = 1,
+        decoder_global_state: bool = False,
 
         solver_name: Optional[str] = None,
         solver_params: Optional[dict] = None,
@@ -81,7 +84,8 @@ class LightningRNNODE(LightningGaussianModel):
             model_gaussian=model_gaussian,
             solver_name=solver_name,
             solver_params=solver_params,
-            n_encoder_rnn_layers=n_encoder_rnn_layers
+            n_encoder_rnn_layers=n_encoder_rnn_layers,
+            decoder_global_state=decoder_global_state
         )
         super().__init__(
             train_config=train_config,

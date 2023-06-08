@@ -11,7 +11,7 @@ from nodetracker.datasets.transforms import InvertibleTransform, InvertibleTrans
 from nodetracker.library.building_blocks import MLP
 from nodetracker.node.core.odevae import MLPODEF, NODEDecoder
 from nodetracker.node.core.original import NeuralODE
-from nodetracker.node.core.solver import ode_solver_factory
+from nodetracker.node.core.solver.factory import ode_solver_factory
 from nodetracker.node.odernn.utils import LightningGaussianModel, run_simple_lightning_guassian_model_test
 from nodetracker.node.utils import LightningTrainConfig
 
@@ -100,17 +100,27 @@ class ODERNN(nn.Module):
 
         n_encoder_rnn_layers: int = 1,
         n_decoder_mlp_layers: int = 2,
+        decoder_global_state: bool = False,
 
         solver_name: Optional[str] = None,
-        solver_params: Optional[dict] = None
+        solver_params: Optional[dict] = None,
+        encoder_solver_name: Optional[str] = None,
+        encoder_solver_params: Optional[dict] = None,
+        decoder_solver_name: Optional[str] = None,
+        decoder_solver_params: Optional[dict] = None
     ):
         super().__init__()
+        # Back-compatibility
+        encoder_solver_name = solver_name if encoder_solver_name is None else encoder_solver_name
+        encoder_solver_params = solver_params if encoder_solver_params is None else encoder_solver_params
+        decoder_solver_name = solver_name if decoder_solver_name is None else decoder_solver_name
+        decoder_solver_params = solver_params if decoder_solver_params is None else decoder_solver_params
 
         self._encoder = ODERNNEncoder(
             observable_dim=observable_dim + 1,  # time is additional obs dimension
             hidden_dim=hidden_dim,
-            solver_name=solver_name,
-            solver_params=solver_params,
+            solver_name=encoder_solver_name,
+            solver_params=encoder_solver_params,
             n_rnn_layers=n_encoder_rnn_layers
         )
         self._decoder = NODEDecoder(
@@ -118,9 +128,10 @@ class ODERNN(nn.Module):
             hidden_dim=hidden_dim,
             output_dim=observable_dim,
             n_mlp_layers=n_decoder_mlp_layers,
-            solver_name=solver_name,
-            solver_params=solver_params,
-            model_gaussian=model_gaussian
+            solver_name=decoder_solver_name,
+            solver_params=decoder_solver_params,
+            model_gaussian=model_gaussian,
+            global_state=decoder_global_state
         )
 
     def forward(self, x: torch.Tensor, t_obs: torch.Tensor, t_unobs: Optional[torch.Tensor] = None) \
@@ -145,9 +156,14 @@ class LightningODERNN(LightningGaussianModel):
 
         n_encoder_rnn_layers: int = 1,
         n_decoder_mlp_layers: int = 2,
+        decoder_global_state: bool = False,
 
         solver_name: Optional[str] = None,
         solver_params: Optional[dict] = None,
+        encoder_solver_name: Optional[str] = None,
+        encoder_solver_params: Optional[dict] = None,
+        decoder_solver_name: Optional[str] = None,
+        decoder_solver_params: Optional[dict] = None,
 
         train_config: Optional[LightningTrainConfig] = None
     ):
@@ -157,8 +173,13 @@ class LightningODERNN(LightningGaussianModel):
             model_gaussian=model_gaussian,
             solver_name=solver_name,
             solver_params=solver_params,
+            encoder_solver_name=encoder_solver_name,
+            encoder_solver_params=encoder_solver_params,
+            decoder_solver_name=decoder_solver_name,
+            decoder_solver_params=decoder_solver_params,
             n_encoder_rnn_layers=n_encoder_rnn_layers,
-            n_decoder_mlp_layers=n_decoder_mlp_layers
+            n_decoder_mlp_layers=n_decoder_mlp_layers,
+            decoder_global_state=decoder_global_state
         )
         super().__init__(
             train_config=train_config,
@@ -169,10 +190,25 @@ class LightningODERNN(LightningGaussianModel):
 
 
 if __name__ == '__main__':
-    run_simple_lightning_guassian_model_test(
-        model_class=LightningODERNN,
-        params={
+    configurations = [
+        {
             'observable_dim': 7,
             'hidden_dim': 4
+        },
+        {
+            'observable_dim': 7,
+            'hidden_dim': 4,
+            'decoder_global_state': True,
+            'decoder_solver_name': 'euler_global',
+            'decoder_solver_params': {
+                'split_dim': -1,
+                'max_step_size': 0.25
+            }
         }
-    )
+    ]
+
+    for config in configurations:
+        run_simple_lightning_guassian_model_test(
+            model_class=LightningODERNN,
+            params=config
+        )
