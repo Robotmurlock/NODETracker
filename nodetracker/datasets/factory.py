@@ -8,6 +8,12 @@ from nodetracker.datasets.mot.core import MOTDataset
 from nodetracker.datasets.torch import TrajectoryDataset
 
 
+DATASET_CATALOG = {
+    'MOT20': MOTDataset,
+    'LaSOT': LaSOTDataset
+}
+
+
 def dataset_factory(
     name: str,
     path: str,
@@ -32,12 +38,7 @@ def dataset_factory(
     """
     additional_params = {} if additional_params is None else additional_params
 
-    catalog = {
-        'MOT20': MOTDataset,
-        'LaSOT': LaSOTDataset
-    }
-
-    cls = catalog[name]
+    cls = DATASET_CATALOG[name]
     return cls(
         path=path,
         history_len=history_len,

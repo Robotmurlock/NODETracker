@@ -142,13 +142,13 @@ class NODEDecoder(nn.Module):
         self._lrelu = nn.LeakyReLU(0.1)
 
         output_dim = output_dim if not model_gaussian else 2 * output_dim  # mean + std in case of gaussian modeling
-        self._hidden2output = nn.Linear(hidden_dim, output_dim)
+        self._hidden2output = nn.Linear(hidden_dim, output_dim, bias=True)
 
     def forward(self, z0: torch.Tensor, ts: torch.Tensor):
         ts = ts - ts[0, 0, 0] + 1  # Transform to relative values [1, 2, ...]
         zs = self._ode(z0, ts, full_sequence=True)
         hs = self._lrelu(self._latent2hidden(zs))
-        xs = self._lrelu(self._hidden2output(hs))
+        xs = self._hidden2output(hs)
         return xs, zs
 
 

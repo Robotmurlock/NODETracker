@@ -10,7 +10,7 @@ import torch
 from torch import nn
 
 from nodetracker.datasets.transforms import InvertibleTransformWithVariance, InvertibleTransform
-from nodetracker.evaluation.sot import metrics_func
+from nodetracker.evaluation.metrics.sot import metrics_func
 from nodetracker.node.losses import factory_loss_function
 from nodetracker.utils import torch_helper
 from nodetracker.utils.meter import MetricMeter
@@ -108,7 +108,8 @@ class LightningModuleForecaster(LightningModuleBase):
         train_config: Optional[LightningTrainConfig],
         model: nn.Module,
         model_gaussian: bool = False,
-        transform_func: Optional[Union[InvertibleTransform, InvertibleTransformWithVariance]] = None
+        transform_func: Optional[Union[InvertibleTransform, InvertibleTransformWithVariance]] = None,
+        log_epoch_metrics: bool = True
     ):
         """
         Args:
@@ -131,6 +132,7 @@ class LightningModuleForecaster(LightningModuleBase):
                     f'Expected transform function to be of type "InvertibleTransformWithStd" ' \
                     f'but got "{type(transform_func)}"'
         self._transform_func = transform_func
+        self._log_epoch_metrics = log_epoch_metrics
 
     def forward(self, x: torch.Tensor, t_obs: torch.Tensor, t_unobs: Optional[torch.Tensor] = None, *args, **kwargs) \
             -> Tuple[torch.Tensor, ...]:
@@ -185,7 +187,7 @@ class LightningModuleForecaster(LightningModuleBase):
 
             gt_traj = bboxes_unobs.detach().cpu().numpy()
             pred_traj = bboxes_unobs_hat_mean.detach().cpu().numpy()
-            metrics = metrics_func(gt_traj, pred_traj)
+            metrics = metrics_func(gt_traj, pred_traj) if self._log_epoch_metrics else None
 
             return loss, metrics
 
@@ -197,7 +199,7 @@ class LightningModuleForecaster(LightningModuleBase):
 
         gt_traj = bboxes_unobs.detach().cpu().numpy()
         pred_traj = bboxes_unobs_hat.detach().cpu().numpy()
-        metrics = metrics_func(gt_traj, pred_traj)
+        metrics = metrics_func(gt_traj, pred_traj) if self._log_epoch_metrics else None
 
         return loss, metrics
 
@@ -230,7 +232,7 @@ class LightningModuleForecaster(LightningModuleBase):
             if log_step:
                 self.log(f'{prefix}/loss', loss, prog_bar=False)
 
-    def _log_metrics(self, metrics: Dict[str, float], prefix: str) -> None:
+    def _log_metrics(self, metrics: Optional[Dict[str, float]], prefix: str) -> None:
         """
         Helper function to log metrics. Input format:
         - Dictionary: for each key log value as "{prefix}-epoch/{key}"
@@ -238,13 +240,17 @@ class LightningModuleForecaster(LightningModuleBase):
         Args:
             prefix: Prefix (train or val)
         """
+        if metrics is None:
+            return
+
         assert prefix in ['training', 'val'], f'Invalid prefix value "{prefix}"!'
         for name, value in metrics.items():
             self._meter.push(f'{prefix}-metrics/{name}', value)
 
     def training_step(self, batch: Tuple[torch.Tensor, ...], *args, **kwargs) -> torch.Tensor:
         bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, orig_bboxes_obs, metadata = batch
-        bboxes_unobs_hat, *_ = self.forward(bboxes_obs, ts_obs, ts_unobs)
+        output = self.forward(bboxes_obs, ts_obs, ts_unobs)
+        bboxes_unobs_hat = output[0] if isinstance(output, tuple) else output
 
         # noinspection PyTypeChecker
         loss, metrics = self._calc_loss_and_metrics(orig_bboxes_obs, bboxes_unobs, bboxes_unobs_hat, metadata)
@@ -255,7 +261,8 @@ class LightningModuleForecaster(LightningModuleBase):
 
     def validation_step(self, batch: Tuple[torch.Tensor, ...], *args, **kwargs) -> torch.Tensor:
         bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, orig_bboxes_obs, metadata = batch
-        bboxes_unobs_hat, *_ = self.forward(bboxes_obs, ts_obs, ts_unobs)
+        output = self.forward(bboxes_obs, ts_obs, ts_unobs)
+        bboxes_unobs_hat = output[0] if isinstance(output, tuple) else output
 
         # noinspection PyTypeChecker
         loss, metrics = self._calc_loss_and_metrics(orig_bboxes_obs, bboxes_unobs, bboxes_unobs_hat, metadata)

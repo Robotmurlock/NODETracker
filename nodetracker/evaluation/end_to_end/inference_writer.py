@@ -3,6 +3,10 @@ import os
 from pathlib import Path
 
 
+def get_inference_path(experiment_path: str, filter_type: str) -> str:
+    return os.path.join(experiment_path, 'evaluation', filter_type, 'object_inference')
+
+
 class InferenceWriter:
     def __init__(self, path: str):
         self._path = path
@@ -12,7 +16,8 @@ class InferenceWriter:
             'posterior_y', 'posterior_x', 'posterior_w', 'posterior_h',
             'gt_y', 'gt_x', 'gt_w', 'gt_h',
             'od_pred_y', 'od_pred_x', 'od_pred_w', 'od_pred_h',
-            'occlusion', 'out_of_view'
+            'occlusion', 'out_of_view',
+            'step_iou', 'prior_iou', 'posterior_iou'
         ])
         self._header_sep_cnt = self._header.count(',')
 
@@ -36,7 +41,10 @@ class InferenceWriter:
         ground_truth: np.ndarray,
         od_prediction: np.ndarray,
         occ: bool,
-        oov: bool
+        oov: bool,
+        step_iou: float,
+        prior_iou: float,
+        posterior_iou: float
     ):
         for vector in [prior, posterior, ground_truth, od_prediction]:
             assert vector.shape == (4,), f'Expected vector shape (4,) but found {vector.shape}!'
@@ -46,7 +54,8 @@ class InferenceWriter:
                [str(v) for v in posterior] + \
                [str(v) for v in ground_truth] + \
                [str(v) for v in od_prediction] + \
-               [str(int(occ)), str(int(out_of_view))]
+               [str(int(occ)), str(int(oov))] + \
+               [f'{100 * step_iou:.2f}', f'{100 * prior_iou:.2f}', f'{100 * posterior_iou:.2f}']
 
         line = ','.join(data)
         line_sep_cnt = line.count(',')

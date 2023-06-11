@@ -19,13 +19,15 @@ class LightningGaussianModel(LightningModuleForecaster):
         model: nn.Module,
         model_gaussian: bool = False,
         train_config: Optional[LightningTrainConfig] = None,
-        transform_func: Optional[Union[InvertibleTransform, InvertibleTransformWithVariance]] = None
+        transform_func: Optional[Union[InvertibleTransform, InvertibleTransformWithVariance]] = None,
+        log_epoch_metrics: bool = True
     ):
         super().__init__(
             train_config=train_config,
             model=model,
             model_gaussian=model_gaussian,
-            transform_func=transform_func
+            transform_func=transform_func,
+            log_epoch_metrics=log_epoch_metrics
         )
 
         self._is_modeling_gaussian = model_gaussian

@@ -144,7 +144,8 @@ class NODEFilter(StateModelFilter):
 
     def project(self, state: State) -> Tuple[torch.Tensor, torch.Tensor]:
         mean, std = state
-        return mean, std
+        var = torch.square(std)
+        return mean, var
 
 
 def run_test() -> None:

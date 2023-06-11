@@ -57,10 +57,10 @@ class RNNDecoder(nn.Module):
     Simple RNN decoder
     """
     def __init__(
-        self, 
-        observable_dim: int,
+        self,
         hidden_dim: int,
         latent_dim: int,
+        output_dim: int,
 
         model_gaussian: bool = False,
 
@@ -68,7 +68,6 @@ class RNNDecoder(nn.Module):
     ):
         """
         Args:
-            observable_dim: Trajectory point dimension
             hidden_dim: Hidden trajectory dimension
             latent_dim: "latent" (hidden-2) trajectory dimension
             rnn_n_layers: Number of stacked RNN (GRU) layers
@@ -85,9 +84,10 @@ class RNNDecoder(nn.Module):
             batch_first=False
         )
         self._latent2hidden = MLP(input_dim=latent_dim, output_dim=hidden_dim)
-        self._hidden2obs = MLP(
-            input_dim=hidden_dim,
-            output_dim=observable_dim if not model_gaussian else 2 * observable_dim
+        self._hidden2obs = nn.Linear(
+            in_features=hidden_dim,
+            out_features=output_dim if not model_gaussian else 2 * output_dim,
+            bias=True
         )
 
     def forward(self, z: torch.Tensor, n_steps: int) -> torch.Tensor:
@@ -117,12 +117,12 @@ class RNNSeq2Seq(nn.Module):
         observable_dim: int,
         hidden_dim: int,
         latent_dim: int,
+        output_dim: int,
 
         model_gaussian: bool = False,
 
         encoder_rnn_n_layers: int = 1,
         decoder_rnn_n_layers: int = 1
-
     ):
         """
         Args:
@@ -141,9 +141,9 @@ class RNNSeq2Seq(nn.Module):
             rnn_n_layers=encoder_rnn_n_layers
         )
         self._decoder = RNNDecoder(
-            observable_dim=observable_dim,
             hidden_dim=hidden_dim,
             latent_dim=latent_dim,
+            output_dim=output_dim,
 
             model_gaussian=model_gaussian,
 
@@ -167,13 +167,15 @@ class LightningRNNSeq2Seq(LightningGaussianModel):
             hidden_dim: int,
             latent_dim: int,
 
+            output_dim: Optional[int] = None,
             encoder_rnn_n_layers: int = 1,
             decoder_rnn_n_layers: int = 1,
 
             model_gaussian: bool = False,
             transform_func: Optional[Union[InvertibleTransform, InvertibleTransformWithVariance]] = None,
 
-            train_config: Optional[LightningTrainConfig] = None
+            train_config: Optional[LightningTrainConfig] = None,
+            log_epoch_metrics: bool = True
     ):
         """
         Args:
@@ -183,10 +185,14 @@ class LightningRNNSeq2Seq(LightningGaussianModel):
             encoder_rnn_n_layers: Number of stacked RNN (GRU) layers for RNN Encoder
             decoder_rnn_n_layers: Number of stacked RNN (GRU) layers for RNN Decoder
         """
+        if output_dim is None:
+            output_dim = observable_dim
+
         model = RNNSeq2Seq(
             observable_dim=observable_dim,
             hidden_dim=hidden_dim,
             latent_dim=latent_dim,
+            output_dim=output_dim,
 
             model_gaussian=model_gaussian,
 
@@ -197,7 +203,8 @@ class LightningRNNSeq2Seq(LightningGaussianModel):
             train_config=train_config,
             model=model,
             model_gaussian=model_gaussian,
-            transform_func=transform_func
+            transform_func=transform_func,
+            log_epoch_metrics=log_epoch_metrics
         )
 
 

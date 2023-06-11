@@ -83,7 +83,7 @@ class BotSortKalmanFilterWrapper(StateModelFilter):
             batch_size = mean.shape[0]
             mean_proj_list, cov_proj_list = [], []
             for i in range(batch_size):
-                mean_i, covariance_i = mean[i, :], covariance[i, :]
+                mean_i, covariance_i = mean[i, :], covariance[i, :, :]
                 mean_proj_i, covariance_proj_i = self._kf.project(mean_i, covariance_i)
                 mean_proj_list.append(mean_proj_i)
                 cov_proj_list.append(covariance_proj_i)
@@ -94,7 +94,7 @@ class BotSortKalmanFilterWrapper(StateModelFilter):
             raise AssertionError(f'Invalid shape {mean.shape}')
 
         mean_proj, covariance_proj = self._all_to_tensor([mean_proj, covariance_proj])
-        return mean_proj, covariance_proj
+        return mean_proj, torch.diagonal(covariance_proj, dim1=-2, dim2=-1)
 
 
 def run_test() -> None:

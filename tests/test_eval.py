@@ -4,7 +4,7 @@ Evaluation tests.
 import unittest
 import numpy as np
 
-from evaluation import sot as sot_eval
+from nodetracker.evaluation.metrics import sot as sot_eval
 
 
 # noinspection DuplicatedCode

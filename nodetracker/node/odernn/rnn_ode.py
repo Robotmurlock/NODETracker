@@ -22,15 +22,22 @@ class RNNODE(nn.Module):
         self,
         observable_dim: int,
         hidden_dim: int,
+        output_dim: int,
 
         model_gaussian: bool = False,
 
         n_encoder_rnn_layers: int = 1,
+        n_decoder_mlp_layers: int = 2,
         decoder_global_state: bool = False,
 
         solver_name: Optional[str] = None,
-        solver_params: Optional[dict] = None
+        solver_params: Optional[dict] = None,
+        decoder_solver_name: Optional[str] = None,
+        decoder_solver_params: Optional[dict] = None
     ):
+        # Back-compatibility
+        decoder_solver_name = solver_name if decoder_solver_name is None else decoder_solver_name
+        decoder_solver_params = solver_params if decoder_solver_params is None else decoder_solver_params
         super().__init__()
 
         self._encoder = RNNEncoder(
@@ -42,11 +49,12 @@ class RNNODE(nn.Module):
         self._decoder = NODEDecoder(
             latent_dim=hidden_dim,
             hidden_dim=hidden_dim,
-            output_dim=observable_dim,
-            solver_name=solver_name,
-            solver_params=solver_params,
+            output_dim=output_dim,
+            solver_name=decoder_solver_name,
+            solver_params=decoder_solver_params,
             model_gaussian=model_gaussian,
-            global_state=decoder_global_state
+            global_state=decoder_global_state,
+            n_mlp_layers=n_decoder_mlp_layers
         )
 
     def forward(self, x: torch.Tensor, t_obs: torch.Tensor, t_unobs: Optional[torch.Tensor] = None) \
@@ -66,32 +74,45 @@ class LightningRNNODE(LightningGaussianModel):
         self,
         observable_dim: int,
         hidden_dim: int,
+        output_dim: Optional[int] = None,
 
         model_gaussian: bool = False,
         transform_func: Optional[Union[InvertibleTransform, InvertibleTransformWithVariance]] = None,
 
         n_encoder_rnn_layers: int = 1,
+        n_decoder_mlp_layers: int = 2,
         decoder_global_state: bool = False,
 
         solver_name: Optional[str] = None,
         solver_params: Optional[dict] = None,
+        decoder_solver_name: Optional[str] = None,
+        decoder_solver_params: Optional[dict] = None,
 
-        train_config: Optional[LightningTrainConfig] = None
+        train_config: Optional[LightningTrainConfig] = None,
+        log_epoch_metrics: bool = True
     ):
+        if output_dim is None:
+            output_dim = observable_dim
+
         model = RNNODE(
             observable_dim=observable_dim,
             hidden_dim=hidden_dim,
+            output_dim=output_dim,
             model_gaussian=model_gaussian,
             solver_name=solver_name,
             solver_params=solver_params,
             n_encoder_rnn_layers=n_encoder_rnn_layers,
-            decoder_global_state=decoder_global_state
+            n_decoder_mlp_layers=n_decoder_mlp_layers,
+            decoder_global_state=decoder_global_state,
+            decoder_solver_name=decoder_solver_name,
+            decoder_solver_params=decoder_solver_params
         )
         super().__init__(
             train_config=train_config,
             model=model,
             model_gaussian=model_gaussian,
-            transform_func=transform_func
+            transform_func=transform_func,
+            log_epoch_metrics=log_epoch_metrics
         )
 
 

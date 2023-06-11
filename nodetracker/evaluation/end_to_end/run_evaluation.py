@@ -17,9 +17,10 @@ from tqdm import tqdm
 from nodetracker.common.project import CONFIGS_PATH
 from nodetracker.datasets import transforms, TrajectoryDataset
 from nodetracker.datasets.factory import dataset_factory
-from nodetracker.evaluation import sot as sot_metrics
+from nodetracker.evaluation import metrics as eval_metrics
 from nodetracker.evaluation.end_to_end import jitter
 from nodetracker.evaluation.end_to_end.config import ExtendedE2EGlobalConfig
+from nodetracker.evaluation.end_to_end.inference_writer import InferenceWriter, get_inference_path
 from nodetracker.evaluation.end_to_end.object_detection import object_detection_inference_factory
 from nodetracker.filter import filter_factory, StateModelFilter
 from nodetracker.library.cv import drawing, BBox, color_palette, PredBBox
@@ -28,15 +29,16 @@ from nodetracker.utils import pipeline
 from nodetracker.utils.collections import nesteddict
 from nodetracker.utils.lookup import LookupTable
 from tools.utils import create_inference_model
-from nodetracker.evaluation.end_to_end.inference_writer import InferenceWriter
 
 logger = logging.getLogger('E2EFilterEvaluation')
 
 METRICS = [  # TODO: Move to some module
-    ('MSE', sot_metrics.mse),
-    ('Accuracy', sot_metrics.accuracy),
-    ('Success', sot_metrics.success),
-    ('NormPrecision', sot_metrics.norm_precision)
+    # (name, function, requires_var)
+    ('MSE', eval_metrics.sot.mse, False),
+    ('Accuracy', eval_metrics.sot.accuracy, False),
+    ('Success', eval_metrics.sot.success, False),
+    ('NormPrecision', eval_metrics.sot.norm_precision, False),
+    ('GaussianNLLosss', eval_metrics.likelihood.gaussian_nll_loss, True)
 ]
 
 
@@ -287,7 +289,7 @@ def main(cfg: DictConfig):
         scene_names = [sn for sn in scene_names if re.match(pattern, sn)]
 
     model_name: Optional[str] = None
-    for scene_name in scene_names:
+    for scene_name in tqdm(scene_names, unit='scene', desc='Evaluating tracker'):
         object_ids = dataset.get_scene_object_ids(scene_name)
         inf_viz_cache: Dict[str, Dict[str, Dict[int, list]]] = \
             nesteddict()  # Used only for visualization
@@ -308,7 +310,8 @@ def main(cfg: DictConfig):
 
             inference_writer = None
             if cfg.end_to_end.save_inference:
-                object_inference_filepath = os.path.join(experiment_path, 'evaluation', 'object_inference', f'{object_id}.csv')
+                object_inferences_path = get_inference_path(experiment_path, cfg.end_to_end.filter.type)
+                object_inference_filepath = os.path.join(object_inferences_path, f'{object_id}.csv')
                 inference_writer = InferenceWriter(object_inference_filepath)
                 inference_writer.open()
 
@@ -366,34 +369,34 @@ def main(cfg: DictConfig):
                     else:
                         posterior_state = smf.update(prior_state, bboxes)
 
-                    multistep_score = {k: 0.0 for k, _ in METRICS}
-                    prior_multistep, _ = smf.project(prior_multistep_state)
-                    prior_multistep_numpy = prior_multistep.detach().cpu().numpy()  # Removing batch dimension
+                    multistep_score = {k: 0.0 for k, _, _ in METRICS}
+                    prior_multistep, prior_multistep_var = smf.project(prior_multistep_state)
+                    prior_multistep_numpy = prior_multistep.detach().cpu().numpy()
+                    prior_multistep_var_numpy = prior_multistep_var.detach().cpu().numpy()
 
                     for p_index in range(n_pred_steps):
                         gt = np.array(measurements[index + p_index], dtype=np.float32)
 
                         if evaluate_step:
-                            for metric_name, metric_func in METRICS:
-                                score = metric_func(gt, prior_multistep_numpy[p_index])
+                            for metric_name, metric_func, requires_var in METRICS:
+                                score = metric_func(gt, prior_multistep_numpy[p_index], prior_multistep_var_numpy[p_index]) \
+                                    if requires_var else metric_func(gt, prior_multistep_numpy[p_index])
                                 scene_metrics[f'prior-{metric_name}-{p_index}'].append(score)
                                 multistep_score[metric_name] += score
 
                     if evaluate_step:
-                        for metric_name, _ in METRICS:
+                        for metric_name, _, _ in METRICS:
                             scene_metrics[f'prior-{metric_name}'].append(multistep_score[metric_name] / n_pred_steps)
 
-                    posterior, _ = smf.project(posterior_state)
+                    posterior, posterior_var = smf.project(posterior_state)
                     posterior_numpy = posterior.detach().cpu().numpy()
+                    posterior_var_numpy = posterior_var.detach().cpu().numpy()
 
                     if evaluate_step:
                         gt = np.array(measurements[index], dtype=np.float32)
-                        for metric_name, metric_func in METRICS:
-                            score = metric_func(gt, posterior_numpy)
+                        for metric_name, metric_func, requires_var in METRICS:
+                            score = metric_func(gt, posterior_numpy, posterior_var_numpy) if requires_var else metric_func(gt, posterior_numpy)
                             scene_metrics[f'posterior-{metric_name}'].append(score)
-
-                    # Save data
-                    prev_measurement = measurement.detach().cpu().numpy()
 
                     prior, _ = smf.project(prior_state)
                     prior_numpy = prior.detach().cpu().numpy()
@@ -409,6 +412,10 @@ def main(cfg: DictConfig):
                         inf_viz_cache[object_id]['posterior'][frame_id] = posterior_numpy.tolist()
 
                     if inference_writer is not None:
+                        step_iou = eval_metrics.sot.accuracy(prev_measurement, measurement_numpy)
+                        prior_iou = eval_metrics.sot.accuracy(prior_numpy, measurement_numpy)
+                        posterior_iou = eval_metrics.sot.accuracy(posterior_numpy, measurement_numpy)
+
                         inference_writer.write(
                             frame_index=frame_id,
                             prior=prior_numpy,
@@ -416,8 +423,17 @@ def main(cfg: DictConfig):
                             ground_truth=measurement_numpy,
                             od_prediction=bboxes_numpy,
                             occ=occ,
-                            oov=oov
+                            oov=oov,
+                            step_iou=step_iou,
+                            prior_iou=prior_iou,
+                            posterior_iou=posterior_iou
                         )
+
+                # Save data
+                prev_measurement = measurement.detach().cpu().numpy()
+
+            if inference_writer is not None:
+                inference_writer.close()
 
             global_metrics = merge_metrics(
                 global_metrics=global_metrics,
@@ -426,12 +442,8 @@ def main(cfg: DictConfig):
                 category=dataset.get_object_category(object_id)
             )
 
-            if inference_writer is not None:
-                inference_writer.close()
-
         if cfg.end_to_end.visualization.enable:
-            video_dirpath = os.path.join(experiment_path, 'visualization',
-                                         f'end_to_end_{cfg.end_to_end.filter.type}')
+            video_dirpath = os.path.join(experiment_path, 'visualization', f'end_to_end_{cfg.end_to_end.filter.type}')
             visualize_video(
                 scene_name=scene_name,
                 inference_visualization_cache=inf_viz_cache,
