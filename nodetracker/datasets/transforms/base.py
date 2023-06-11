@@ -44,7 +44,7 @@ class Transform(ABC):
         pass
 
     def __call__(self, data: TensorCollection, shallow: bool = True) -> TensorCollection:
-        return self.apply(data)
+        return self.apply(data, shallow=shallow)
 
 
 class InvertibleTransform(Transform, ABC):

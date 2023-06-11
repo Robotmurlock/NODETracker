@@ -1,9 +1,9 @@
-before_transform_config:
-  _target_: nodetracker.datasets.augmentations.trajectory.DetectorNoiseAugmentation
-  sigma: 0.01
-  proba: 0.3
+before_transform_config: null
+#  _target_: nodetracker.datasets.augmentations.trajectory.DetectorNoiseAugmentation
+#  sigma: 0.01
+#  proba: 0.3
 after_transform_config: null
-after_batch_collate_config:
-  _target_: nodetracker.datasets.augmentations.trajectory.RemoveRandomPointsTrajectoryAugmentation
-  min_length: 2
-  proba: 0.3
+after_batch_collate_config: null
+#  _target_: nodetracker.datasets.augmentations.trajectory.RemoveRandomPointsTrajectoryAugmentation
+#  min_length: 2
+#  proba: 0.3

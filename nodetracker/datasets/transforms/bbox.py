@@ -31,6 +31,8 @@ class BboxFirstOrderDifferenceTransform(InvertibleTransformWithVariance):
         bbox_obs, bbox_unobs, ts_obs, *other = data
         assert bbox_obs.shape[0] >= 0, f'{self.__name__} requires at least 2 observable points. ' \
                                        f'Found {bbox_obs.shape[0]}'
+
+        assert not shallow
         if not shallow:
             bbox_obs = bbox_obs.clone()
             bbox_unobs = bbox_unobs.clone() if bbox_unobs is not None else None
@@ -538,6 +540,37 @@ class BBoxLogTransformRelativeToLastObs(InvertibleTransformWithVariance):
         return torch.exp(t_var) * last_obs.expand_as(t_var) # It's assumed that last observed element has variance equal to 0
 
 
+class BBoxJackOfAllTradesTransform(InvertibleTransformWithVariance):
+    def __init__(
+        self,
+        rel_mean: float,
+        rel_std: float,
+        diff_mean: float,
+        diff_std: float
+    ):
+        super().__init__(name='jack_of_all_trades')
+        self._rel_transform = BBoxStandardizedRelativeToLastObsTransform(mean=rel_mean, std=rel_std)
+        self._diff_transform = BBoxStandardizedFirstOrderDifferenceTransform(mean=diff_mean, std=diff_std)
+
+    def inverse(self, data: TensorCollection, shallow: bool = True) -> TensorCollection:
+        return self._rel_transform.inverse(data, shallow=shallow)
+
+    def apply(self, data: TensorCollection, shallow: bool = True) -> TensorCollection:
+        bbox_obs, bbox_unobs, ts_obs, *other = data
+        rel_bbox_obs, rel_bbox_unobs, rel_ts_obs, *_ = self._rel_transform([bbox_obs, bbox_unobs, ts_obs, None], shallow=False)
+        diff_bbox_obs, diff_bbox_unobs, *_ = self._diff_transform([bbox_obs, bbox_unobs, ts_obs, None], shallow=False)
+        bbox_obs = bbox_obs[1:]
+        bbox_features = torch.cat([rel_bbox_obs, diff_bbox_obs, bbox_obs], dim=-1)
+
+        return bbox_features, rel_bbox_unobs, rel_ts_obs, *other
+
+    def inverse_std(self, t_std: torch.Tensor, additional_data: Optional[TensorCollection] = None, shallow: bool = True) -> TensorCollection:
+        return self._rel_transform.inverse_std(t_std, additional_data=additional_data, shallow=shallow)
+
+    def inverse_var(self, t_var: torch.Tensor, additional_data: Optional[TensorCollection] = None, shallow: bool = True) -> TensorCollection:
+        return self._rel_transform.inverse_var(t_var, additional_data=additional_data, shallow=shallow)
+
+
 # noinspection DuplicatedCode
 def run_test_first_difference() -> None:
     bbox_obs = torch.randn(2, 2, 4)
@@ -662,6 +695,22 @@ def run_add_category_label_index() -> None:
     assert torch.abs(inv_transformed_bbox_unobs - bbox_unobs).sum().item() < 1e-3
 
 
+def run_test_jack_of_all_trades() -> None:
+    bbox_obs = torch.randn(2, 2, 4)
+    bbox_unobs = torch.randn(3, 2, 4)
+    ts_obs = torch.randn(2, 2, 1)
+    ts_unobs = torch.randn(3, 2, 1)
+    jack_of_all_trades = BBoxJackOfAllTradesTransform(1.0, 2.0, 1.0, 2.0)
+
+    transformed_bbox_obs, transformed_bbox_unobs, *_ = \
+        jack_of_all_trades.apply([bbox_obs, bbox_unobs, ts_obs, ts_unobs, None], shallow=False)
+    assert transformed_bbox_obs.shape == (1, 2, 12)
+    assert transformed_bbox_unobs.shape == (3, 2, 4)
+
+    _, inv_transformed_bbox_unobs, *_ = jack_of_all_trades.inverse([bbox_obs, transformed_bbox_unobs, None])
+    assert torch.abs(inv_transformed_bbox_unobs - bbox_unobs).sum().item() < 1e-3
+
+
 if __name__ == '__main__':
     run_test_first_difference()
     run_standardization()
@@ -670,3 +719,4 @@ if __name__ == '__main__':
     run_test_standardized_relative_to_last_obs()
     run_add_category_label_index()
     run_test_log_relative_to_last_obs()
+    run_test_jack_of_all_trades()

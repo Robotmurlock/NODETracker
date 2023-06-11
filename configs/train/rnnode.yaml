@@ -1,5 +1,5 @@
-experiment: 'RNNODE-lasot-exp19-128dim-no-occ-no-oov-remove-random-trajectory-points-detector-noise'
-description: 'RNNODE - 128dim. Includes new augmentation: RemoveRandomPointsTrajectoryAugmentation and DetectorNoiseAugmentation'
+experiment: 'RNNODE-lasot-exp25-128dim-no-occ-no-oov-jack-of-all-trades'
+description: 'RNNODE - 128dim - jack of all trades transform'
 batch_size: 256
 learning_rate: 1e-3
 max_epochs: 30
@@ -12,7 +12,7 @@ train_params:
   optim_name: adamw
   learning_rate: 1e-3
   sched_lr_gamma: 0.1
-  sched_lr_step: 8
+  sched_lr_step: 4
   weight_decay: 0.0001
 
   loss_name: 'gaussian_nllloss'
