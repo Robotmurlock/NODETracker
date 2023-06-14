@@ -46,6 +46,12 @@ class SelectionFilter:
 
 
 @dataclass
+class ESParams:
+    max_skip_threshold: int = field(default=0)
+    min_iou_match: float = field(default=0.0)
+
+
+@dataclass
 class E2EConfig:
     filter: FilterConfig
     object_detection: ObjectDetectionInferenceConfig
@@ -56,6 +62,7 @@ class E2EConfig:
     eval: EvaluationConfig = field(default_factory=EvaluationConfig)
     visualization: Visualization = field(default_factory=Visualization)
     selection: SelectionFilter = field(default_factory=SelectionFilter)
+    es: ESParams = field(default_factory=ESParams)
 
 
 @dataclass

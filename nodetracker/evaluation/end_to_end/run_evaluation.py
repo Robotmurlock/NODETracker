@@ -38,7 +38,7 @@ METRICS = [  # TODO: Move to some module
     ('Accuracy', eval_metrics.sot.accuracy, False),
     ('Success', eval_metrics.sot.success, False),
     ('NormPrecision', eval_metrics.sot.norm_precision, False),
-    ('GaussianNLLosss', eval_metrics.likelihood.gaussian_nll_loss, True)
+    ('GaussianNLLoss', eval_metrics.likelihood.gaussian_nll_loss, True)
 ]
 
 
@@ -234,10 +234,10 @@ def visualize_video(
 def greedy_pick(
     predictions: torch.Tensor,
     prior_state: Tuple[torch.Tensor, ...],
-    n_skipped_detection: int
+    n_skipped_detection: int,
+    max_skip_threshold: int = 5,
+    min_iou_match: float = 0.3
 ) -> Tuple[torch.Tensor, bool]:
-    max_skip_threshold = 5
-    min_iou_match = 0.3
 
     prior_bbox, _ = prior_state
     prior_bbox_object = BBox.from_xyhw(*prior_bbox[:4], clip=True)
@@ -258,6 +258,10 @@ def greedy_pick(
             skip_detection = False
 
     return picked_bbox, skip_detection
+
+
+def bbox_clip(bboxes: torch.Tensor) -> torch.Tensor:
+    return torch.clip(bboxes, min=0.0, max=0.0)
 
 
 @hydra.main(config_path=CONFIGS_PATH, config_name='default', version_base='1.1')
@@ -306,6 +310,8 @@ def main(cfg: DictConfig):
             scene_metrics = defaultdict(list)
             data_points = [dataset.get_object_data_label(object_id, i) for i in range(n_data_points)]
             measurements = [dp['bbox'] for dp in data_points]
+            occs = [dp['occ'] for dp in data_points]
+            oovs = [dp['oov'] for dp in data_points]
             n_skipped_detection = 0
 
             inference_writer = None
@@ -321,7 +327,7 @@ def main(cfg: DictConfig):
                 frame_id = point_data['frame_id']
                 measurement = torch.tensor(measurements[index], dtype=torch.float32)
                 measurement_numpy = measurement.detach().cpu().numpy()
-                oov, occ = point_data['oov'], point_data['occ']
+                oov, occ = occs[index], oovs[index]
                 evaluate_step = True
 
                 if first_frame:
@@ -337,7 +343,13 @@ def main(cfg: DictConfig):
 
                     # Perform object detection inference
                     inf_bboxes, inf_classes, inf_conf = od_inference.predict(point_data)
-                    bboxes, skip_detection = greedy_pick(inf_bboxes, prior_state, n_skipped_detection)
+                    bboxes, skip_detection = greedy_pick(
+                        predictions=inf_bboxes,
+                        prior_state=prior_state,
+                        n_skipped_detection=n_skipped_detection,
+                        max_skip_threshold=cfg.end_to_end.es.max_skip_threshold,
+                        min_iou_match=cfg.end_to_end.es.min_iou_match
+                    )
 
                     # Add evaluation jitter (optional)
                     jitter_skip_detection = jitter.simulate_detector_false_positive(
@@ -374,19 +386,21 @@ def main(cfg: DictConfig):
                     prior_multistep_numpy = prior_multistep.detach().cpu().numpy()
                     prior_multistep_var_numpy = prior_multistep_var.detach().cpu().numpy()
 
+                    n_eval_steps = 0
                     for p_index in range(n_pred_steps):
                         gt = np.array(measurements[index + p_index], dtype=np.float32)
 
-                        if evaluate_step:
+                        if evaluate_step and not occs[index + p_index] and not oovs[index + p_index]:
+                            n_eval_steps += 1
                             for metric_name, metric_func, requires_var in METRICS:
                                 score = metric_func(gt, prior_multistep_numpy[p_index], prior_multistep_var_numpy[p_index]) \
                                     if requires_var else metric_func(gt, prior_multistep_numpy[p_index])
                                 scene_metrics[f'prior-{metric_name}-{p_index}'].append(score)
                                 multistep_score[metric_name] += score
 
-                    if evaluate_step:
+                    if evaluate_step and n_eval_steps > 0:
                         for metric_name, _, _ in METRICS:
-                            scene_metrics[f'prior-{metric_name}'].append(multistep_score[metric_name] / n_pred_steps)
+                            scene_metrics[f'prior-{metric_name}'].append(multistep_score[metric_name] / n_eval_steps)
 
                     posterior, posterior_var = smf.project(posterior_state)
                     posterior_numpy = posterior.detach().cpu().numpy()
@@ -402,7 +416,7 @@ def main(cfg: DictConfig):
                     prior_numpy = prior.detach().cpu().numpy()
                     inf_bboxes_numpy = inf_bboxes.detach().cpu().numpy()
                     inf_conf_numpy = inf_conf.detach().cpu().numpy()
-                    bboxes_numpy = bboxes.detach().cpu().numpy() if bboxes is not None else np.array([None] * 4, dtype=np.float32)
+                    bboxes_numpy = bbox_clip(bboxes).detach().cpu().numpy() if bboxes is not None else np.array([None] * 4, dtype=np.float32)
 
                     if cfg.end_to_end.visualization.enable:
                         inf_viz_cache[object_id]['inference_bboxes'][frame_id] = inf_bboxes_numpy.tolist()

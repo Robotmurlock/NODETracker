@@ -67,7 +67,7 @@ class NODEFilter(StateModelFilter):
         model: LightningGaussianModel,
         transform: transforms.InvertibleTransformWithVariance,
         accelerator: str,
-        det_std: List[float],
+        det_uncertainty_multiplier: float,
 
         buffer_size: int,
         buffer_min_size: int = 1,
@@ -75,7 +75,7 @@ class NODEFilter(StateModelFilter):
     ):
         self._model = model
         self._transform = transform
-        self._det_std = torch.tensor(det_std, dtype=dtype)
+        self._det_uncertainty_multiplier = det_uncertainty_multiplier
 
         self._accelerator = accelerator
         self._model.to(self._accelerator)
@@ -121,7 +121,7 @@ class NODEFilter(StateModelFilter):
 
     def update(self, state: State, measurement: torch.Tensor) -> State:
         x_unobs_mean_hat, x_unobs_std_hat = state
-        det_std = self._det_std.to(x_unobs_mean_hat)
+        det_std = (x_unobs_mean_hat[2:].repeat(2) * self._det_uncertainty_multiplier)
 
         def std_inv(m: torch.Tensor) -> torch.Tensor:
             return (1 / m).nan_to_num(nan=0, posinf=0, neginf=0)
@@ -139,7 +139,7 @@ class NODEFilter(StateModelFilter):
         return posterior_mean, posterior_std
 
     def missing(self, state: State) -> State:
-        self._buffer.increment()  # Similar to KF but update buffer with prior instead of posterior
+        self._buffer.increment()
         return state
 
     def project(self, state: State) -> Tuple[torch.Tensor, torch.Tensor]:
@@ -160,7 +160,7 @@ def run_test() -> None:
         ),
         accelerator='cpu',
         buffer_size=10,
-        det_std=[0, 0, 0, 0],
+        det_uncertainty_multiplier=0.05,
         transform=IdentityTransform()
     )
 

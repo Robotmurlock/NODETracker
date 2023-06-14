@@ -67,7 +67,7 @@ class CompositionAugmentation(TrajectoryAugmentation):
     def apply(self, x_obs: torch.Tensor, x_unobs: torch.Tensor, t_obs: torch.Tensor, t_unobs: torch.Tensor) \
             -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         for aug in self._augs:
-            x_obs, x_unobs, t_obs, t_unobs = aug.apply(x_obs, t_obs, x_unobs, t_unobs)
+            x_obs, x_unobs, t_obs, t_unobs = aug.apply(x_obs, x_unobs, t_obs, t_unobs)
         return x_obs, x_unobs, t_obs, t_unobs
 
 
