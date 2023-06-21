@@ -1,5 +1,5 @@
-experiment: 'RNNODE-lasot-exp25-128dim-no-occ-no-oov-jack-of-all-trades'
-description: 'RNNODE - 128dim - jack of all trades transform'
+experiment: 'RNNODE-lasot-exp27-128dim-no-occ-no-oov-jack-of-all-trades-with-augs-updated-decoder'
+description: 'RNNODE - 128dim - jack of all trades transform - augs - updated decoder'
 batch_size: 256
 learning_rate: 1e-3
 max_epochs: 30

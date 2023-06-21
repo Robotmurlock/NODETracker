@@ -1,12 +1,12 @@
 defaults:
   - resources: cuda.yaml
   - dataset: lasot.yaml
-  - transform: lasot/log_relative_to_last_obs.yaml
+  - transform: lasot/jack_of_all_trades.yaml
   - model: odernn.yaml
   - train: odernn.yaml
   - eval: default.yaml
   - visualize: default.yaml
   - augmentations: lasot/default.yaml
   - path: lasot.yaml
-  - end_to_end: node.yaml
+  - end_to_end: default.yaml
   - _self_

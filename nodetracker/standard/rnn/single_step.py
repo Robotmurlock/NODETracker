@@ -9,7 +9,8 @@ from torch import nn
 from nodetracker.datasets.transforms import InvertibleTransform, InvertibleTransformWithVariance
 from nodetracker.library import time_series
 from nodetracker.library.building_blocks import MLP
-from nodetracker.node.utils import LightningModuleForecaster, LightningTrainConfig
+from nodetracker.node.odernn.utils import LightningGaussianModel
+from nodetracker.node.utils import LightningTrainConfig
 
 
 class SingleStepRNN(nn.Module):
@@ -20,6 +21,9 @@ class SingleStepRNN(nn.Module):
         self,
         input_dim: int,
         hidden_dim: int,
+        output_dim: int,
+
+        model_gaussian: bool = False,
 
         stem_n_layers: int = 2,
         head_n_layers: int = 1,
@@ -37,11 +41,15 @@ class SingleStepRNN(nn.Module):
         )
         self._rnn = nn.GRU(hidden_dim, hidden_dim, num_layers=rnn_n_layers, batch_first=False)
         self._dropout = nn.Dropout(rnn_dropout)
-        self._head = MLP(
-            input_dim=hidden_dim,
-            hidden_dim=hidden_dim,
-            output_dim=input_dim,
-            n_layers=head_n_layers
+
+        self._head = nn.Sequential(
+            MLP(
+                input_dim=hidden_dim,
+                hidden_dim=hidden_dim,
+                output_dim=hidden_dim,
+                n_layers=head_n_layers
+            ),
+            nn.Linear(hidden_dim, output_dim if not model_gaussian else 2 * output_dim, bias=True)
         )
 
     def forward(self, x_obs: torch.Tensor, t_obs: torch.Tensor, t_unobs: torch.Tensor) \
@@ -64,7 +72,7 @@ class SingleStepRNN(nn.Module):
         return out
 
 
-class LightningSingleStepRNN(LightningModuleForecaster):
+class LightningSingleStepRNN(LightningGaussianModel):
     """
     Simple RNN implementation to compare with NODE models.
     """
@@ -72,6 +80,7 @@ class LightningSingleStepRNN(LightningModuleForecaster):
         self,
         input_dim: int,
         hidden_dim: int,
+        output_dim: Optional[int] = None,
 
         stem_n_layers: int = 2,
         head_n_layers: int = 1,
@@ -80,33 +89,40 @@ class LightningSingleStepRNN(LightningModuleForecaster):
         model_gaussian: bool = False,
         transform_func: Optional[Union[InvertibleTransform, InvertibleTransformWithVariance]] = None,
 
-        train_config: Optional[LightningTrainConfig] = None
+        train_config: Optional[LightningTrainConfig] = None,
+        log_epoch_metrics: bool = True
     ):
+        if output_dim is None:
+            output_dim = input_dim
+
         model = SingleStepRNN(
             input_dim=input_dim,
             hidden_dim=hidden_dim,
+            output_dim=output_dim,
             stem_n_layers=stem_n_layers,
             head_n_layers=head_n_layers,
-            rnn_n_layers=rnn_n_layers
+            rnn_n_layers=rnn_n_layers,
+            model_gaussian=model_gaussian
         )
         super().__init__(
             train_config=train_config,
             model=model,
             model_gaussian=model_gaussian,
-            transform_func=transform_func
+            transform_func=transform_func,
+            log_epoch_metrics=log_epoch_metrics
         )
 
 
 def run_test() -> None:
-    # Test ARRNN (with and without resnet block)
     xs = torch.randn(4, 3, 7)
     ts_obs = torch.randn(4, 3, 1)
     ts_unobs = torch.randn(2, 3, 1)
-    expected_shape = (1, 3, 7)
+    expected_shape = (1, 3, 4)
 
     model = SingleStepRNN(
         input_dim=7,
-        hidden_dim=5
+        hidden_dim=5,
+        output_dim=4
     )
 
     output = model(xs, ts_obs, ts_unobs)

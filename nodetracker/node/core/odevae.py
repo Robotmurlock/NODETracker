@@ -98,15 +98,22 @@ class MLPODEFWithGlobalState(ODEF):
             nn.LeakyReLU(0.1)
         )
 
-    def forward(self, d: torch.Tensor, g: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
-        xt = torch.cat([d, g, t], dim=-1)
+    def forward(self, z: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
+        split_dim = -1
+        size = z.shape[split_dim] // 2
+        _, g = torch.split(z, size, dim=split_dim)
+
+        zt = torch.cat([z, t], dim=-1)
         last_layer_index = len(self._model) - 1
 
         for layer_index, layer in enumerate(self._model):
-            xt = layer(xt)
+            zt = layer(zt)
             if layer_index != last_layer_index:
-                xt = torch.cat([xt, g], dim=-1)
-        return xt
+                zt = torch.cat([zt, g], dim=-1)
+
+        zero_mask = torch.zeros_like(g).to(g)
+        zero_mask.requires_grad_(False)
+        return torch.cat([zt, zero_mask], dim=-1)
 
 
 class NODEDecoder(nn.Module):
@@ -130,7 +137,6 @@ class NODEDecoder(nn.Module):
         super().__init__()
 
         if global_state:
-            assert '_global' in solver_name, f'Solver "{solver_name}" does not have global state!'
             func = MLPODEFWithGlobalState(latent_dim, hidden_dim, n_layers=n_mlp_layers)
         else:
             func = MLPODEF(latent_dim, hidden_dim, n_layers=n_mlp_layers)
@@ -145,8 +151,11 @@ class NODEDecoder(nn.Module):
         self._hidden2output = nn.Linear(hidden_dim, output_dim, bias=True)
 
     def forward(self, z0: torch.Tensor, ts: torch.Tensor):
-        ts = ts - ts[0, 0, 0] + 1  # Transform to relative values [1, 2, ...]
-        zs = self._ode(z0, ts, full_sequence=True)
+        _, batch_size, _ = ts.shape
+        t0 = torch.zeros(1, batch_size, 1, dtype=torch.float32).to(ts)
+        ts_all = torch.cat([t0, ts], dim=0)
+        zs = self._ode(z0, ts_all, full_sequence=True)
+        zs = zs[1:]
         hs = self._lrelu(self._latent2hidden(zs))
         xs = self._hidden2output(hs)
         return xs, zs

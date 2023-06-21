@@ -1,10 +1,12 @@
 defaults:
   - resources: cuda.yaml
-  - dataset: mot.yaml
-  - transform: standardized_first_difference_v2.yaml
+  - dataset: lasot10_1.yaml
+  - transform: lasot/jack_of_all_trades.yaml
   - model: single_step_rnn.yaml
   - train: single_step_rnn.yaml
   - eval: default.yaml
   - visualize: default.yaml
-  - augmentations: default.yaml
+  - augmentations: lasot/default.yaml
+  - path: lasot.yaml
+  - end_to_end: default.yaml
   - _self_

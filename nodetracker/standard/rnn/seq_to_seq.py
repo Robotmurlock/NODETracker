@@ -38,7 +38,11 @@ class RNNEncoder(nn.Module):
         super().__init__()
         self._latent_dim = latent_dim
         self._rnn = nn.GRU(input_dim + 1, hidden_dim, num_layers=rnn_n_layers, batch_first=False)
-        self._hidden2latent = nn.Linear(hidden_dim, latent_dim)  # outputs log_var and mean for each input
+        self._hidden2latent = MLP(
+            input_dim=hidden_dim,
+            hidden_dim=hidden_dim,
+            output_dim=latent_dim
+        )
 
     def forward(self, x_obs: torch.Tensor, t_obs: torch.Tensor) -> torch.Tensor:
         # Using relative time point values instead of absolute time point values

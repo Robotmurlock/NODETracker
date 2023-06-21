@@ -43,11 +43,13 @@ class ODETorchTensorBuffer:
         # Form history trajectory
         x_obs = torch.stack(x_obs).view(n_hist_steps, 1, -1)
         ts_obs = torch.tensor(ts_obs, dtype=self._dtype).view(-1, 1, 1)
-        ts_obs = ts_obs - ts_obs_first + 1
 
         # Form estimation trajectory time interval
         ts_unobs = torch.tensor(list(range(self._t + 1, self._t + n_future_steps + 1)),
                                 dtype=self._dtype).view(-1, 1, 1)
+
+        ts_obs = ts_obs - ts_obs_first + 1
+        ts_unobs = ts_unobs - ts_obs_first + 1
 
         return x_obs, ts_obs, ts_unobs
 
@@ -102,12 +104,12 @@ class NODEFilter(StateModelFilter):
             x_unobs_std_hat = 10 * torch.ones_like(x_unobs_mean_hat).to(ts_obs)
             return x_unobs_mean_hat[:, 0, :], x_unobs_std_hat[:, 0, :]
 
-        t_x_obs, _, t_ts_obs, *_ = self._transform.apply(data=(x_obs, None, ts_obs), shallow=False)
-        t_x_obs, t_ts_obs, ts_unobs = t_x_obs.to(self._accelerator), t_ts_obs.to(self._accelerator), ts_unobs.to(
+        t_x_obs, _, t_ts_obs, t_ts_unobs, *_ = self._transform.apply(data=[x_obs, None, ts_obs, ts_unobs, None], shallow=False)
+        t_x_obs, t_ts_obs, t_ts_unobs = t_x_obs.to(self._accelerator), t_ts_obs.to(self._accelerator), t_ts_unobs.to(
             self._accelerator)
-        t_x_unobs_mean_hat, t_x_unobs_std_hat, *_ = self._model.inference(t_x_obs, t_ts_obs, ts_unobs)
+        t_x_unobs_mean_hat, t_x_unobs_std_hat, *_ = self._model.inference(t_x_obs, t_ts_obs, t_ts_unobs)
         t_x_unobs_mean_hat, t_x_unobs_std_hat = t_x_unobs_mean_hat.detach().cpu(), t_x_unobs_std_hat.detach().cpu()
-        _, prior_mean, *_ = self._transform.inverse(data=[x_obs, t_x_unobs_mean_hat], shallow=False)
+        _, prior_mean, *_ = self._transform.inverse(data=[x_obs, t_x_unobs_mean_hat, None], shallow=False)
         prior_std = self._transform.inverse_std(t_x_unobs_std_hat, additional_data=[x_obs, None], shallow=False)
 
         prior_mean = prior_mean[:, 0, :]

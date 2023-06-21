@@ -205,16 +205,16 @@ class TorchTrajectoryDataset(Dataset):
         return len(self._dataset)
 
     def __getitem__(self, index: int) \
-            -> Tuple[torch.tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, dict]:
+            -> Tuple[torch.tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, dict]:
         bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, metadata = self._dataset[index]
         orig_bboxes_obs = torch.from_numpy(bboxes_obs)
-        bboxes_unobs = torch.from_numpy(bboxes_unobs)
+        orig_bboxes_unobs = torch.from_numpy(bboxes_unobs)
         ts_obs = torch.from_numpy(ts_obs)
         ts_unobs = torch.from_numpy(ts_unobs)
 
         # Trajectory transformations
         bboxes_obs, bboxes_unobs, ts_obs, ts_unobs = \
-            self._augmentation_before_transform(orig_bboxes_obs, bboxes_unobs, ts_obs, ts_unobs)
+            self._augmentation_before_transform(orig_bboxes_obs, orig_bboxes_unobs, ts_obs, ts_unobs)
 
         bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, metadata, _ = \
             self._transform([bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, metadata, None], shallow=False)
@@ -222,4 +222,4 @@ class TorchTrajectoryDataset(Dataset):
         bboxes_obs, bboxes_unobs, ts_obs, ts_unobs = \
             self._augmentation_after_transform(bboxes_obs, bboxes_unobs, ts_obs, ts_unobs)
 
-        return bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, orig_bboxes_obs, metadata
+        return bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, orig_bboxes_obs, orig_bboxes_unobs, metadata

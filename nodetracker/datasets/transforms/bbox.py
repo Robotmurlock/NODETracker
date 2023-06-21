@@ -231,7 +231,7 @@ class BBoxRelativeToLastObsTransform(InvertibleTransformWithVariance):
         super().__init__(name='relative_to_last_obs')
 
     def apply(self, data: TensorCollection, shallow: bool = True) -> TensorCollection:
-        bbox_obs, bbox_unobs, ts_obs, *other = data
+        bbox_obs, bbox_unobs, ts_obs, ts_unobs, *other = data
         last_obs = bbox_obs[-1:]
 
         if not shallow:
@@ -239,10 +239,11 @@ class BBoxRelativeToLastObsTransform(InvertibleTransformWithVariance):
             bbox_unobs = bbox_unobs.clone() if bbox_unobs is not None else None
 
         bbox_obs, ts_obs = bbox_obs[:-1], ts_obs[:-1]  # Last element becomes redundant
+        ts_unobs = ts_unobs - 1  # Shifting back since the last time point is deleted
         bbox_obs = last_obs.expand_as(bbox_obs) - bbox_obs
         bbox_unobs = bbox_unobs - last_obs.expand_as(bbox_unobs) if bbox_unobs is not None else None
 
-        return bbox_obs, bbox_unobs, ts_obs, *other
+        return bbox_obs, bbox_unobs, ts_obs, ts_unobs, *other
 
     def inverse(self, data: TensorCollection, shallow: bool = True) -> TensorCollection:
         orig_bbox_obs, bbox_hat, *other = data
@@ -556,13 +557,14 @@ class BBoxJackOfAllTradesTransform(InvertibleTransformWithVariance):
         return self._rel_transform.inverse(data, shallow=shallow)
 
     def apply(self, data: TensorCollection, shallow: bool = True) -> TensorCollection:
-        bbox_obs, bbox_unobs, ts_obs, *other = data
-        rel_bbox_obs, rel_bbox_unobs, rel_ts_obs, *_ = self._rel_transform([bbox_obs, bbox_unobs, ts_obs, None], shallow=False)
+        bbox_obs, bbox_unobs, ts_obs, ts_unobs, *other = data
+        rel_bbox_obs, rel_bbox_unobs, rel_ts_obs, rel_ts_unobs, *_ = \
+            self._rel_transform([bbox_obs, bbox_unobs, ts_obs, ts_unobs, None], shallow=False)
         diff_bbox_obs, diff_bbox_unobs, *_ = self._diff_transform([bbox_obs, bbox_unobs, ts_obs, None], shallow=False)
         bbox_obs = bbox_obs[1:]
         bbox_features = torch.cat([rel_bbox_obs, diff_bbox_obs, bbox_obs], dim=-1)
 
-        return bbox_features, rel_bbox_unobs, rel_ts_obs, *other
+        return bbox_features, rel_bbox_unobs, rel_ts_obs, rel_ts_unobs, *other
 
     def inverse_std(self, t_std: torch.Tensor, additional_data: Optional[TensorCollection] = None, shallow: bool = True) -> TensorCollection:
         return self._rel_transform.inverse_std(t_std, additional_data=additional_data, shallow=shallow)

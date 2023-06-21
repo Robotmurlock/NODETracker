@@ -61,6 +61,8 @@ class RNNODE(nn.Module):
             -> Tuple[torch.Tensor, torch.Tensor]:
         z0 = self._encoder(x, t_obs)
         z0 = z0[-1]  # Removing temporal dim
+        t_last = t_obs[-1, :, :]
+        t_unobs = t_unobs - t_last.expand_as(t_unobs)
         x_hat, z_hat = self._decoder(z0, t_unobs)
         return x_hat, z_hat
 

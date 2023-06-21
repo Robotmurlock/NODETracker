@@ -277,7 +277,8 @@ def main(cfg: DictConfig):
         path=cfg.dataset.fullpath,
         history_len=1,  # Not relevant
         future_len=1,  # not relevant
-        sequence_list=cfg.dataset.split_index[cfg.eval.split] if cfg.end_to_end.selection.eval_split_only else None
+        sequence_list=cfg.dataset.split_index[cfg.eval.split] if cfg.end_to_end.selection.eval_split_only else None,
+        additional_params=cfg.dataset.additional_params
     )
 
     od_inference = object_detection_inference_factory(
@@ -308,6 +309,7 @@ def main(cfg: DictConfig):
 
             n_data_points = dataset.get_object_data_length(object_id)
             scene_metrics = defaultdict(list)
+            has_metrics = False
             data_points = [dataset.get_object_data_label(object_id, i) for i in range(n_data_points)]
             measurements = [dp['bbox'] for dp in data_points]
             occs = [dp['occ'] for dp in data_points]
@@ -322,6 +324,8 @@ def main(cfg: DictConfig):
                 inference_writer.open()
 
             for index in range(n_data_points - n_pred_steps):
+                has_metrics = True
+
                 # Extract point data
                 point_data = data_points[index]
                 frame_id = point_data['frame_id']
@@ -449,12 +453,13 @@ def main(cfg: DictConfig):
             if inference_writer is not None:
                 inference_writer.close()
 
-            global_metrics = merge_metrics(
-                global_metrics=global_metrics,
-                metrics=scene_metrics,
-                scene_name=scene_name,
-                category=dataset.get_object_category(object_id)
-            )
+            if has_metrics:
+                global_metrics = merge_metrics(
+                    global_metrics=global_metrics,
+                    metrics=scene_metrics,
+                    scene_name=scene_name,
+                    category=dataset.get_object_category(object_id)
+                )
 
         if cfg.end_to_end.visualization.enable:
             video_dirpath = os.path.join(experiment_path, 'visualization', f'end_to_end_{cfg.end_to_end.filter.type}')

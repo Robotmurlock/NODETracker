@@ -69,7 +69,8 @@ def create_dataloader(
         collate_fn=collate_func,
         batch_size=batch_size,
         num_workers=cfg.resources.num_workers,
-        shuffle=shuffle
+        shuffle=shuffle,
+        pin_memory=False
     )
 
 

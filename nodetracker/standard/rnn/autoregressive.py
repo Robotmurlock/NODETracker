@@ -20,7 +20,9 @@ class ARRNN(nn.Module):
         self,
         input_dim: int,
         hidden_dim: int,
+        output_dim: int,
 
+        model_gaussian: bool = False,
         resnet: bool = False,
         resnet_n_layers: int = 2,
         resnet_n_bottleneck_layers: int = 4,
@@ -48,11 +50,14 @@ class ARRNN(nn.Module):
         ) if resnet else None
         self._rnn = nn.GRU(input_dim, hidden_dim, num_layers=rnn_n_layers, batch_first=False)
         self._dropout = nn.Dropout(rnn_dropout)
-        self._head = MLP(
-            input_dim=hidden_dim,
-            hidden_dim=hidden_dim,
-            output_dim=input_dim,
-            n_layers=head_n_layers
+        self._head = nn.Sequential(
+            MLP(
+                input_dim=hidden_dim,
+                hidden_dim=hidden_dim,
+                output_dim=hidden_dim,
+                n_layers=head_n_layers
+            ),
+            nn.Linear(hidden_dim, output_dim if not model_gaussian else 2 * output_dim, bias=True)
         )
 
     def preprocess(self, x_obs: torch.Tensor, t_obs: torch.Tensor) -> torch.Tensor:
@@ -130,6 +135,7 @@ class LightningARRNN(LightningModuleForecasterWithTeacherForcing):
         self,
         input_dim: int,
         hidden_dim: int,
+        output_dim: Optional[int] = None,
 
         resnet: bool = False,
         resnet_n_layers: int = 2,
@@ -145,15 +151,20 @@ class LightningARRNN(LightningModuleForecasterWithTeacherForcing):
 
         train_config: Optional[LightningTrainConfig] = None
     ):
+        if output_dim is None:
+            output_dim = input_dim
+
         model = ARRNN(
             input_dim=input_dim,
             hidden_dim=hidden_dim,
+            output_dim=output_dim,
             resnet=resnet,
             resnet_n_layers=resnet_n_layers,
             resnet_n_bottleneck_layers=resnet_n_bottleneck_layers,
             stem_n_layers=stem_n_layers,
             head_n_layers=head_n_layers,
-            rnn_n_layers=rnn_n_layers
+            rnn_n_layers=rnn_n_layers,
+            model_gaussian=model_gaussian
         )
         super().__init__(
             train_config=train_config,

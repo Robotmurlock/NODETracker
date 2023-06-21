@@ -61,14 +61,20 @@ def parse_sequence(sequence_path: str) -> Tuple[List[FrameData], str]:
 
     with open(occlusion_filepath, 'r', encoding='utf-8') as f:
         occlusion_raw = f.read()
-        occlusions = [bool(int(o)) for o in occlusion_raw.strip().split(',')]
+        sep = ',' if ',' in occlusion_raw else '\n'  # LaSOT extension format is not consistent with old one
+        occlusions = [bool(int(o.strip())) for o in occlusion_raw.strip().split(sep)]
 
     with open(out_of_view_filepath, 'r', encoding='utf-8') as f:
         oov_raw = f.read()
-        oov = [bool(int(o)) for o in oov_raw.strip().split(',')]
+        sep = ',' if ',' in occlusion_raw else '\n'
+        oov = [bool(int(o)) for o in oov_raw.strip().split(sep)]
 
-    with open(nlp_filepath, 'r', encoding='utf-8') as f:
-        text_label = f.read().strip()
+    if os.path.exists(nlp_filepath):
+        with open(nlp_filepath, 'r', encoding='utf-8') as f:
+            text_label = f.read().strip()
+    else:
+        # LaSOT extension does not have `nlp.txt` files
+        text_label = ''
 
     with open(gt_filepath, 'r', encoding='utf-8') as f:
         coord_lines = f.readlines()

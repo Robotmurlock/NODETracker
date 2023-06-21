@@ -1,6 +1,7 @@
 type: 'odernn'
 params:
-  observable_dim: 4
+  observable_dim: 12
+  output_dim: 4
   hidden_dim: 128
 
   model_gaussian: true

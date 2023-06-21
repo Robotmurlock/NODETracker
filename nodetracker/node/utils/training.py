@@ -2,7 +2,7 @@
 NODE Lightning module training utility.
 """
 from dataclasses import dataclass, field
-from typing import Optional, Tuple, Dict, Union
+from typing import Optional, Tuple, Dict, Union, Any
 
 import numpy as np
 import pytorch_lightning as pl
@@ -154,6 +154,34 @@ class LightningModuleForecaster(LightningModuleBase):
         """
         return self._model(x, t_obs, t_unobs)
 
+    def _calc_metrics(
+        self,
+        bboxes_obs: torch.Tensor,
+        metadata: Dict[str, Any],
+        bboxes_unobs: torch.Tensor,
+        bboxes_unobs_hat: torch.Tensor,
+    ) -> Dict[ str, float]:
+        """
+        Calculates metrics (requires coordinate inverse transformation)
+
+        Args:
+            bboxes_obs: Observed bboxes
+            metadata: Trajectory metadata
+            bboxes_unobs: Unobserved (GT) bboxes
+            bboxes_unobs_hat: Predicted bboxes
+
+        Returns:
+            Mapping (metric_name -> metric_value)
+        """
+        if self._transform_func is not None:
+            # Invert mean
+            _, bboxes_unobs_hat_mean, *_ = self._transform_func.inverse([bboxes_obs, bboxes_unobs_hat, metadata, None], shallow=False)
+            _, bboxes_unobs, *_ = self._transform_func.inverse([bboxes_obs, bboxes_unobs, metadata, None], shallow=False)
+
+        gt_traj = bboxes_unobs.detach().cpu().numpy()
+        pred_traj = bboxes_unobs_hat.detach().cpu().numpy()
+        return metrics_func(gt_traj, pred_traj) if self._log_epoch_metrics else None
+
     def _calc_loss_and_metrics(
         self,
         bboxes_obs: torch.Tensor,
@@ -179,6 +207,7 @@ class LightningModuleForecaster(LightningModuleBase):
             bboxes_unobs_hat_var = torch.exp(bboxes_unobs_hat_log_var)
 
             loss = self._loss_func(bboxes_unobs_hat_mean, bboxes_unobs, bboxes_unobs_hat_var)
+            # metrics = self._calc_metrics(bboxes_obs, metadata, bboxes_unobs, bboxes_unobs_hat_mean)
 
             if self._transform_func is not None:
                 # Invert mean
@@ -192,6 +221,8 @@ class LightningModuleForecaster(LightningModuleBase):
             return loss, metrics
 
         loss = self._loss_func(bboxes_unobs_hat, bboxes_unobs)
+        # metrics = self._calc_metrics(bboxes_obs, metadata, bboxes_unobs, bboxes_unobs_hat)
+
         if self._transform_func is not None:
             _, bboxes_unobs_hat, *_ = self._transform_func.inverse([bboxes_obs, bboxes_unobs_hat, metadata, None], shallow=False)
             _, bboxes_unobs, *_ = self._transform_func.inverse([bboxes_obs, bboxes_unobs, metadata, None],

@@ -1,0 +1,7 @@
+type: 'node'
+params:
+  accelerator: 'cuda:0'
+  det_uncertainty_multiplier: 0.05
+
+  buffer_size: 10
+  buffer_min_size: 1

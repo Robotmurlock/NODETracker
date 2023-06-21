@@ -16,7 +16,7 @@ class RungeKuttaMethodWithGlobalState(ODESolver, ABC):
     Baseline for RungeKutta methods
     https://en.wikipedia.org/wiki/Runge–Kutta_methods
     """
-    def __init__(self, max_step_size: float, split_dim: int = 1):
+    def __init__(self, max_step_size: float, split_dim: int = -1):
         """
         Simplest ODESolver
 

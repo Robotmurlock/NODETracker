@@ -88,8 +88,8 @@ def iou(bboxes1: np.ndarray, bboxes2: np.ndarray, is_xyhw_format: bool = True) -
         return np.array([], dtype=np.float32)
 
     if is_xyhw_format:
-        bboxes1 = traj_bbox_xyhw_to_xyxy(bboxes1)
-        bboxes2 = traj_bbox_xyhw_to_xyxy(bboxes2)
+        bboxes1 = traj_bbox_xyhw_to_xyxy(bboxes1, eps=0.0)
+        bboxes2 = traj_bbox_xyhw_to_xyxy(bboxes2, eps=0.0)
 
     bboxes1_area = (bboxes1[..., 2] - bboxes1[..., 0]) * (bboxes1[..., 3] - bboxes1[..., 1])
     bboxes2_area = (bboxes2[..., 2] - bboxes2[..., 0]) * (bboxes2[..., 3] - bboxes2[..., 1])
@@ -245,5 +245,6 @@ def metrics_func(gt_traj: np.ndarray, pred_traj: np.ndarray) -> Dict[str, float]
     return {
         'Accuracy': accuracy(gt_traj, pred_traj),
         'Success': success(gt_traj, pred_traj),
-        'NormPrecision': norm_precision(gt_traj, pred_traj)
+        'NormPrecision': norm_precision(gt_traj, pred_traj),
+        'MSE': mse(gt_traj, pred_traj)
     }

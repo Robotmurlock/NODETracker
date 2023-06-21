@@ -139,6 +139,11 @@ class ODERNN(nn.Module):
             -> Tuple[torch.Tensor, torch.Tensor]:
         xt = torch.cat([x, t_obs], dim=-1)
         z0 = self._encoder(xt)
+
+        # Decoder has time points relative to last observed time points
+        # This is very important for long-term forecasting
+        t_last = t_obs[-1, :, :]
+        t_unobs = t_unobs - t_last.expand_as(t_unobs)
         x_hat, z_hat = self._decoder(z0, t_unobs)
         return x_hat, z_hat
 

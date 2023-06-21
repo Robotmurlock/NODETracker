@@ -8,5 +8,5 @@ defaults:
   - visualize: default.yaml
   - augmentations: lasot/default.yaml
   - path: lasot.yaml
-  - end_to_end: node.yaml
+  - end_to_end: default.yaml
   - _self_

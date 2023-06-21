@@ -1,4 +1,7 @@
 type: 'single-step-rnn'
 params:
-  input_dim: 4
-  hidden_dim: 16
+  input_dim: 12
+  hidden_dim: 128
+  output_dim: 4
+
+  model_gaussian: true
