@@ -1,0 +1,6 @@
+type: 'node_model'
+params:
+  accelerator: 'cuda:0'
+
+  buffer_size: 10
+  buffer_min_size: 1

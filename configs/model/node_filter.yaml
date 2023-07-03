@@ -1,0 +1,11 @@
+type: node_filter
+params:
+  observable_dim: 12
+  output_dim: 4
+  latent_dim: 128
+
+  model_gaussian: true
+
+  solver_name: 'rk4'
+  solver_params:
+    max_step_size: 0.25

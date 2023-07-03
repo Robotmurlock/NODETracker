@@ -136,7 +136,7 @@ def create_filter(cfg: ExtendedE2EGlobalConfig, experiment_path: str) -> StateMo
     name = cfg.end_to_end.filter.type
     params = cfg.end_to_end.filter.params
 
-    if name == 'node':
+    if name.startswith('node'):
         model = create_inference_model(cfg, experiment_path)
         transform_func = transforms.transform_factory(cfg.transform.name, cfg.transform.params)
         params['model'] = model
@@ -239,7 +239,7 @@ def greedy_pick(
     min_iou_match: float = 0.3
 ) -> Tuple[torch.Tensor, bool]:
 
-    prior_bbox, _ = prior_state
+    prior_bbox = prior_state[0]
     prior_bbox_object = BBox.from_xyhw(*prior_bbox[:4], clip=True)
 
     picked_bbox = None

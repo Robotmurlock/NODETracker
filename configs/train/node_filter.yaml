@@ -1,0 +1,27 @@
+experiment: 'NODEFilterModel-lasot-exp01-128dim-no-occ-no-oov-jack-of-all-trades-with-augs-baseline'
+description: 'RNNODE - 128dim - jack of all trades transform - augs - Baseline'
+batch_size: 256
+learning_rate: 1e-3
+max_epochs: 30
+
+inverse_transform_before_loss: True
+gradient_clip_val: 100
+gradient_clip_algorithm: value
+
+train_params:
+  optim_name: adamw
+  learning_rate: 1e-3
+  sched_lr_gamma: 0.1
+  sched_lr_step: 4
+  weight_decay: 0.0001
+
+  loss_name: 'gaussian_nllloss'
+  loss_params: {}
+
+logging_cfg:
+  path: 'logs'
+  log_every_n_steps: 1
+
+checkpoint_cfg:
+  metric_monitor: 'val-epoch/loss'
+  resume_from: null

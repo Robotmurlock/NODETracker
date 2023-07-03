@@ -13,7 +13,8 @@ from nodetracker.node.odernn import (
     LightningODERNNVAE,
     LightningRNNODE,
     LightningMLPODE,
-    LightningComposeRNNODE
+    LightningComposeRNNODE,
+    LightningNODEFilterModel
 )
 from nodetracker.node.utils import LightningTrainConfig
 from nodetracker.node.utils.training import LightningModuleForecaster
@@ -35,6 +36,7 @@ class ModelType(enum.Enum):
     SINGLE_STEP_RNN = 'single-step-rnn'
     RNN = 'rnn'
     RNNODE = 'rnnode'
+    NODE_FILTER = 'node_filter'
     CATEGORY_RNNODE = 'category_rnnode'
     COMPOSE_RNNODE = 'compose_rnnode'
     MLP = 'mlp'
@@ -89,6 +91,7 @@ def load_or_create_model(
         ModelType.ODEVAE: LightningODEVAE,
         ModelType.ODERNN: LightningODERNN,
         ModelType.RNNODE: LightningRNNODE,
+        ModelType.NODE_FILTER: LightningNODEFilterModel,
         ModelType.ODERNNVAE: LightningODERNNVAE,
         ModelType.ARRNN: LightningARRNN,
         ModelType.RNN: LightningRNNSeq2Seq,

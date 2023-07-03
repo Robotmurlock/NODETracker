@@ -75,14 +75,34 @@ class DetectorNoiseAugmentation(TrajectoryAugmentation):
     """
     Add Gaussian noise based on the bbox width and height.
     """
-    def __init__(self, sigma: float = 0.05, proba: float = 0.5):
+    def __init__(self, sigma: float = 0.05, proba: float = 0.5, unobs_noise: bool = False):
         """
         Args:
             sigma: Noise multiplier
             proba: Probability to apply this augmentation
+            unobs_noise: Apply noise to unobserved part of trajectory
         """
         self._sigma = sigma
         self._proba = proba
+        self._unobs_noise = unobs_noise
+
+    def _add_noise(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Adds guassian vector to bboxes vector x.
+
+        Args:
+            x:
+
+        Returns:
+            Input vector with noise
+        """
+        x_noise = self._sigma * torch.randn_like(x)
+        x_noise[..., 0] *= x[..., 2]  # `x` noise is proportional to the `h`
+        x_noise[..., 2] *= x[..., 2]  # `h` noise is proportional to the `h`
+        x_noise[..., 1] *= x[..., 3]  # `y` noise is proportional to the `w`
+        x_noise[..., 3] *= x[..., 3]  # `w` noise is proportional to the `w`
+        return x + x_noise
+
 
     def apply(self, x_obs: torch.Tensor, x_unobs: torch.Tensor, t_obs: torch.Tensor, t_unobs: torch.Tensor) \
             -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
@@ -91,22 +111,10 @@ class DetectorNoiseAugmentation(TrajectoryAugmentation):
             # Skip augmentation
             return x_obs, x_unobs, t_obs, t_unobs
 
-        x_obs_noise = self._sigma * torch.randn_like(x_obs)
-        if len(x_obs.shape) == 3:  # Batch operation
-            x_obs_noise[:, :, 0] *= x_obs[:, :, 2]  # `x` noise is proportional to the `h`
-            x_obs_noise[:, :, 2] *= x_obs[:, :, 2]  # `h` noise is proportional to the `h`
-            x_obs_noise[:, :, 1] *= x_obs[:, :, 3]  # `y` noise is proportional to the `w`
-            x_obs_noise[:, :, 3] *= x_obs[:, :, 3]  # `w` noise is proportional to the `w`
-        elif len(x_obs.shape) == 2:  # Instance operation
-            x_obs_noise[:, 0] *= x_obs[:, 2]  # `x` noise is proportional to the `h`
-            x_obs_noise[:, 2] *= x_obs[:, 2]  # `h` noise is proportional to the `h`
-            x_obs_noise[:, 1] *= x_obs[:, 3]  # `y` noise is proportional to the `w`
-            x_obs_noise[:, 3] *= x_obs[:, 3]  # `w` noise is proportional to the `w`
-        else:
-            raise AssertionError(f'DetectorNoiseAugmentation supports tensors 2D and 3D tensors only. '
-                                 f'Got {x_obs.shape}')
+        x_obs = self._add_noise(x_obs)
+        if self._unobs_noise:
+            x_unobs = self._add_noise(x_unobs)
 
-        x_obs += x_obs_noise
         return x_obs, x_unobs, t_obs, t_unobs
 
 

@@ -1,5 +1,5 @@
 defaults:
-  - filter: node.yaml
+  - filter: node_model.yaml
 
 lookup_path: '/media/home/nodetracker-outputs/lookup.json'
 
@@ -11,8 +11,8 @@ eval:
   n_steps: 1
 
 jitter:
-  detection_noise_sigma: 0.00
-  detection_skip_proba: 0.80
+  detection_noise_sigma: 0.15
+  detection_skip_proba: 0.00
 
 visualization:
   enable: False

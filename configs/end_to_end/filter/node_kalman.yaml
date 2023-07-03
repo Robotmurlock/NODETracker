@@ -1,4 +1,4 @@
-type: 'node'
+type: 'node_kalman'
 params:
   accelerator: 'cuda:0'
   det_uncertainty_multiplier: 0.05

@@ -29,7 +29,7 @@ class OdeDataloaderCollateFunctional:
             self._augmentation = IdentityAugmentation()
 
     def __call__(self, items: List[torch.Tensor]) \
-            -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, dict]:
+            -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, dict]:
         """
         ODE's collate func: Standard way to batch sequences of dimension (T, *shape)
         where T is time dimension and shape is feature dimension is to create batch
@@ -42,15 +42,15 @@ class OdeDataloaderCollateFunctional:
         Returns:
             collated tensors
         """
-        x_obss, t_obss, x_unobss, t_unobss, orig_bboxes_obs, metadata = zip(*items)
-        x_obs, t_obs, x_unobs, t_unobs, orig_bboxes_obs = \
-            [torch.stack(v, dim=1) for v in [x_obss, t_obss, x_unobss, t_unobss, orig_bboxes_obs]]
+        x_obss, t_obss, x_aug_unobss, t_unobss, orig_bboxes_obs, orig_bboxes_unobs, bboxes_unobs, metadata = zip(*items)
+        x_obs, t_obs, x_aug_unobs, t_unobs, orig_bboxes_obs, orig_bboxes_unobs, bboxes_unobs = \
+            [torch.stack(v, dim=1) for v in [x_obss, t_obss, x_aug_unobss, t_unobss, orig_bboxes_obs, orig_bboxes_unobs, bboxes_unobs]]
         metadata = default_collate(metadata)
 
         # Apply augmentations at batch level (optional)
-        x_obs, t_obs, x_unobs, t_unobs = self._augmentation(x_obs, t_obs, x_unobs, t_unobs)
+        x_obs, t_obs, x_aug_unobs, t_unobs = self._augmentation(x_obs, t_obs, x_aug_unobs, t_unobs)
 
-        return x_obs, t_obs, x_unobs, t_unobs, orig_bboxes_obs, metadata
+        return x_obs, t_obs, x_aug_unobs, t_unobs, orig_bboxes_obs, orig_bboxes_unobs, bboxes_unobs, metadata
 
 
 def preprocess_batch(batch: tuple) -> tuple:

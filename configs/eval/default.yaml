@@ -1,6 +1,6 @@
 experiment: '${train.experiment}'
 split: 'val'
-batch_size: 1024
+batch_size: 256
 num_workers: 8
 
 inference_name: 'initial'

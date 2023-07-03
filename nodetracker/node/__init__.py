@@ -9,7 +9,9 @@ from nodetracker.node.odernn import (
     ODERNN, LightningODERNN,
     RNNODE, LightningRNNODE,
     MLPODE, LightningMLPODE,
-    LightningGaussianModel
+    LightningGaussianModel,
+    LightningNODEFilterModel
 )
+from nodetracker.node.odernn.utils import extract_mean_and_std
 from nodetracker.node.trajectory_filter import BBoxTrajectoryForecaster
 from nodetracker.node.utils import LightningTrainConfig

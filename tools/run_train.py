@@ -5,6 +5,7 @@ import logging
 import os
 
 import hydra
+import torch.multiprocessing
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import ModelCheckpoint
@@ -22,6 +23,7 @@ logger = logging.getLogger('TrainScript')
 
 @hydra.main(config_path=CONFIGS_PATH, config_name='default', version_base='1.1')
 def main(cfg: DictConfig):
+    torch.multiprocessing.set_sharing_strategy('file_system')
     cfg, experiment_path = pipeline.preprocess(cfg, name='train')
 
     postprocess_transform = transforms.transform_factory(cfg.transform.name, cfg.transform.params)

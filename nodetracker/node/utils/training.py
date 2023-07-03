@@ -279,7 +279,7 @@ class LightningModuleForecaster(LightningModuleBase):
             self._meter.push(f'{prefix}-metrics/{name}', value)
 
     def training_step(self, batch: Tuple[torch.Tensor, ...], *args, **kwargs) -> torch.Tensor:
-        bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, orig_bboxes_obs, metadata = batch
+        bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, orig_bboxes_obs, _, _, metadata = batch
         output = self.forward(bboxes_obs, ts_obs, ts_unobs)
         bboxes_unobs_hat = output[0] if isinstance(output, tuple) else output
 
@@ -291,7 +291,7 @@ class LightningModuleForecaster(LightningModuleBase):
         return loss
 
     def validation_step(self, batch: Tuple[torch.Tensor, ...], *args, **kwargs) -> torch.Tensor:
-        bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, orig_bboxes_obs, metadata = batch
+        bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, orig_bboxes_obs, _, _, metadata = batch
         output = self.forward(bboxes_obs, ts_obs, ts_unobs)
         bboxes_unobs_hat = output[0] if isinstance(output, tuple) else output
 

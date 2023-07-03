@@ -1,4 +1,5 @@
 from nodetracker.filter.base import StateModelFilter
 from nodetracker.filter.kalman_filter import BotSortKalmanFilterWrapper
-from nodetracker.filter.node_filter import NODEFilter
+from nodetracker.filter.node_kalman_filter import NODEKalmanFilter
+from nodetracker.filter.node_model_filter import NODEModelFilter
 from nodetracker.filter.factory import filter_factory
