@@ -1,8 +1,9 @@
 type: node_filter
 params:
-  observable_dim: 12
+  observable_dim: 4
   output_dim: 4
   latent_dim: 128
+  homogeneous: True
 
   model_gaussian: true
 

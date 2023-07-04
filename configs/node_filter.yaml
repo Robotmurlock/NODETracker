@@ -1,7 +1,7 @@
 defaults:
   - resources: cuda.yaml
-  - dataset: lasot10_1.yaml
-  - transform: lasot/jack_of_all_trades.yaml
+  - dataset: lasot.yaml
+  - transform: standardized_first_difference.yaml
   - model: node_filter.yaml
   - train: node_filter.yaml
   - eval: default.yaml

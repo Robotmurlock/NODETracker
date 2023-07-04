@@ -71,7 +71,36 @@ class CompositionAugmentation(TrajectoryAugmentation):
         return x_obs, x_unobs, t_obs, t_unobs
 
 
-class DetectorNoiseAugmentation(TrajectoryAugmentation):
+
+class NonDeterministicAugmentation(TrajectoryAugmentation, ABC):
+    def __init__(self, proba: float):
+        self._proba = proba
+
+    def apply(self, x_obs: torch.Tensor, x_unobs: torch.Tensor, t_obs: torch.Tensor, t_unobs: torch.Tensor) \
+            -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        r = random.uniform(0, 1)
+        if r > self._proba:
+            # Skip augmentation
+            return x_obs, x_unobs, t_obs, t_unobs
+
+        return self._apply(x_obs, x_unobs, t_obs, t_unobs)
+
+    @abstractmethod
+    def _apply(self, x_obs: torch.Tensor, x_unobs: torch.Tensor, t_obs: torch.Tensor, t_unobs: torch.Tensor) \
+            -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        """
+        Args:
+            x_obs: Observed bboxes data
+            x_unobs: Unobserved bboxes data
+            t_obs: Observed time points
+            t_unobs: Unobserved time points
+
+        Returns:
+            augmented (x_obs, x_unobs, t_obs, t_unobs)
+        """
+
+
+class DetectorNoiseAugmentation(NonDeterministicAugmentation):
     """
     Add Gaussian noise based on the bbox width and height.
     """
@@ -82,8 +111,8 @@ class DetectorNoiseAugmentation(TrajectoryAugmentation):
             proba: Probability to apply this augmentation
             unobs_noise: Apply noise to unobserved part of trajectory
         """
+        super().__init__(proba=proba)
         self._sigma = sigma
-        self._proba = proba
         self._unobs_noise = unobs_noise
 
     def _add_noise(self, x: torch.Tensor) -> torch.Tensor:
@@ -104,13 +133,8 @@ class DetectorNoiseAugmentation(TrajectoryAugmentation):
         return x + x_noise
 
 
-    def apply(self, x_obs: torch.Tensor, x_unobs: torch.Tensor, t_obs: torch.Tensor, t_unobs: torch.Tensor) \
+    def _apply(self, x_obs: torch.Tensor, x_unobs: torch.Tensor, t_obs: torch.Tensor, t_unobs: torch.Tensor) \
             -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-        r = random.uniform(0, 1)
-        if r > self._proba:
-            # Skip augmentation
-            return x_obs, x_unobs, t_obs, t_unobs
-
         x_obs = self._add_noise(x_obs)
         if self._unobs_noise:
             x_unobs = self._add_noise(x_unobs)
@@ -118,7 +142,7 @@ class DetectorNoiseAugmentation(TrajectoryAugmentation):
         return x_obs, x_unobs, t_obs, t_unobs
 
 
-class ShortenTrajectoryAugmentation(TrajectoryAugmentation):
+class ShortenTrajectoryAugmentation(NonDeterministicAugmentation):
     """
     Shortens the input trajectory.
     """
@@ -130,16 +154,11 @@ class ShortenTrajectoryAugmentation(TrajectoryAugmentation):
                   if it already has length `min_length` or less
             proba: Probability to apply
         """
+        super().__init__(proba=proba)
         self._min_length = min_length
-        self._proba = proba
 
-    def apply(self, x_obs: torch.Tensor, x_unobs: torch.Tensor, t_obs: torch.Tensor, t_unobs: torch.Tensor) \
+    def _apply(self, x_obs: torch.Tensor, x_unobs: torch.Tensor, t_obs: torch.Tensor, t_unobs: torch.Tensor) \
             -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-        r = random.uniform(0, 1)
-        if r > self._proba:
-            # Skip augmentation
-            return x_obs, x_unobs, t_obs, t_unobs
-
         traj_length = x_obs.shape[0]
         if traj_length <= self._min_length:
             return x_obs, x_unobs, t_obs, t_unobs
@@ -152,7 +171,31 @@ class ShortenTrajectoryAugmentation(TrajectoryAugmentation):
         return x_obs, x_unobs, t_obs, t_unobs
 
 
-class RemoveRandomPointsTrajectoryAugmentation(TrajectoryAugmentation):
+def remove_points(x: torch.Tensor, t: torch.Tensor, min_length: int):
+    """
+    Helper function that removes random number of points from trajectory.
+
+    Args:
+        x: Data
+        t: Time
+        min_length: Minimum result trajectory length
+
+    Returns:
+        Trajectory with some removed points
+    """
+    n_points = x.shape[0]
+    max_points_to_remove = max(0, n_points - min_length)
+    n_points_to_remove = random.randrange(0, max_points_to_remove)
+    all_point_indices = list(range(n_points))
+    points_to_remove = random.sample(all_point_indices, k=n_points_to_remove)
+    point_to_keep = [point for point in all_point_indices if point not in points_to_remove]
+
+    x = x[point_to_keep, :, :]
+    t = t[point_to_keep, :, :]
+    return x, t
+
+
+class RemoveRandomPointsTrajectoryAugmentation(NonDeterministicAugmentation):
     """
     Remove random points from input trajectory.
     """
@@ -163,26 +206,34 @@ class RemoveRandomPointsTrajectoryAugmentation(TrajectoryAugmentation):
                 - Augmented trajectory can't be shortened more than `min_length`
             proba: Probability to apply
         """
+        super().__init__(proba=proba)
+        self._min_length = min_length
+
+    def _apply(self, x_obs: torch.Tensor, x_unobs: torch.Tensor, t_obs: torch.Tensor, t_unobs: torch.Tensor) \
+            -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        x_obs, t_obs = remove_points(x_obs, t_obs, self._min_length)
+        return x_obs, x_unobs, t_obs, t_unobs
+
+
+class RemoveRandomPointsUnobservedTrajectoryAugmentation(NonDeterministicAugmentation):
+    """
+    Remove random points from target trajectory. Same as `RemoveRandomPointsTrajectoryAugmentation` but for unobserved trajectory.
+    """
+    def __init__(self, min_length: int, proba: float):
+        """
+        Args:
+            min_length: Min Trajectory length
+                - Augmented trajectory can't be shortened more than `min_length`
+            proba: Probability to apply
+        """
+        super().__init__(proba=proba)
         self._min_length = min_length
         self._proba = proba
+        assert False, 'This augmentation is currently not supported!'
 
-    def apply(self, x_obs: torch.Tensor, x_unobs: torch.Tensor, t_obs: torch.Tensor, t_unobs: torch.Tensor) \
+    def _apply(self, x_obs: torch.Tensor, x_unobs: torch.Tensor, t_obs: torch.Tensor, t_unobs: torch.Tensor) \
             -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-        r = random.uniform(0, 1)
-        if r > self._proba:
-            # Skip augmentation
-            return x_obs, x_unobs, t_obs, t_unobs
-
-        # Sample points to remove
-        n_points = x_obs.shape[0]
-        max_points_to_remove = max(0, n_points - self._min_length)
-        n_points_to_remove = random.randrange(0, max_points_to_remove)
-        all_point_indices = list(range(n_points))
-        points_to_remove = random.sample(all_point_indices, k=n_points_to_remove)
-        point_to_keep = [point for point in all_point_indices if point not in points_to_remove]
-
-        x_obs = x_obs[point_to_keep, :, :]
-        t_obs = t_obs[point_to_keep, :, :]
+        x_unobs, t_unobs = remove_points(x_unobs, t_unobs, self._min_length)
         return x_obs, x_unobs, t_obs, t_unobs
 
 

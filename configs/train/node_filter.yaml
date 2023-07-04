@@ -1,5 +1,5 @@
-experiment: 'NODEFilterModel-lasot-exp01-128dim-no-occ-no-oov-jack-of-all-trades-with-augs-baseline'
-description: 'RNNODE - 128dim - jack of all trades transform - augs - Baseline'
+experiment: 'NODEFilterModel-lasot-exp02-128dim-no-occ-no-oov-fod-homogeneous-with-augs-baseline-5-steps-ahead'
+description: 'RNNODE - 128dim - fov- augs - Baseline'
 batch_size: 256
 learning_rate: 1e-3
 max_epochs: 30

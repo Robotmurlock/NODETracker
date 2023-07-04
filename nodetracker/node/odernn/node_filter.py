@@ -21,6 +21,7 @@ class NODEFilterModel(nn.Module):
         observable_dim: int,
         latent_dim: int,
         output_dim: int,
+        homogeneous: bool = False,
 
         model_gaussian: bool = False,
 
@@ -55,11 +56,16 @@ class NODEFilterModel(nn.Module):
             hidden_dim=latent_dim,
             output_dim=latent_dim
         )
-        self._unobs2latent = MLP(
-            input_dim=output_dim,
-            hidden_dim=latent_dim,
-            output_dim=latent_dim
-        )
+
+        if homogeneous:
+            assert observable_dim == output_dim, 'For homogeneouse model, observable and output dimension must match!'
+            self._unobs2latent = self._obs2latent  # Alias
+        else:
+            self._unobs2latent = MLP(
+                input_dim=output_dim,
+                hidden_dim=latent_dim,
+                output_dim=latent_dim
+            )
         self._update_layer = MLP(
             input_dim=2 * latent_dim,
             hidden_dim=latent_dim,
@@ -140,6 +146,7 @@ class LightningNODEFilterModel(LightningModuleBase):
         observable_dim: int,
         latent_dim: int,
         output_dim: Optional[int] = None,
+        homogeneous: bool = False,
 
         model_gaussian: bool = False,
         transform_func: Optional[Union[InvertibleTransform, InvertibleTransformWithVariance]] = None,
@@ -163,6 +170,7 @@ class LightningNODEFilterModel(LightningModuleBase):
             observable_dim=observable_dim,
             latent_dim=latent_dim,
             output_dim=output_dim,
+            homogeneous=homogeneous,
             model_gaussian=model_gaussian,
             solver_name=solver_name,
             solver_params=solver_params,
