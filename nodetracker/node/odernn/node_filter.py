@@ -28,6 +28,7 @@ class NODEFilterModel(nn.Module):
         n_ode_mlp_layers: int = 2,
         n_update_mlp_layers: int = 2,
         n_head_mlp_layers: int = 2,
+        n_obs2latent_mlp_layers: int = 1,
 
         solver_name: Optional[str] = None,
         solver_params: Optional[dict] = None
@@ -54,7 +55,8 @@ class NODEFilterModel(nn.Module):
         self._obs2latent = MLP(
             input_dim=observable_dim,
             hidden_dim=latent_dim,
-            output_dim=latent_dim
+            output_dim=latent_dim,
+            n_layers=n_obs2latent_mlp_layers
         )
 
         if homogeneous:
@@ -64,7 +66,8 @@ class NODEFilterModel(nn.Module):
             self._unobs2latent = MLP(
                 input_dim=output_dim,
                 hidden_dim=latent_dim,
-                output_dim=latent_dim
+                output_dim=latent_dim,
+                n_layers=n_obs2latent_mlp_layers
             )
         self._update_layer = MLP(
             input_dim=2 * latent_dim,
@@ -154,6 +157,7 @@ class LightningNODEFilterModel(LightningModuleBase):
         n_ode_mlp_layers: int = 2,
         n_update_mlp_layers: int = 2,
         n_head_mlp_layers: int = 2,
+        n_obs2latent_mlp_layers: int = 1,
 
         solver_name: Optional[str] = None,
         solver_params: Optional[dict] = None,
@@ -176,7 +180,8 @@ class LightningNODEFilterModel(LightningModuleBase):
             solver_params=solver_params,
             n_ode_mlp_layers=n_ode_mlp_layers,
             n_update_mlp_layers=n_update_mlp_layers,
-            n_head_mlp_layers=n_head_mlp_layers
+            n_head_mlp_layers=n_head_mlp_layers,
+            n_obs2latent_mlp_layers=n_obs2latent_mlp_layers
         )
 
         self._model_gaussian = model_gaussian

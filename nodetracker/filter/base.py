@@ -2,11 +2,11 @@
 Defines interface for motion model filter (predict - update)
 """
 from abc import ABC, abstractmethod
-from typing import Tuple, Optional
+from typing import Tuple, Any
 
 import torch
 
-State = Optional[Tuple[torch.Tensor, ...]]
+State = Any
 
 
 class StateModelFilter(ABC):

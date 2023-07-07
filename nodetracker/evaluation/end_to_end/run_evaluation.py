@@ -233,14 +233,12 @@ def visualize_video(
 
 def greedy_pick(
     predictions: torch.Tensor,
-    prior_state: Tuple[torch.Tensor, ...],
+    prior_bbox_mean: torch.Tensor,
     n_skipped_detection: int,
     max_skip_threshold: int = 5,
     min_iou_match: float = 0.3
 ) -> Tuple[torch.Tensor, bool]:
-
-    prior_bbox = prior_state[0]
-    prior_bbox_object = BBox.from_xyhw(*prior_bbox[:4], clip=True)
+    prior_bbox_object = BBox.from_xyhw(*prior_bbox_mean[:4], clip=True)
 
     picked_bbox = None
     max_iou = None
@@ -349,7 +347,7 @@ def main(cfg: DictConfig):
                     inf_bboxes, inf_classes, inf_conf = od_inference.predict(point_data)
                     bboxes, skip_detection = greedy_pick(
                         predictions=inf_bboxes,
-                        prior_state=prior_state,
+                        prior_bbox_mean=smf.project(prior_state)[0],
                         n_skipped_detection=n_skipped_detection,
                         max_skip_threshold=cfg.end_to_end.es.max_skip_threshold,
                         min_iou_match=cfg.end_to_end.es.min_iou_match
