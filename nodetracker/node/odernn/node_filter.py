@@ -21,7 +21,8 @@ class NODEFilterModel(nn.Module):
         observable_dim: int,
         latent_dim: int,
         output_dim: int,
-        homogeneous: bool = False,
+
+        homogeneous: bool = False,  # Observed and unobserved data points are processes the same way
 
         model_gaussian: bool = False,
 
@@ -60,7 +61,7 @@ class NODEFilterModel(nn.Module):
         )
 
         if homogeneous:
-            assert observable_dim == output_dim, 'For homogeneouse model, observable and output dimension must match!'
+            assert observable_dim == output_dim, 'For homogeneous model, observable and output dimension must match!'
             self._unobs2latent = self._obs2latent  # Alias
         else:
             self._unobs2latent = MLP(
@@ -383,3 +384,22 @@ class LightningNODEFilterModel(LightningModuleBase):
         self._log_metrics(metrics, prefix='val')
 
         return loss
+
+def run_test() -> None:
+    nfm = NODEFilterModel(
+        observable_dim=4,
+        latent_dim=3,
+        output_dim=4
+    )
+
+    x_obs = torch.randn(5, 3, 4)
+    x_unobs = torch.randn(2, 3, 4)
+    t_obs = torch.tensor([0, 1, 2, 3, 4], dtype=torch.float32).view(-1, 1, 1).repeat(1, 3, 1)
+    t_unobs = torch.tensor([5, 6], dtype=torch.float32).view(-1, 1, 1).repeat(1, 3, 1)
+
+    prior, posterior = nfm(x_obs, t_obs, x_unobs, t_unobs)
+    print(prior.shape, posterior.shape)
+
+
+if __name__ == '__main__':
+    run_test()

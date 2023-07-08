@@ -244,7 +244,5 @@ def metrics_func(gt_traj: np.ndarray, pred_traj: np.ndarray) -> Dict[str, float]
     """
     return {
         'Accuracy': accuracy(gt_traj, pred_traj),
-        'Success': success(gt_traj, pred_traj),
-        'NormPrecision': norm_precision(gt_traj, pred_traj),
         'MSE': mse(gt_traj, pred_traj)
     }

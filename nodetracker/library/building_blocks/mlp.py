@@ -39,7 +39,7 @@ class MLP(nn.Module):
         if output_dim is None:
             output_dim = input_dim
         if hidden_dim is None:
-            hidden_dim = input_dim
+            hidden_dim = output_dim
 
         layers_args = [[hidden_dim, hidden_dim] for _ in range(n_layers)]
         layers_args[0][0] = input_dim

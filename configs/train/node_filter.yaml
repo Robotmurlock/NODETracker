@@ -1,5 +1,5 @@
-experiment: 'NODEFilterModel-lasot-exp02-128dim-no-occ-no-oov-fod-homogeneous-with-augs-baseline-5-steps-ahead'
-description: 'RNNODE - 128dim - fov- augs - Baseline'
+experiment: 'NODEFilterModel-lasot-exp09-128dim-no-occ-no-oov-fod-homogeneous-augs-baseline-15-steps-ahead-no-wd-fixed-mlp'
+description: 'RNNODE - 128dim - fov - augs - Baseline'
 batch_size: 256
 learning_rate: 1e-3
 max_epochs: 30
@@ -13,7 +13,7 @@ train_params:
   learning_rate: 1e-3
   sched_lr_gamma: 0.1
   sched_lr_step: 4
-  weight_decay: 0.0001
+  weight_decay: 0.0000
 
   loss_name: 'gaussian_nllloss'
   loss_params: {}
