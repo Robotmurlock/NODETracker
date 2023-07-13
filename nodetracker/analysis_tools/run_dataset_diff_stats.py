@@ -33,7 +33,7 @@ def main(cfg: DictConfig):
             history_len=cfg.dataset.history_len,
             future_len=cfg.dataset.future_len,
         ),
-        transform=transforms.BBoxRelativeToLastObsTransform(),
+        # transform=transforms.BBoxRelativeToLastObsTransform(),
         augmentation_before_transform=cfg.augmentations.before_transform,
         augmentation_after_transform=cfg.augmentations.after_transform
     )
@@ -48,7 +48,7 @@ def main(cfg: DictConfig):
     sum_bbox2 = torch.zeros(4, dtype=torch.float32)  # Used to calculate std
     n_total = 0
     # noinspection PyTypeChecker
-    for bboxes_obs, bboxes_unobs, _, _, _, metadata in tqdm(dataset, unit='sample', desc='Calculating diff statistics'):
+    for bboxes_obs, bboxes_unobs, _, _, _, _, _, metadata in tqdm(dataset, unit='sample', desc='Calculating diff statistics'):
         for data in [bboxes_obs, bboxes_unobs]:
             # General stats
             sum_bbox += data.sum(dim=0)

@@ -8,7 +8,7 @@ import torch
 
 from nodetracker.datasets import transforms
 from nodetracker.filter.base import StateModelFilter, State
-from nodetracker.node import LightningNODEFilterModel, extract_mean_and_std
+from nodetracker.node import LightningNODEFilterModel
 
 Estimation = Tuple[torch.Tensor, torch.Tensor]
 
@@ -81,9 +81,9 @@ class NODEModelFilter(StateModelFilter):
         z0 = state.z
         t_obs, t_unobs = self._get_ts()
         t_obs, t_unobs = t_obs.to(self._accelerator), t_unobs.to(self._accelerator)
-        x_prior, z_prior = self._model.core.estimate_prior(z0, t_obs, t_unobs)
-        t_prior_mean, t_prior_std = extract_mean_and_std(x_prior)
-        t_prior_mean, t_prior_std = t_prior_mean.detach().cpu(), t_prior_std.detach().cpu()
+        t_prior_mean, t_prior_log_var, z_prior = self._model.core.estimate_prior(z0, t_obs, t_unobs)
+        t_prior_mean, t_prior_log_var = t_prior_mean.detach().cpu(), t_prior_log_var.detach().cpu()
+        t_prior_std = torch.sqrt(self._model.core.postprocess_log_var(t_prior_log_var))
         x_obs = state.measurement.unsqueeze(0)
         _, prior_mean, *_ = self._transform.inverse(data=[x_obs, t_prior_mean.view(1, 1, -1), None], shallow=False)
         prior_std = self._transform.inverse_std(t_prior_std, additional_data=[x_obs, None], shallow=False)
@@ -111,11 +111,11 @@ class NODEModelFilter(StateModelFilter):
         _, t_measurement, *_ = self._transform.apply(data=[x_obs, measurement.view(1, 1, -1), t_obs, t_unobs, None], shallow=False)
         t_measurement = t_measurement[0].to(self._accelerator)
         z_evidence = self._model.core.encode_unobs(t_measurement)
-        t_x_posterior, z_posterior = self._model.core.estimate_posterior(z_prior, z_evidence)
-        t_x_posterior = t_x_posterior.detach().cpu()
-        t_posterior_mean, t_x_posterior_std = extract_mean_and_std(t_x_posterior)
+        t_posterior_mean, t_posterior_log_var, z_posterior = self._model.core.estimate_posterior(z_prior, z_evidence)
+        t_posterior_mean, t_posterior_log_var = t_posterior_mean.detach().cpu(), t_posterior_log_var.detach().cpu()
+        t_posterior_std = torch.sqrt(self._model.core.postprocess_log_var(t_posterior_log_var))
         _, posterior_mean, *_ = self._transform.inverse(data=[x_obs, t_posterior_mean.view(1, 1, -1), None], shallow=False)
-        posterior_std = self._transform.inverse_std(t_x_posterior_std, additional_data=[posterior_mean, None], shallow=False)
+        posterior_std = self._transform.inverse_std(t_posterior_std, additional_data=[posterior_mean, None], shallow=False)
 
         posterior_mean = posterior_mean[0, 0, :]
         posterior_std = posterior_std[0, :]
@@ -155,10 +155,8 @@ def run_test() -> None:
         model=LightningNODEFilterModel(
             observable_dim=4,
             latent_dim=4,
-            model_gaussian=True,
         ),
         accelerator='cpu',
-        buffer_size=10,
         transform=IdentityTransform()
     )
 

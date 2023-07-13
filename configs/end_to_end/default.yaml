@@ -1,7 +1,8 @@
 defaults:
   - filter: node_model.yaml
 
-lookup_path: '/media/home/nodetracker-outputs/lookup.json'
+lookup_path: '/home/robotmurlock/Desktop/datasets/LaSOT-YOLO/YOLO-LaSOT/lookup.json'
+# lookup_path: '/media/home/nodetracker-outputs/lookup.json'
 
 object_detection:
   type: 'ground_truth'
@@ -16,3 +17,6 @@ jitter:
 
 visualization:
   enable: False
+
+selection:
+  scene: '^tiger[-]12$'
