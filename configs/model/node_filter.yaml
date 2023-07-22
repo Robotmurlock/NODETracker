@@ -5,8 +5,11 @@ params:
   latent_dim: 128
 
   homogeneous: True
-  bounded_variance: True
+  bounded_variance: False
   rnn_update_layer: True
+  augmentation_remove_points_enable: True
+  augmentation_remove_random_points_proba: 0.05
+  augmentation_remove_sequence_proba: 0.05
 
   solver_name: 'rk4'
   solver_params:

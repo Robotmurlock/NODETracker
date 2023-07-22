@@ -1,4 +1,5 @@
-from typing import Optional, Tuple, Union, Dict
+import random
+from typing import Optional, Tuple, Union, Dict, List
 
 import torch
 from torch import nn
@@ -10,6 +11,7 @@ from nodetracker.node.core.odevae import MLPODEF, NeuralODE
 from nodetracker.node.core.solver.factory import ode_solver_factory
 from nodetracker.node.losses.factory import factory_loss_function
 from nodetracker.node.utils.training import LightningTrainConfig, LightningModuleBase
+from nodetracker.datasets.augmentations.trajectory import remove_points
 
 
 class NODEFilterModel(nn.Module):
@@ -148,23 +150,32 @@ class NODEFilterModel(nn.Module):
 
         return z0, t0
 
-    def forward(self, x_obs: torch.Tensor, t_obs: torch.Tensor, x_unobs: torch.Tensor, t_unobs: torch.Tensor) \
+    def forward(self, x_obs: torch.Tensor, t_obs: torch.Tensor, x_unobs: torch.Tensor, t_unobs: torch.Tensor, mask: Optional[List[bool]] = None) \
             -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         z0, t0 = self.encode_obs_trajectory(x_obs, t_obs)
 
         n_estimation_steps, _, _ = t_unobs.shape
         priors_mean, priors_log_var, posteriors_mean, posteriors_log_var = [], [], [], []
         z1_unobs = self.encode_unobs(x_unobs)
+        i_lag = 0  # measurement index lags in case of missing points
         for i in range(n_estimation_steps):
-            z1 = z1_unobs[i]
             t1 = t_unobs[i]
-            x1_prior_mean, x1_prior_log_var, x1_posterior_mean, x1_posterior_log_var, z0 = self.next(z0, z1, t0, t1)
+            m1 = mask[i] if mask is not None else True
+            if m1:
+                # Data is present - Estimate the prior and the posterior
+                z1 = z1_unobs[i - i_lag]
+                x1_prior_mean, x1_prior_log_var, x1_posterior_mean, x1_posterior_log_var, z0 = self.next(z0, z1, t0, t1)
+                posteriors_mean.append(x1_posterior_mean)
+                posteriors_log_var.append(x1_posterior_log_var)
+            else:
+                # Data is not present - Just estimate the prior
+                x1_prior_mean, x1_prior_log_var, z1_prior = self.estimate_prior(z0, t0, t1)
+                i_lag += 1
+
             t0 = t1
 
             priors_mean.append(x1_prior_mean)
             priors_log_var.append(x1_prior_log_var)
-            posteriors_mean.append(x1_posterior_mean)
-            posteriors_log_var.append(x1_posterior_log_var)
 
         priors_mean, priors_log_var, posteriors_mean, posteriors_log_var = \
             [torch.stack(v) for v in [priors_mean, priors_log_var, posteriors_mean, posteriors_log_var]]
@@ -198,6 +209,11 @@ class LightningNODEFilterModel(LightningModuleBase):
         n_head_mlp_layers: int = 2,
         n_obs2latent_mlp_layers: int = 1,
 
+        # FIXME: Refactor - move augmentation from collate to trainer in order to support this case!
+        augmentation_remove_points_enable: bool = False,
+        augmentation_remove_random_points_proba: float = 0.15,
+        augmentation_remove_sequence_proba: float = 0.15,
+
         solver_name: Optional[str] = None,
         solver_params: Optional[dict] = None,
 
@@ -224,6 +240,10 @@ class LightningNODEFilterModel(LightningModuleBase):
             n_obs2latent_mlp_layers=n_obs2latent_mlp_layers
         )
 
+        self._augmentation_remove_points_enable = augmentation_remove_points_enable
+        self._augmentation_remove_random_points_proba = augmentation_remove_random_points_proba
+        self._augmentation_remove_sequence_proba = augmentation_remove_sequence_proba
+
         self._loss_func = factory_loss_function(train_config.loss_name, train_config.loss_params) \
             if train_config is not None else None
         if train_config is not None:
@@ -240,9 +260,10 @@ class LightningNODEFilterModel(LightningModuleBase):
     def core(self) -> NODEFilterModel:
         return self._model
 
-    def forward(self, x_obs: torch.Tensor, t_obs: torch.Tensor, x_unobs: torch.Tensor, t_unobs: torch.Tensor, *args, **kwargs) \
+    def forward(self, x_obs: torch.Tensor, t_obs: torch.Tensor, x_unobs: torch.Tensor, t_unobs: torch.Tensor,
+                mask: Optional[List[bool]] = None, *args, **kwargs) \
             -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-        return self._model(x_obs, t_obs, x_unobs, t_unobs, *args, **kwargs)
+        return self._model(x_obs, t_obs, x_unobs, t_unobs, mask=mask, *args, **kwargs)
 
     def inference(self, x_obs: torch.Tensor, t_obs: torch.Tensor, x_unobs: torch.Tensor, t_unobs: torch.Tensor, *args, **kwargs) \
             -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
@@ -263,8 +284,10 @@ class LightningNODEFilterModel(LightningModuleBase):
     def _calc_loss_and_metrics(
         self,
         orig_bboxes_obs: torch.Tensor,
-        orig_bboxes_unobs: torch.Tensor,
-        transformed_bboxes_unobs: torch.Tensor,
+        orig_bboxes_unobs_prior: torch.Tensor,
+        orig_bboxes_unobs_posterior: torch.Tensor,
+        transformed_bboxes_unobs_prior: torch.Tensor,
+        transformed_bboxes_unobs_posterior: torch.Tensor,
         bboxes_unobs_prior_mean: torch.Tensor,
         bboxes_unobs_prior_log_var: torch.Tensor,
         bboxes_unobs_posterior_mean: torch.Tensor,
@@ -274,8 +297,8 @@ class LightningNODEFilterModel(LightningModuleBase):
         bboxes_unobs_prior_var = self._model.postprocess_log_var(bboxes_unobs_prior_log_var)
         bboxes_unobs_posterior_var = self._model.postprocess_log_var(bboxes_unobs_posterior_log_var)
 
-        prior_loss = self._loss_func(bboxes_unobs_prior_mean, transformed_bboxes_unobs, bboxes_unobs_prior_var)
-        posterior_loss = self._loss_func(bboxes_unobs_posterior_mean, transformed_bboxes_unobs, bboxes_unobs_posterior_var)
+        prior_loss = self._loss_func(bboxes_unobs_prior_mean, transformed_bboxes_unobs_prior, bboxes_unobs_prior_var)
+        posterior_loss = self._loss_func(bboxes_unobs_posterior_mean, transformed_bboxes_unobs_posterior, bboxes_unobs_posterior_var)
         loss = {
             'prior_loss': prior_loss,
             'posterior_loss': posterior_loss,
@@ -291,12 +314,12 @@ class LightningNODEFilterModel(LightningModuleBase):
         if not self._log_epoch_metrics:
             return loss, None
 
-        gt_traj = orig_bboxes_unobs.detach().cpu().numpy()
+        gt_traj = orig_bboxes_unobs_prior.detach().cpu().numpy()
         prior_traj = bboxes_unobs_prior_mean.detach().cpu().numpy()
         prior_metrics = metrics_func(gt_traj, prior_traj)
         prior_metrics = {f'prior_{name}': value for name, value in prior_metrics.items()}
 
-        gt_traj = orig_bboxes_unobs.detach().cpu().numpy()
+        gt_traj = orig_bboxes_unobs_posterior.detach().cpu().numpy()
         posterior_traj = bboxes_unobs_posterior_mean.detach().cpu().numpy()
         posterior_metrics = metrics_func(gt_traj, posterior_traj) if self._log_epoch_metrics else None
         posterior_metrics = {f'posterior_{name}': value for name, value in posterior_metrics.items()}
@@ -351,14 +374,50 @@ class LightningNODEFilterModel(LightningModuleBase):
 
     def training_step(self, batch: Tuple[torch.Tensor, ...], *args, **kwargs) -> torch.Tensor:
         bboxes_obs, bboxes_aug_unobs, ts_obs, ts_unobs, orig_bboxes_obs, orig_bboxes_unobs, bboxes_unobs, metadata = batch
+
+        bboxes_unobs_posterior = bboxes_unobs
+        orig_bboxes_unobs_posterior = orig_bboxes_unobs
+        mask: Optional[List[bool]] = None
+        if self._augmentation_remove_points_enable:
+            with torch.no_grad():
+                # TODO: Move to augmentations
+                # TODO: Write tests
+                assert bboxes_aug_unobs.shape[0] >= 3, 'Minimum length of trajectory is 3 in order to perform special augmentations!'
+
+                r = random.random()
+                if r < self._augmentation_remove_random_points_proba:
+                    mask = [True for _ in range(ts_unobs.shape[0])]
+                    (bboxes_aug_unobs,), removed_indices, kept_indices = remove_points([bboxes_aug_unobs], min_length=1)
+                    for i in removed_indices:
+                        mask[i] = False
+                    bboxes_unobs_posterior = bboxes_unobs_posterior[kept_indices, :, :]
+                    orig_bboxes_unobs_posterior = orig_bboxes_unobs_posterior[kept_indices, :, :]
+
+                elif r < self._augmentation_remove_random_points_proba + self._augmentation_remove_sequence_proba:
+                    # TODO: Move to function
+                    # TODO: Write tests
+                    # Remove random sequence (connected points)
+                    mask = [True for _ in range(ts_unobs.shape[0])]
+                    n = bboxes_aug_unobs.shape[0]
+                    start = random.randint(1, n - 1)  # s ~ U[1, n-1]
+                    end = random.randint(start, n)  # e ~ U[s, n]
+                    bboxes_aug_unobs = torch.cat([bboxes_aug_unobs[:start, :, :], bboxes_aug_unobs[end:n, :, :]], dim=0)
+                    for i in range(start, end):
+                        mask[i] = False
+                    bboxes_unobs_posterior = torch.cat([bboxes_unobs_posterior[:start, :, :], bboxes_unobs_posterior[end:n, :, :]], dim=0)
+                    orig_bboxes_unobs_posterior = \
+                        torch.cat([orig_bboxes_unobs_posterior[:start, :, :], orig_bboxes_unobs_posterior[end:n, :, :]], dim=0)
+
         bboxes_prior_mean, bboxes_prior_log_var, bboxes_posterior_mean, bboxes_posterior_log_var = \
-            self.forward(bboxes_obs, ts_obs, bboxes_aug_unobs, ts_unobs)
+            self.forward(bboxes_obs, ts_obs, bboxes_aug_unobs, ts_unobs, mask=mask)
 
         # noinspection PyTypeChecker
         loss, metrics = self._calc_loss_and_metrics(
             orig_bboxes_obs=orig_bboxes_obs,
-            orig_bboxes_unobs=orig_bboxes_unobs,
-            transformed_bboxes_unobs=bboxes_unobs,
+            orig_bboxes_unobs_prior=orig_bboxes_unobs,
+            orig_bboxes_unobs_posterior=orig_bboxes_unobs_posterior,
+            transformed_bboxes_unobs_prior=bboxes_unobs,
+            transformed_bboxes_unobs_posterior=bboxes_unobs_posterior,
             bboxes_unobs_prior_mean=bboxes_prior_mean,
             bboxes_unobs_prior_log_var=bboxes_prior_log_var,
             bboxes_unobs_posterior_mean=bboxes_posterior_mean,
@@ -378,8 +437,10 @@ class LightningNODEFilterModel(LightningModuleBase):
         # noinspection PyTypeChecker
         loss, metrics = self._calc_loss_and_metrics(
             orig_bboxes_obs=orig_bboxes_obs,
-            orig_bboxes_unobs=orig_bboxes_unobs,
-            transformed_bboxes_unobs=bboxes_unobs,
+            orig_bboxes_unobs_prior=orig_bboxes_unobs,
+            orig_bboxes_unobs_posterior=orig_bboxes_unobs,
+            transformed_bboxes_unobs_prior=bboxes_unobs,
+            transformed_bboxes_unobs_posterior=bboxes_unobs,
             bboxes_unobs_prior_mean=bboxes_prior_mean,
             bboxes_unobs_prior_log_var=bboxes_prior_log_var,
             bboxes_unobs_posterior_mean=bboxes_posterior_mean,

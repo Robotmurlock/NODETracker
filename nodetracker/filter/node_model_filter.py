@@ -9,6 +9,7 @@ import torch
 from nodetracker.datasets import transforms
 from nodetracker.filter.base import StateModelFilter, State
 from nodetracker.node import LightningNODEFilterModel
+from nodetracker.filter.utils import ODETorchTensorBuffer
 
 Estimation = Tuple[torch.Tensor, torch.Tensor]
 
@@ -63,6 +64,8 @@ class NODEModelFilter(StateModelFilter):
         return t_obs, t_unobs
 
     def multistep_predict(self, state: State, n_steps: int) -> State:
+        assert n_steps == 1, 'Multistep prediction is not supported!'
+
         state: NODEState
         state = state.copy()
 
@@ -144,6 +147,111 @@ class NODEModelFilter(StateModelFilter):
     def project(self, state: State) -> Tuple[torch.Tensor, torch.Tensor]:
         state: NODEState
         mean, std = state.mean, state.std
+        var = torch.square(std)
+        return mean, var
+
+
+class BufferedNodeModelFilter(StateModelFilter):
+    def __init__(
+        self,
+        model: LightningNODEFilterModel,
+        transform: transforms.InvertibleTransformWithVariance,
+        accelerator: str,
+
+        buffer_size: int,
+        buffer_min_size: int = 1,
+        dtype: torch.dtype = torch.float32
+    ):
+        self._model = model
+        self._transform = transform
+        self._accelerator = accelerator
+        self._dtype = dtype
+
+        # Buffer
+        self._buffer = ODETorchTensorBuffer(
+            size=buffer_size,
+            min_size=buffer_min_size,
+            dtype=dtype
+        )
+
+        # Model
+        self._model.to(self._accelerator)
+        self._model.eval()
+
+    def _get_ts(self) -> Tuple[torch.Tensor, torch.Tensor]:
+        t_obs = torch.tensor([0], dtype=self._dtype).view(1, 1)
+        t_unobs = torch.tensor([1], dtype=self._dtype).view(1, 1)
+        return t_obs, t_unobs
+
+    def initiate(self, measurement: torch.Tensor) -> State:
+        self._buffer.push(measurement)
+        return None
+
+    def multistep_predict(self, state: State, n_steps: int) -> State:
+        assert n_steps == 1, 'Multistep prediction is not supported!'
+
+        if not self._buffer.has_input:
+            raise BufferError('Buffer does not have an input!')
+
+        x_obs, ts_obs, ts_unobs = self._buffer.get_input(n_steps)
+        if ts_obs.shape[0] == 1:
+            # Only one bbox in history - using baseline (propagate last bbox) instead of NN model
+            x_unobs_mean_hat = torch.stack([x_obs[-1].clone() for _ in range(ts_unobs.shape[0])]).to(ts_obs)
+            x_unobs_std_hat = 10 * torch.ones_like(x_unobs_mean_hat).to(ts_obs)
+            z0, _ = self._model.core.initialize(batch_size=1, device=self._accelerator)
+            t_obs, t_unobs = self._get_ts()
+            t_obs, t_unobs = t_obs.to(self._accelerator), t_unobs.to(self._accelerator)
+            _, _, z1_prior = self._model.core.estimate_prior(z0, t_obs, t_unobs)
+            z1_prior = z1_prior.detach().cpu()
+            return x_unobs_mean_hat[:, 0, :], x_unobs_std_hat[:, 0, :], z1_prior
+
+        t_x_obs, _, t_ts_obs, t_ts_unobs, *_ = self._transform.apply(data=[x_obs, None, ts_obs, ts_unobs, None], shallow=False)
+        t_x_obs, t_ts_obs, t_ts_unobs = t_x_obs.to(self._accelerator), t_ts_obs.to(self._accelerator), t_ts_unobs.to(
+            self._accelerator)
+        z0, t0 = self._model.core.encode_obs_trajectory(t_x_obs, t_ts_obs)
+        t_x_prior_mean, t_x_prior_log_var, z_prior = self._model.core.estimate_prior(z0, t0, t_ts_unobs[0])
+        t_x_prior_mean, t_x_prior_log_var, z_prior = \
+            t_x_prior_mean.detach().cpu(), t_x_prior_log_var.detach().cpu(), z_prior.detach().cpu()
+        t_x_prior_var = self._model.core.postprocess_log_var(t_x_prior_log_var)
+        _, prior_mean, *_ = self._transform.inverse(data=[x_obs, t_x_prior_mean, None], shallow=False)
+        prior_var = self._transform.inverse_var(t_x_prior_var, additional_data=[x_obs, None], shallow=False)
+        prior_std = torch.sqrt(prior_var)
+
+        return prior_mean, prior_std, z_prior
+
+    def predict(self, state: State) -> State:
+        prior_mean, prior_std, z1_prior = self.multistep_predict(state, n_steps=1)
+        return prior_mean[0], prior_std[0], z1_prior
+
+    def update(self, state: State, measurement: torch.Tensor) -> State:
+        _, _, z_prior = state
+        x_obs, ts_obs, ts_unobs = self._buffer.get_input(1)
+        t_obs, t_unobs = ts_obs[0], ts_unobs[0]
+
+        _, t_measurement, *_ = self._transform.apply(data=[x_obs, measurement.view(1, 1, -1), t_obs, t_unobs, None], shallow=False)
+        t_measurement, z_prior = t_measurement[0].to(self._accelerator), z_prior.to(self._accelerator)
+        z_evidence = self._model.core.encode_unobs(t_measurement)
+        t_posterior_mean, t_posterior_log_var, z_posterior = self._model.core.estimate_posterior(z_prior, z_evidence)
+        t_posterior_mean, t_posterior_log_var, z_posterior = \
+            t_posterior_mean.detach().cpu(), t_posterior_log_var.detach().cpu(), z_posterior.detach().cpu()
+        t_posterior_var = self._model.core.postprocess_log_var(t_posterior_log_var)
+        _, posterior_mean, *_ = self._transform.inverse(data=[x_obs, t_posterior_mean.view(1, 1, -1), None], shallow=False)
+        posterior_var = self._transform.inverse_var(t_posterior_var, additional_data=[posterior_mean, None], shallow=False)
+        posterior_std = torch.sqrt(posterior_var)
+
+        posterior_mean = posterior_mean[0, 0, :]
+        posterior_std = posterior_std[0, :]
+
+        self._buffer.push(measurement)
+
+        return posterior_mean, posterior_std, z_posterior
+
+    def missing(self, state: State) -> State:
+        self._buffer.increment()
+        return state
+
+    def project(self, state: State) -> Tuple[torch.Tensor, torch.Tensor]:
+        mean, std, _ = state
         var = torch.square(std)
         return mean, var
 

@@ -24,6 +24,7 @@ from nodetracker.config_parser import GlobalConfig
 from nodetracker.datasets import transforms, dataset_factory, TorchTrajectoryDataset
 from nodetracker.datasets.utils import OdeDataloaderCollateFunctional
 from nodetracker.library.cv import BBox
+from nodetracker.node.odernn.node_filter import LightningNODEFilterModel
 from nodetracker.utils import pipeline
 from tools.utils import create_inference_model
 
@@ -67,13 +68,17 @@ def run_inference(
     batch_cnt = 0
     first_chunk = True
 
-    for bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, _, metadata in tqdm(data_loader, unit='sample',
-                                                                        desc='Running inference'):
+    for bboxes_obs, bboxes_aug_unobs, ts_obs, ts_unobs, orig_bboxes_obs, orig_bboxes_unobs, bboxes_unobs, metadata\
+            in tqdm(data_loader, unit='sample', desc='Running inference'):
         # `t` prefix means that tensor is mapped to transformed space
-        t_bboxes_obs, _, t_ts_obs, t_ts_unobs, metadata, *other = \
+        t_bboxes_obs, t_bboxes_unobs, t_ts_obs, t_ts_unobs, metadata, *other = \
             transform.apply([bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, metadata, None], shallow=False)  # preprocess
-        t_bboxes_obs, t_ts_obs, t_ts_unobs = [v.to(accelerator) for v in [t_bboxes_obs, t_ts_obs, t_ts_unobs]]
-        output = model.inference(t_bboxes_obs, t_ts_obs, t_ts_unobs)  # inference
+        t_bboxes_obs, t_ts_obs, t_bboxes_unobs, t_ts_unobs = [v.to(accelerator) for v in [t_bboxes_obs, t_ts_obs, t_bboxes_unobs, t_ts_unobs]]
+        # FIXME: Improvisation
+        if isinstance(model, LightningNODEFilterModel):
+            output = model.inference(t_bboxes_obs, t_ts_obs, t_bboxes_unobs, t_ts_unobs)  # inference
+        else:
+            output = model.inference(t_bboxes_obs, t_ts_obs, t_ts_unobs)  # inference
         # In case of multiple suffix values output (tuple) ignore everything except first output
         t_bboxes_unobs_hat = output[0] if isinstance(output, tuple) else output
         t_bboxes_unobs_hat = t_bboxes_unobs_hat.detach().cpu()

@@ -136,7 +136,7 @@ def create_filter(cfg: ExtendedE2EGlobalConfig, experiment_path: str) -> StateMo
     name = cfg.end_to_end.filter.type
     params = cfg.end_to_end.filter.params
 
-    if name.startswith('node'):
+    if 'node' in name:
         model = create_inference_model(cfg, experiment_path)
         transform_func = transforms.transform_factory(cfg.transform.name, cfg.transform.params)
         params['model'] = model
@@ -476,7 +476,12 @@ def main(cfg: DictConfig):
 
     # Save metrics
     logger.info(f'Metrics: \n{json.dumps(metrics, indent=2)}')
-    metrics_path = os.path.join(experiment_path, 'evaluation', f'end_to_end_{cfg.end_to_end.filter.type}.json')
+    evaluation_dirname = f'evaluation_{cfg.end_to_end.filter.type}' \
+                         f'_NoiseSigma={cfg.end_to_end.jitter.detection_noise_sigma:.2f}' \
+                         f'_FNProba={cfg.end_to_end.jitter.detection_skip_proba:.2f}'
+    evaluation_dirpath = os.path.join(experiment_path, evaluation_dirname)
+    Path(evaluation_dirpath).mkdir(parents=True, exist_ok=True)
+    metrics_path = os.path.join(evaluation_dirpath, f'end_to_end_{cfg.end_to_end.filter.type}.json')
     Path(metrics_path).parent.mkdir(parents=True, exist_ok=True)
     with open(metrics_path, 'w', encoding='utf-8') as f:
         json.dump(metrics, f, indent=2)

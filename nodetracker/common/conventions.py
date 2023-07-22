@@ -23,6 +23,7 @@ Pipeline data structure:
             tensorboard_logs/*
     analysis/*
 """
+import logging
 import os.path
 
 CHECKPOINTS_DIRNAME = 'checkpoints'
@@ -124,7 +125,8 @@ def get_inference_fullname(
     """
     for inf_name_component in [model_type, dataset_name, split, experiment_name, inference_name]:
         if '_' in inf_name_component:
-            raise ValueError(f'Found "_" in {inf_name_component}. Please use some other character!')
+            logging.warning(f'Found "_" in {inf_name_component}. Replacing it with "#"!')
+            inf_name_component = inf_name_component.replace('_', '#')
 
     return f'{model_type}_{dataset_name}_{split}_{experiment_name}_{inference_name}'
 

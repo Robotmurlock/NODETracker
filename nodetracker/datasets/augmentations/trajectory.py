@@ -171,28 +171,27 @@ class ShortenTrajectoryAugmentation(NonDeterministicAugmentation):
         return x_obs, x_unobs, t_obs, t_unobs
 
 
-def remove_points(x: torch.Tensor, t: torch.Tensor, min_length: int):
+def remove_points(xs: List[torch.Tensor], min_length: int) -> Tuple[List[torch.Tensor], List[int], List[int]]:
     """
     Helper function that removes random number of points from trajectory.
 
     Args:
-        x: Data
-        t: Time
+        xs: Trajectory components (e.g. values, time, ...)
+            - Same operation is performed on each of these tensors
+            - It is assumed that their first dimension is same and that they are 3D
         min_length: Minimum result trajectory length
 
     Returns:
-        Trajectory with some removed points
+        Trajectory with some removed points, List of removed points, List of kept points
     """
-    n_points = x.shape[0]
+    n_points = xs[0].shape[0]
     max_points_to_remove = max(0, n_points - min_length)
     n_points_to_remove = random.randrange(0, max_points_to_remove)
     all_point_indices = list(range(n_points))
     points_to_remove = random.sample(all_point_indices, k=n_points_to_remove)
-    point_to_keep = [point for point in all_point_indices if point not in points_to_remove]
+    points_to_keep = [point for point in all_point_indices if point not in points_to_remove]
 
-    x = x[point_to_keep, :, :]
-    t = t[point_to_keep, :, :]
-    return x, t
+    return [x[points_to_keep, :, :] for x in xs], points_to_remove, points_to_keep
 
 
 class RemoveRandomPointsTrajectoryAugmentation(NonDeterministicAugmentation):
@@ -211,7 +210,7 @@ class RemoveRandomPointsTrajectoryAugmentation(NonDeterministicAugmentation):
 
     def _apply(self, x_obs: torch.Tensor, x_unobs: torch.Tensor, t_obs: torch.Tensor, t_unobs: torch.Tensor) \
             -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-        x_obs, t_obs = remove_points(x_obs, t_obs, self._min_length)
+        (x_obs, t_obs), _, _ = remove_points([x_obs, t_obs], self._min_length)
         return x_obs, x_unobs, t_obs, t_unobs
 
 
@@ -233,7 +232,7 @@ class RemoveRandomPointsUnobservedTrajectoryAugmentation(NonDeterministicAugment
 
     def _apply(self, x_obs: torch.Tensor, x_unobs: torch.Tensor, t_obs: torch.Tensor, t_unobs: torch.Tensor) \
             -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-        x_unobs, t_unobs = remove_points(x_unobs, t_unobs, self._min_length)
+        (x_unobs, t_unobs), _, _ = remove_points([x_unobs, t_unobs], self._min_length)
         return x_obs, x_unobs, t_obs, t_unobs
 
 

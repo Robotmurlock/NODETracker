@@ -1,5 +1,5 @@
-experiment: 'NODEFilterModel-lasot-exp16-128dim-no-occ-no-oov-lasot-fod-homogeneous-augs-baseline-15-steps-ahead-no-wd-rnn-update-layer-bounded-variance'
-description: 'RNNODE - 128dim - fov - augs - Baseline - Decoupled head mean and variance - Use RNN update layer'
+experiment: 'NODEFilterModel-lasot-exp19-128dim-no-occ-no-oov-lasot-fod-homogeneous-augs-baseline-15-steps-ahead-wd-rnn-update-layer-add-weaker-special-augs'
+description: 'NODEFilter - 128dim - fod - augs - RNN update - special augmentation in the trainer'
 batch_size: 256
 learning_rate: 1e-3
 max_epochs: 30
@@ -13,7 +13,7 @@ train_params:
   learning_rate: 1e-3
   sched_lr_gamma: 0.1
   sched_lr_step: 4
-  weight_decay: 0.0000
+  weight_decay: 0.0001
 
   loss_name: 'gaussian_nllloss'
   loss_params: {}

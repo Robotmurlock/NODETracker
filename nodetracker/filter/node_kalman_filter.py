@@ -46,7 +46,7 @@ class NODEKalmanFilter(StateModelFilter):
 
     def multistep_predict(self, state: State, n_steps: int) -> State:
         if not self._buffer.has_input:
-            raise BufferError('Buffer does not have input!')
+            raise BufferError('Buffer does not have an input!')
 
         x_obs, ts_obs, ts_unobs = self._buffer.get_input(n_steps)
         if ts_obs.shape[0] == 1:

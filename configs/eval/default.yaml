@@ -5,3 +5,5 @@ num_workers: 8
 
 inference_name: 'initial'
 checkpoint: 'last.ckpt'
+
+dataset_future_len: 1

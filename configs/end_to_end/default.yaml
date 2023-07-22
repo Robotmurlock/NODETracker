@@ -1,12 +1,19 @@
 defaults:
-  - filter: node_model.yaml
+  - filter: buffered_node_model.yaml
 
-lookup_path: '/home/robotmurlock/Desktop/datasets/LaSOT-YOLO/YOLO-LaSOT/lookup.json'
-# lookup_path: '/media/home/nodetracker-outputs/lookup.json'
+# lookup_path: '/home/robotmurlock/Desktop/datasets/LaSOT-YOLO/YOLO-LaSOT/lookup.json'
+lookup_path: '/media/home/nodetracker-outputs/lookup.json'
+# lookup_path: '/media/home/LaSOT-YOLO-baseline-lower-lr/lookup.json'
 
 object_detection:
   type: 'ground_truth'
   params: {}
+#  type: yolo
+#  params:
+#    accelerator: cuda:0
+#    conf: 0.5
+#    known_class: true
+#    model_path: /media/home/LaSOT-YOLO-baseline-lower-lr/weights/best.pt
 
 eval:
   n_steps: 1
@@ -18,5 +25,5 @@ jitter:
 visualization:
   enable: False
 
-selection:
-  scene: '^tiger[-]12$'
+#selection:
+#  scene: '^yoyo[-]7'
