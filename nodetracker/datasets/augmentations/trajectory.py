@@ -228,7 +228,6 @@ class RemoveRandomPointsUnobservedTrajectoryAugmentation(NonDeterministicAugment
         super().__init__(proba=proba)
         self._min_length = min_length
         self._proba = proba
-        assert False, 'This augmentation is currently not supported!'
 
     def _apply(self, x_obs: torch.Tensor, x_unobs: torch.Tensor, t_obs: torch.Tensor, t_unobs: torch.Tensor) \
             -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:

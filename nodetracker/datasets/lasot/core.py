@@ -33,10 +33,7 @@ class SequenceInfo:
     out_of_views: List[bool]
 
 
-FrameData = Tuple[List[int], bool, bool, str]  # coords, occlusion, out of view, image path
-
-
-def parse_sequence(sequence_path: str) -> Tuple[List[FrameData], str]:
+def parse_sequence(sequence_path: str) -> Tuple[List[List[int]], List[bool], List[bool], List[str], str]:
     """
     Parses sequence directory. Sequence data contains info for each frame:
     - bbox coordinates
@@ -85,8 +82,7 @@ def parse_sequence(sequence_path: str) -> Tuple[List[FrameData], str]:
     image_paths = [os.path.join(image_dirpath, image_filename) for image_filename in image_filenames]
 
     assert len(occlusions) == len(oov) == len(coords), 'Failed to parse sequence!'
-    data = list(zip(coords, occlusions, oov, image_paths))
-    return data, text_label
+    return coords, occlusions, oov, image_paths, text_label
 
 
 SequenceInfoIndex = Dict[str, Dict[str, SequenceInfo]]  # Category -> (SequenceName -> SequenceInfo)
@@ -106,6 +102,7 @@ class LaSOTDataset(TrajectoryDataset):
         category_list: Optional[List[str]] = None,
         skip_occlusion: bool = False,
         skip_out_of_view: bool = False,
+        return_image_paths: bool = True,
         **kwargs
     ):
         """
@@ -132,6 +129,8 @@ class LaSOTDataset(TrajectoryDataset):
             skip_occlusion=skip_occlusion,
             skip_out_of_view=skip_out_of_view
         )
+
+        self._return_image_paths = return_image_paths
 
     # noinspection PyUnresolvedReferences
     @staticmethod
@@ -162,8 +161,7 @@ class LaSOTDataset(TrajectoryDataset):
                 continue
 
             sequence_path = os.path.join(path, sequence_name)
-            sequence_data, text_label = parse_sequence(sequence_path)
-            coords, occlusions, oov, image_paths = zip(*sequence_data)
+            coords, occlusions, oov, image_paths, text_label = parse_sequence(sequence_path)
 
             # Load image to extract sequence image resolution
             image = cv2.imread(image_paths[0])
@@ -177,7 +175,7 @@ class LaSOTDataset(TrajectoryDataset):
                 bboxes = [[int(v) for v in line.split(',')] for line in lines]
                 bboxes = [[b[0] / w, b[1] / h, b[2] / w, b[3] / h] for b in bboxes]
 
-            seqlength = len(image_paths)
+            seqlength = len(bboxes)
             sequence_info = SequenceInfo(
                 name=sequence_name,
                 category=category,
@@ -287,7 +285,7 @@ class LaSOTDataset(TrajectoryDataset):
             ]
 
         frame_id = index
-        image_path = sequence_info.image_paths[index]
+        image_path = sequence_info.image_paths[index] if self._return_image_paths else None
         occlusion = sequence_info.occlusions[index]
         out_of_view = sequence_info.out_of_views[index]
         return {
@@ -322,7 +320,7 @@ class LaSOTDataset(TrajectoryDataset):
 
         # Extract sequence data
         frame_ids = sequence_info.time_points[traj_start:traj_end]
-        image_paths = sequence_info.image_paths[traj_start:traj_end]
+        image_paths = sequence_info.image_paths[traj_start:traj_end] if self._return_image_paths else None
         bboxes = np.array(sequence_info.bboxes[traj_start:traj_end], dtype=np.float32)
 
         # Metadata
