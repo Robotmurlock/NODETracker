@@ -8,8 +8,11 @@ pandas==1.5.1
 PyYAML==6.0
 scipy==1.10.1
 tqdm==4.64.1
+--index-url https://download.pytorch.org/whl/cu118
+torch
+torchaudio
+torchvision
+--index-url https://pypi.org/simple
 pytorch-lightning==2.0.1.post0
-torch==2.0.0+cu118
-torchaudio==2.0.1+cu118
 torchmetrics==0.11.4
-torchvision==0.15.1+cu118
+ultralytics
