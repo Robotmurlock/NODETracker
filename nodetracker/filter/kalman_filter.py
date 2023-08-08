@@ -1,4 +1,4 @@
-from typing import Tuple, List
+from typing import Tuple, List, Optional
 
 import numpy as np
 import torch
@@ -12,8 +12,11 @@ class BotSortKalmanFilterWrapper(StateModelFilter):
     """
     Wrapper for BotSortKalman filter for StateModelFilter interface.
     """
-    def __init__(self, use_optimal_motion_mat: bool = False):
-        self._kf = BotSortKalmanFilter(use_optimal_motion_mat=use_optimal_motion_mat)
+    def __init__(self, use_optimal_motion_mat: bool = False, override_std_weight_position: Optional[float] = None):
+        self._kf = BotSortKalmanFilter(
+            use_optimal_motion_mat=use_optimal_motion_mat,
+            override_std_weight_position=override_std_weight_position
+        )
 
     @staticmethod
     def _all_to_numpy(state: State) -> Tuple[np.ndarray, ...]:

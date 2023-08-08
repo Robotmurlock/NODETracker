@@ -1,5 +1,5 @@
 """
-Implementation of NODEKalmanFilter - Gaussian Model.
+Implementation of NODEFilter - Gaussian Model.
 """
 from dataclasses import dataclass
 from typing import Tuple, Optional
@@ -83,9 +83,11 @@ class NODEModelFilter(StateModelFilter):
 
         z0 = state.z
         t_obs, t_unobs = self._get_ts()
-        t_obs, t_unobs = t_obs.to(self._accelerator), t_unobs.to(self._accelerator)
+        t_obs, t_unobs, z0 = \
+            t_obs.to(self._accelerator), t_unobs.to(self._accelerator), z0.to(self._accelerator)
         t_prior_mean, t_prior_log_var, z_prior = self._model.core.estimate_prior(z0, t_obs, t_unobs)
-        t_prior_mean, t_prior_log_var = t_prior_mean.detach().cpu(), t_prior_log_var.detach().cpu()
+        t_prior_mean, t_prior_log_var, z_prior = \
+            t_prior_mean.detach().cpu(), t_prior_log_var.detach().cpu(), z_prior.detach().cpu()
         t_prior_std = torch.sqrt(self._model.core.postprocess_log_var(t_prior_log_var))
         x_obs = state.measurement.unsqueeze(0)
         _, prior_mean, *_ = self._transform.inverse(data=[x_obs, t_prior_mean.view(1, 1, -1), None], shallow=False)
@@ -114,8 +116,10 @@ class NODEModelFilter(StateModelFilter):
         _, t_measurement, *_ = self._transform.apply(data=[x_obs, measurement.view(1, 1, -1), t_obs, t_unobs, None], shallow=False)
         t_measurement = t_measurement[0].to(self._accelerator)
         z_evidence = self._model.core.encode_unobs(t_measurement)
+        z_prior = z_prior.to(self._accelerator)
         t_posterior_mean, t_posterior_log_var, z_posterior = self._model.core.estimate_posterior(z_prior, z_evidence)
-        t_posterior_mean, t_posterior_log_var = t_posterior_mean.detach().cpu(), t_posterior_log_var.detach().cpu()
+        t_posterior_mean, t_posterior_log_var, z_posterior = \
+            t_posterior_mean.detach().cpu(), t_posterior_log_var.detach().cpu(), z_posterior.detach().cpu()
         t_posterior_std = torch.sqrt(self._model.core.postprocess_log_var(t_posterior_log_var))
         _, posterior_mean, *_ = self._transform.inverse(data=[x_obs, t_posterior_mean.view(1, 1, -1), None], shallow=False)
         posterior_std = self._transform.inverse_std(t_posterior_std, additional_data=[posterior_mean, None], shallow=False)
@@ -213,7 +217,9 @@ class BufferedNodeModelFilter(StateModelFilter):
         t_x_prior_mean, t_x_prior_log_var, z_prior = \
             t_x_prior_mean.detach().cpu(), t_x_prior_log_var.detach().cpu(), z_prior.detach().cpu()
         t_x_prior_var = self._model.core.postprocess_log_var(t_x_prior_log_var)
+        t_x_prior_mean = t_x_prior_mean.unsqueeze(0)  # Adding temporal dimension before inverse transform
         _, prior_mean, *_ = self._transform.inverse(data=[x_obs, t_x_prior_mean, None], shallow=False)
+        prior_mean = prior_mean[0]  # Removing temporal dimension after inverse transform
         prior_var = self._transform.inverse_var(t_x_prior_var, additional_data=[x_obs, None], shallow=False)
         prior_std = torch.sqrt(prior_var)
 

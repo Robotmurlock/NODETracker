@@ -15,6 +15,10 @@ class ODETorchTensorBuffer:
         self._t = 0
 
     @property
+    def time(self) -> int:
+        return self._t
+
+    @property
     def has_input(self) -> bool:
         return len(self._buffer) >= self._min_size
 
@@ -38,7 +42,7 @@ class ODETorchTensorBuffer:
         ts_obs = torch.tensor(ts_obs, dtype=self._dtype).view(-1, 1, 1)
 
         # Form estimation trajectory time interval
-        ts_unobs = torch.tensor(list(range(self._t + 1, self._t + n_future_steps + 1)),
+        ts_unobs = torch.tensor(list(range(self._t, self._t + n_future_steps)),
                                 dtype=self._dtype).view(-1, 1, 1)
 
         ts_obs = ts_obs - ts_obs_first + 1
