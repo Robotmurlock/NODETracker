@@ -1,0 +1,1 @@
+scene: '^(flag|tank|skateboard|shark|spider|airplane|pool|tiger|bicycle|hippo|boat)[-](.*?)$'

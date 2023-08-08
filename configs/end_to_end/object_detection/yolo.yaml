@@ -1,0 +1,7 @@
+type: yolo
+params:
+  accelerator: cuda:0
+  conf: 0.5
+  known_class: true
+  # model_path: /media/home/LaSOT-YOLO-baseline-lower-lr/weights/best.pt
+  model_path: /home/robotmurlock/Desktop/projects/NODETracker/runs/detect/LaSOT-YOLO-baseline-lower-lr/weights/best.pt

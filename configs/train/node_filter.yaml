@@ -1,5 +1,5 @@
-experiment: 'NODEFilterModel-lasot-exp19-128dim-no-occ-no-oov-lasot-fod-homogeneous-augs-baseline-15-steps-ahead-wd-rnn-update-layer-add-weaker-special-augs'
-description: 'NODEFilter - 128dim - fod - augs - RNN update - special augmentation in the trainer'
+experiment: 'NODEFilterModel-lasot-exp23-128dim-no-occ-no-oov-lasot-joat-augs-baseline-5-steps-ahead-wd-fixed-augs'
+description: 'NODEFilter - 128dim - joat - augs - RNN update - special augmentation in the trainer - 5 steps - Fixed random points augs'
 batch_size: 256
 learning_rate: 1e-3
 max_epochs: 30

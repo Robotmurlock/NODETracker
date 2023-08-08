@@ -5,3 +5,5 @@ params:
 
   buffer_size: 10
   buffer_min_size: 1
+
+  autoregressive: True

@@ -6,6 +6,7 @@ https://github.com/NirAharon/BoT-SORT
 """
 import numpy as np
 import scipy.linalg
+from typing import Optional
 
 
 """
@@ -43,7 +44,12 @@ class BotSortKalmanFilter(object):
 
     """
 
-    def __init__(self, use_optimal_motion_mat: bool = False):
+    def __init__(
+        self,
+        use_optimal_motion_mat: bool = False,
+        override_std_weight_position: Optional[float] = None,
+        optimal_motion_mat_name: str = 'lasot'
+    ):
         ndim, dt = 4, 1.
 
         # Create Kalman filter model matrices.
@@ -52,16 +58,32 @@ class BotSortKalmanFilter(object):
             self._motion_mat[i, ndim + i] = dt
 
         if use_optimal_motion_mat:
-            self._motion_mat = np.array(
-                [[1.00000, 0.00000, 0.00000, 0.00000, 9.10133, 0.00000, 0.00000, 0.00000],
-                 [0.00000, 1.00000, 0.00000, 0.00000, 0.00000, 9.90689, 0.00000, 0.00000],
-                 [0.00000, 0.00000, 1.00000, 0.00000, 0.00000, 0.00000, 5.94597, 0.00000],
-                 [0.00000, 0.00000, 0.00000, 1.00000, 0.00000, 0.00000, 0.00000, 6.71478],
-                 [0.00000, 0.00000, 0.00000, 0.00000, 1.00000, 0.00000, 0.00000, 0.00000],
-                 [0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 1.00000, 0.00000, 0.00000],
-                 [0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 1.00000, 0.00000],
-                 [0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 1.00000]]
-            )
+            optimal_motion_mat_name = optimal_motion_mat_name.lower()
+
+            if optimal_motion_mat_name == 'lasot':
+                self._motion_mat = np.array(
+                    [[1.00000, 0.00000, 0.00000, 0.00000, 9.10133, 0.00000, 0.00000, 0.00000],
+                     [0.00000, 1.00000, 0.00000, 0.00000, 0.00000, 9.90689, 0.00000, 0.00000],
+                     [0.00000, 0.00000, 1.00000, 0.00000, 0.00000, 0.00000, 5.94597, 0.00000],
+                     [0.00000, 0.00000, 0.00000, 1.00000, 0.00000, 0.00000, 0.00000, 6.71478],
+                     [0.00000, 0.00000, 0.00000, 0.00000, 1.00000, 0.00000, 0.00000, 0.00000],
+                     [0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 1.00000, 0.00000, 0.00000],
+                     [0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 1.00000, 0.00000],
+                     [0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 1.00000]]
+                )
+            elif optimal_motion_mat_name == 'mot20':
+                self._motion_mat = np.array(
+                    [[1.00000, 0.00000, 0.00000, 0.00000, 4.17727, 0.00000, 0.00000, 0.00000],
+                    [0.00000, 1.00000, 0.00000, 0.00000, 0.00000, 4.61050, 0.00000, 0.00000],
+                    [0.00000, 0.00000, 1.00000, 0.00000, 0.00000, 0.00000, 3.72298, 0.00000],
+                    [0.00000, 0.00000, 0.00000, 1.00000, 0.00000, 0.00000, 0.00000, 3.61937],
+                    [0.00000, 0.00000, 0.00000, 0.00000, 1.00000, 0.00000, 0.00000, 0.00000],
+                    [0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 1.00000, 0.00000, 0.00000],
+                    [0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 1.00000, 0.00000],
+                    [0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 1.00000]]
+                )
+            else:
+                raise AssertionError(f'Unknown motion matrix "{optimal_motion_mat_name}".')
 
         self._update_mat = np.eye(ndim, 2 * ndim)
 
@@ -72,10 +94,17 @@ class BotSortKalmanFilter(object):
         self._std_weight_velocity = 1. / 160
 
         if use_optimal_motion_mat:
-            self._std_weight_position = 0.06899
-            self._std_weight_velocity = 0.01188
-        # self._std_weight_position = 0.04737
-        # self._std_weight_velocity = 0.00875
+            if optimal_motion_mat_name == 'lasot':
+                self._std_weight_position = 0.06899
+                self._std_weight_velocity = 0.01188
+            elif optimal_motion_mat_name == 'mot20':
+                self._std_weight_position = 0.04737
+                self._std_weight_velocity = 0.00875
+            else:
+                raise AssertionError(f'Unknown motion matrix "{optimal_motion_mat_name}".')
+
+        if override_std_weight_position is not None:
+            self._std_weight_position = override_std_weight_position
 
     def initiate(self, measurement):
         """Create track from unassociated measurement.
