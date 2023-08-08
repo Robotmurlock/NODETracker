@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import re
+import time
 from collections import defaultdict
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Tuple
@@ -32,20 +33,16 @@ from tools.utils import create_inference_model
 
 logger = logging.getLogger('E2EFilterEvaluation')
 
-METRICS = [  # TODO: Move to some module
+METRICS = [
     # (name, function, requires_var)
     ('MSE', eval_metrics.sot.mse, False),
     ('Accuracy', eval_metrics.sot.accuracy, False),
-    ('Success', eval_metrics.sot.success, False),
-    ('NormPrecision', eval_metrics.sot.norm_precision, False),
     ('GaussianNLLoss', eval_metrics.likelihood.gaussian_nll_loss, True)
 ]
 
 
 def aggregate_metrics(sample_metrics: Any) -> Any:
     """
-    TODO: Move
-
     Aggregates dictionary of sample metrics (list of values) to dictionary of metrics.
     All metrics should be "mean-friendly".
 
@@ -65,14 +62,12 @@ def aggregate_metrics(sample_metrics: Any) -> Any:
 
 
 def merge_metrics(
-        global_metrics: Optional[Dict[str, Any]],
-        metrics: Optional[Dict[str, List[float]]],
-        scene_name: str,
-        category: str
+    global_metrics: Optional[Dict[str, Any]],
+    metrics: Optional[Dict[str, List[float]]],
+    scene_name: str,
+    category: str
 ) -> Dict[str, Any]:
     """
-    TODO: Move
-
     Adds aggregated metrics to global metrics dictionary.
     If global dictionary is empty then aggregated dictionary is taken as the global one.
     if added metrics are None then global metrics is returned instead.
@@ -155,8 +150,6 @@ def visualize_video(
     draw_prior: bool = True,
     draw_posterior: bool = True
 ) -> None:
-    # TODO: Move
-
     for inference_type in ['prior', 'posterior']:
         if inference_type == 'prior' and not draw_prior:
             continue
@@ -262,6 +255,26 @@ def bbox_clip(bboxes: torch.Tensor) -> torch.Tensor:
     return torch.clip(bboxes, min=0.0, max=0.0)
 
 
+def check_detection(detector_bboxes: Optional[torch.Tensor], measurement: torch.Tensor, threshold: float) -> bool:
+    n_bboxes = detector_bboxes.shape[0]
+    if n_bboxes == 0:
+        return True
+
+    best_iou_score = 0.0
+    for i in range(n_bboxes):
+        inf_bbox = BBox.from_xyhw(*detector_bboxes[i], clip=True)
+        gt_bbox = BBox.from_xyhw(*measurement, clip=True)
+        iou_score = inf_bbox.iou(gt_bbox)
+        if iou_score > best_iou_score:
+            best_iou_score = iou_score
+
+    if best_iou_score >= threshold:
+        return False
+
+    return True
+
+
+@torch.no_grad()
 @hydra.main(config_path=CONFIGS_PATH, config_name='default', version_base='1.1')
 def main(cfg: DictConfig):
     cfg, experiment_path = pipeline.preprocess(cfg, name='e2e_evaluation', cls=ExtendedE2EGlobalConfig)
@@ -284,6 +297,8 @@ def main(cfg: DictConfig):
         params=cfg.end_to_end.object_detection.params,
         lookup=lookup
     )
+    total_predict_time, total_update_time = 0.0, 0.0
+    n_predict_steps, n_update_steps = 0, 0
 
     global_metrics = None
     scene_names = dataset.scenes
@@ -313,6 +328,7 @@ def main(cfg: DictConfig):
             occs = [dp['occ'] for dp in data_points]
             oovs = [dp['oov'] for dp in data_points]
             n_skipped_detection = 0
+            n_gt_skipped_detection = 0
 
             inference_writer = None
             if cfg.end_to_end.save_inference:
@@ -340,7 +356,11 @@ def main(cfg: DictConfig):
                     # TODO: This should be configurable in case of MOT
                 else:
                     # Perform prediction
+                    start_predict_time = time.time()
                     prior_state = smf.predict(posterior_state)  # Prior
+                    total_predict_time += time.time() - start_predict_time
+                    n_predict_steps += 1
+
                     prior_multistep_state = smf.multistep_predict(posterior_state, n_pred_steps)
 
                     # Perform object detection inference
@@ -352,6 +372,15 @@ def main(cfg: DictConfig):
                         max_skip_threshold=cfg.end_to_end.es.max_skip_threshold,
                         min_iou_match=cfg.end_to_end.es.min_iou_match
                     )
+                    gt_skip_detection = check_detection(inf_bboxes, measurement, threshold=0.3)
+
+                    if gt_skip_detection:
+                        n_gt_skipped_detection += 1
+                    else:
+                        n_gt_skipped_detection = 0
+                    if (cfg.end_to_end.eval.disable_eval_after_n_fps is not None
+                            and n_gt_skipped_detection > cfg.end_to_end.eval.disable_eval_after_n_fps):
+                        evaluate_step = False
 
                     # Add evaluation jitter (optional)
                     jitter_skip_detection = jitter.simulate_detector_false_positive(
@@ -373,7 +402,6 @@ def main(cfg: DictConfig):
 
                     # Check if data point should be used for evaluation
                     if cfg.end_to_end.eval.occlusion_as_skip_detection:
-                        skip_detection = skip_detection
                         if oov or occ:
                             skip_detection = skip_detection or oov or occ
                             evaluate_step = False
@@ -381,7 +409,10 @@ def main(cfg: DictConfig):
                     if skip_detection:
                         posterior_state = smf.missing(prior_state)
                     else:
+                        start_update_time = time.time()
                         posterior_state = smf.update(prior_state, bboxes)
+                        total_update_time += time.time() - start_update_time
+                        n_update_steps += 1
 
                     multistep_score = {k: 0.0 for k, _, _ in METRICS}
                     prior_multistep, prior_multistep_var = smf.project(prior_multistep_state)
@@ -478,13 +509,22 @@ def main(cfg: DictConfig):
     logger.info(f'Metrics: \n{json.dumps(metrics, indent=2)}')
     evaluation_dirname = f'evaluation_{cfg.end_to_end.filter.type}' \
                          f'_NoiseSigma={cfg.end_to_end.jitter.detection_noise_sigma:.2f}' \
-                         f'_FNProba={cfg.end_to_end.jitter.detection_skip_proba:.2f}'
+                         f'_FNProba={cfg.end_to_end.jitter.detection_skip_proba:.2f}' \
+                         f'_ODType={cfg.end_to_end.object_detection.type}'
     evaluation_dirpath = os.path.join(experiment_path, evaluation_dirname)
     Path(evaluation_dirpath).mkdir(parents=True, exist_ok=True)
     metrics_path = os.path.join(evaluation_dirpath, f'end_to_end_{cfg.end_to_end.filter.type}.json')
     Path(metrics_path).parent.mkdir(parents=True, exist_ok=True)
     with open(metrics_path, 'w', encoding='utf-8') as f:
         json.dump(metrics, f, indent=2)
+
+    # Estimate fps
+    predict_fps = n_predict_steps / total_predict_time
+    update_fps = n_update_steps / total_update_time
+    fps = n_predict_steps / (total_predict_time + total_update_time)
+    logger.info(f'Predict fps: {predict_fps:.2f}')
+    logger.info(f'Update fps: {update_fps:.2f}')
+    logger.info(f'Global fps: {fps:.2f}')
 
 
 if __name__ == '__main__':

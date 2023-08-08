@@ -29,6 +29,7 @@ class JitterConfig:
 class EvaluationConfig:
     n_steps: int = field(default=5)
     occlusion_as_skip_detection: bool = field(default=True)
+    disable_eval_after_n_fps: Optional[int] = field(default=None)
 
 
 @dataclass
