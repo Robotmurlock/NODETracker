@@ -1,10 +1,33 @@
 """
 AutoregressiveForecasterDecorator
 """
-from typing import Optional
+from typing import Optional, Tuple
 
 import torch
 from torch import nn
+
+
+def extract_mean_and_std(bboxes_unobs_hat: torch.Tensor) \
+        -> Tuple[torch.Tensor, torch.Tensor]:
+    """
+    TODO: Duplicate code
+
+    Helper function for Gaussian model postprocess
+
+    Args:
+        bboxes_unobs_hat: Prediction
+
+    Returns:
+        bboxes_hat_mean, bboxes_hat_std
+    """
+    bboxes_unobs_hat = bboxes_unobs_hat.view(*bboxes_unobs_hat.shape[:-1], -1, 2)
+    bboxes_unobs_hat_mean = bboxes_unobs_hat[..., 0]
+    bboxes_unobs_hat_log_var = bboxes_unobs_hat[..., 1]
+    bboxes_unobs_hat_var = torch.exp(bboxes_unobs_hat_log_var)
+    bboxes_unobs_hat_std = torch.sqrt(bboxes_unobs_hat_var)
+
+    return bboxes_unobs_hat_mean, bboxes_unobs_hat_std
+
 
 
 class AutoregressiveForecasterDecorator(nn.Module):
@@ -29,6 +52,8 @@ class AutoregressiveForecasterDecorator(nn.Module):
         for t_i in range(n_steps):
             t_unobs_i = t_unobs[t_i:t_i+1, ...]
             x_hat = self._model(x, t_obs, t_unobs_i)
+            if hasattr(self._model, 'is_modeling_gaussian') and self._model.is_modeling_gaussian:
+                x_hat, _ = extract_mean_and_std(x_hat)
 
             result.append(x_hat)
 

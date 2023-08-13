@@ -4,19 +4,56 @@ from typing import Optional, Tuple, Union, Dict, List
 import torch
 from torch import nn
 
+from nodetracker.datasets.augmentations.trajectory import remove_points
 from nodetracker.datasets.transforms import InvertibleTransformWithVariance, InvertibleTransform
 from nodetracker.evaluation.metrics.sot import metrics_func
 from nodetracker.library.building_blocks.mlp import MLP
-from nodetracker.node.core.odevae import MLPODEF, NeuralODE
-from nodetracker.node.core.solver.factory import ode_solver_factory
 from nodetracker.node.losses.factory import factory_loss_function
 from nodetracker.node.utils.training import LightningTrainConfig, LightningModuleBase
-from nodetracker.datasets.augmentations.trajectory import remove_points
 
 
-class NODEFilterModel(nn.Module):
+class RNNMultiStepModule(nn.Module):
     """
-    NODEFilterModel
+    RNNMultiStepModule
+    """
+    def __init__(
+        self,
+        latent_dim: int,
+        n_rnn_layers: int = 1
+    ):
+        """
+        Args:
+            latent_dim: "latent" (hidden-2) trajectory dimension
+            n_rnn_layers: Number of stacked RNN (GRU) layers
+        """
+        super().__init__()
+
+        self._latent_dim = latent_dim
+        self._n_rnn_layers = n_rnn_layers
+
+        self._rnn = nn.GRU(
+            input_size=latent_dim,
+            hidden_size=latent_dim,
+            num_layers=n_rnn_layers,
+            batch_first=False
+        )
+
+    def forward(self, z: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
+        n_steps = round(float(t[0, 0, 0]))
+        batch_size = z.shape[0]
+
+        prev_h = torch.zeros(self._n_rnn_layers, batch_size, self._latent_dim, dtype=torch.float32).to(z).requires_grad_()
+        for _ in range(n_steps):
+            z = z.unsqueeze(0)
+            z, prev_h = self._rnn(z, prev_h.detach())
+            z = z[-1]
+
+        return z
+
+
+class RNNFilterModel(nn.Module):
+    """
+    RNNFilterModel
     """
     def __init__(
         self,
@@ -28,13 +65,10 @@ class NODEFilterModel(nn.Module):
         bounded_variance: bool = False,
         rnn_update_layer: bool = False,
 
-        n_ode_mlp_layers: int = 2,
+        n_rnn_layers: int = 2,
         n_update_layers: int = 2,
         n_head_mlp_layers: int = 2,
-        n_obs2latent_mlp_layers: int = 1,
-
-        solver_name: Optional[str] = None,
-        solver_params: Optional[dict] = None
+        n_obs2latent_mlp_layers: int = 1
     ):
         super().__init__()
         self._bounded_variance = bounded_variance
@@ -44,9 +78,10 @@ class NODEFilterModel(nn.Module):
         self._latent_dim = latent_dim
         self._output_dim = output_dim
 
-        func = MLPODEF(latent_dim, latent_dim, n_layers=n_ode_mlp_layers)
-        solver = ode_solver_factory(solver_name, solver_params)
-        self._ode = NeuralODE(func=func, solver=solver)
+        self._rnn = RNNMultiStepModule(
+            latent_dim=latent_dim,
+            n_rnn_layers=n_rnn_layers
+        )
 
         self._prior_head_mean = nn.Sequential(
             MLP(latent_dim, latent_dim, n_layers=n_head_mlp_layers),
@@ -105,8 +140,8 @@ class NODEFilterModel(nn.Module):
         return z0, t0
 
     def estimate_prior(self, z0: torch.Tensor, t0: torch.Tensor, t1: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        ts = torch.stack([t0, t1])
-        z1_prior = self._ode(z0, ts)
+        t = (t1 - t0).unsqueeze(0)
+        z1_prior = self._rnn(z0, t)
         x1_prior_mean = self._prior_head_mean(z1_prior)
         x1_prior_log_var = self._prior_head_log_var(z1_prior)
         return x1_prior_mean, x1_prior_log_var, z1_prior
@@ -178,8 +213,7 @@ class NODEFilterModel(nn.Module):
             priors_log_var.append(x1_prior_log_var)
 
         priors_mean, priors_log_var, posteriors_mean, posteriors_log_var = \
-            [(torch.stack(v) if len(v) > 0 else torch.empty(0, dtype=torch.float32))
-             for v in [priors_mean, priors_log_var, posteriors_mean, posteriors_log_var]]
+            [torch.stack(v) for v in [priors_mean, priors_log_var, posteriors_mean, posteriors_log_var]]
 
         return priors_mean, priors_log_var, posteriors_mean, posteriors_log_var
 
@@ -190,7 +224,7 @@ class NODEFilterModel(nn.Module):
             return 0.1 + 0.9 * torch.nn.functional.softplus(x)
 
 
-class LightningNODEFilterModel(LightningModuleBase):
+class LightningRNNFilterModel(LightningModuleBase):
     """
     PytorchLightning wrapper for NODEFilterModel model.
     """
@@ -199,13 +233,14 @@ class LightningNODEFilterModel(LightningModuleBase):
         observable_dim: int,
         latent_dim: int,
         output_dim: Optional[int] = None,
+
         homogeneous: bool = False,
         bounded_variance: bool = False,
         rnn_update_layer: bool = False,
 
         transform_func: Optional[Union[InvertibleTransform, InvertibleTransformWithVariance]] = None,
 
-        n_ode_mlp_layers: int = 2,
+        n_rnn_layers: int = 2,
         n_update_layers: int = 2,
         n_head_mlp_layers: int = 2,
         n_obs2latent_mlp_layers: int = 1,
@@ -215,9 +250,6 @@ class LightningNODEFilterModel(LightningModuleBase):
         augmentation_remove_random_points_proba: float = 0.15,
         augmentation_remove_sequence_proba: float = 0.15,
 
-        solver_name: Optional[str] = None,
-        solver_params: Optional[dict] = None,
-
         train_config: Optional[LightningTrainConfig] = None,
         log_epoch_metrics: bool = True
     ):
@@ -226,16 +258,14 @@ class LightningNODEFilterModel(LightningModuleBase):
 
         super().__init__(train_config=train_config)
 
-        self._model = NODEFilterModel(
+        self._model = RNNFilterModel(
             observable_dim=observable_dim,
             latent_dim=latent_dim,
             output_dim=output_dim,
             homogeneous=homogeneous,
             bounded_variance=bounded_variance,
             rnn_update_layer=rnn_update_layer,
-            solver_name=solver_name,
-            solver_params=solver_params,
-            n_ode_mlp_layers=n_ode_mlp_layers,
+            n_rnn_layers=n_rnn_layers,
             n_update_layers=n_update_layers,
             n_head_mlp_layers=n_head_mlp_layers,
             n_obs2latent_mlp_layers=n_obs2latent_mlp_layers
@@ -258,7 +288,7 @@ class LightningNODEFilterModel(LightningModuleBase):
         self._log_epoch_metrics = log_epoch_metrics
 
     @property
-    def core(self) -> NODEFilterModel:
+    def core(self) -> RNNFilterModel:
         return self._model
 
     def forward(self, x_obs: torch.Tensor, t_obs: torch.Tensor, x_unobs: torch.Tensor, t_unobs: torch.Tensor,
@@ -266,8 +296,7 @@ class LightningNODEFilterModel(LightningModuleBase):
             -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         return self._model(x_obs, t_obs, x_unobs, t_unobs, mask=mask, *args, **kwargs)
 
-    def inference(self, x_obs: torch.Tensor, t_obs: torch.Tensor, x_unobs: torch.Tensor, t_unobs: torch.Tensor,
-                  mask_unobserved: bool = False, *args, **kwargs) \
+    def inference(self, x_obs: torch.Tensor, t_obs: torch.Tensor, x_unobs: torch.Tensor, t_unobs: torch.Tensor, *args, **kwargs) \
             -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Inference (alias for forward)
@@ -277,13 +306,11 @@ class LightningNODEFilterModel(LightningModuleBase):
             t_obs: Observed time points
             x_unobs: Unobserved data
             t_unobs: Unobserved time points
-            mask_unobserved: Mask all unobserved data
 
         Returns:
             Prior and posterior estimation for future trajectory
         """
-        mask = [False for _ in range(t_unobs.shape[0])]
-        return self._model(x_obs, t_obs, x_unobs, t_unobs, mask=mask, *args, **kwargs)
+        return self._model(x_obs, t_obs, x_unobs, t_unobs, *args, **kwargs)
 
     def _calc_loss_and_metrics(
         self,
@@ -457,19 +484,21 @@ class LightningNODEFilterModel(LightningModuleBase):
         return loss
 
 def run_test() -> None:
-    nfm = NODEFilterModel(
+    rfm = RNNFilterModel(
         observable_dim=4,
         latent_dim=3,
-        output_dim=4
+        output_dim=4,
+
+        n_rnn_layers=2
     )
 
-    x_obs = torch.randn(5, 3, 4)
+    x_obs = torch.randn(4, 3, 4)
     x_unobs = torch.randn(2, 3, 4)
-    t_obs = torch.tensor([0, 1, 2, 3, 4], dtype=torch.float32).view(-1, 1, 1).repeat(1, 3, 1)
-    t_unobs = torch.tensor([5, 6], dtype=torch.float32).view(-1, 1, 1).repeat(1, 3, 1)
+    t_obs = torch.tensor([0, 1, 2, 4], dtype=torch.float32).view(-1, 1, 1).repeat(1, 3, 1)
+    t_unobs = torch.tensor([6, 9], dtype=torch.float32).view(-1, 1, 1).repeat(1, 3, 1)
 
-    prior, posterior = nfm(x_obs, t_obs, x_unobs, t_unobs)
-    print(prior.shape, posterior.shape)
+    priors_mean, priors_log_var, posteriors_mean, posteriors_log_var = rfm(x_obs, t_obs, x_unobs, t_unobs)
+    print(priors_mean.shape, priors_log_var.shape, posteriors_mean.shape, posteriors_log_var.shape)
 
 
 if __name__ == '__main__':

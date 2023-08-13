@@ -226,11 +226,14 @@ def visualize_video(
 
 def greedy_pick(
     predictions: torch.Tensor,
+    prediction_confs: torch.Tensor,
     prior_bbox_mean: torch.Tensor,
     n_skipped_detection: int,
     max_skip_threshold: int = 5,
     min_iou_match: float = 0.3
 ) -> Tuple[torch.Tensor, bool]:
+    _ = prediction_confs
+
     prior_bbox_object = BBox.from_xyhw(*prior_bbox_mean[:4], clip=True)
 
     picked_bbox = None
@@ -249,6 +252,39 @@ def greedy_pick(
             skip_detection = False
 
     return picked_bbox, skip_detection
+
+# def greedy_pick(
+#     predictions: torch.Tensor,
+#     prediction_confs: torch.Tensor,
+#     prior_bbox_mean: torch.Tensor,
+#     n_skipped_detection: int,
+#     max_skip_threshold: int = 5,
+#     min_iou_match: float = 0.3
+# ) -> Tuple[Optional[torch.Tensor], bool]:
+#     prior_bbox_object = BBox.from_xyhw(*prior_bbox_mean[:4], clip=True)
+#
+#     filtered_predictions: List[torch.Tensor] = []
+#     filtered_confidences: List[torch.Tensor] = []
+#     for p, c in zip(predictions, prediction_confs):
+#         p_bbox = BBox.from_xyhw(*p[:4], clip=True)
+#         iou_score = prior_bbox_object.iou(p_bbox)
+#
+#         if (n_skipped_detection < max_skip_threshold) and (iou_score < min_iou_match):
+#             continue
+#
+#         filtered_predictions.append(p)
+#         filtered_confidences.append(c)
+#
+#     if len(filtered_predictions) == 0:
+#         return None, True
+#
+#     max_conf, picked_bbox = None, None
+#     for p, c in zip(filtered_predictions, filtered_confidences):
+#         if max_conf is None or c > max_conf:
+#             max_conf = c
+#             picked_bbox = p
+#
+#     return picked_bbox, False
 
 
 def bbox_clip(bboxes: torch.Tensor) -> torch.Tensor:
@@ -367,6 +403,7 @@ def main(cfg: DictConfig):
                     inf_bboxes, inf_classes, inf_conf = od_inference.predict(point_data)
                     bboxes, skip_detection = greedy_pick(
                         predictions=inf_bboxes,
+                        prediction_confs=inf_conf,
                         prior_bbox_mean=smf.project(prior_state)[0],
                         n_skipped_detection=n_skipped_detection,
                         max_skip_threshold=cfg.end_to_end.es.max_skip_threshold,
@@ -378,8 +415,8 @@ def main(cfg: DictConfig):
                         n_gt_skipped_detection += 1
                     else:
                         n_gt_skipped_detection = 0
-                    if (cfg.end_to_end.eval.disable_eval_after_n_fps is not None
-                            and n_gt_skipped_detection > cfg.end_to_end.eval.disable_eval_after_n_fps):
+                    if (cfg.end_to_end.eval.disable_eval_after_n_fns is not None
+                            and n_gt_skipped_detection > cfg.end_to_end.eval.disable_eval_after_n_fns):
                         evaluate_step = False
 
                     # Add evaluation jitter (optional)

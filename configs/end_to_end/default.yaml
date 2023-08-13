@@ -1,7 +1,8 @@
 defaults:
-  - filter: akf
-  - selection: default.yaml
-  - object_detection: gt.yaml
+  # - filter: rnn_kalman.yaml
+  - filter: buffered_node_model.yaml
+  - selection: good_od.yaml
+  - object_detection: yolo.yaml
 
 
 lookup_path: '/home/robotmurlock/Desktop/datasets/LaSOT-YOLO/YOLO-LaSOT/lookup.json'
@@ -10,10 +11,16 @@ lookup_path: '/home/robotmurlock/Desktop/datasets/LaSOT-YOLO/YOLO-LaSOT/lookup.j
 
 eval:
   n_steps: 1
+  # disable_eval_after_n_fns: 1
+  disable_eval_after_n_fns: 30
 
 jitter:
   detection_noise_sigma: 0.00
   detection_skip_proba: 0.00
+
+es:
+  # min_iou_match: 0.1
+  min_iou_match: 0.0
 
 visualization:
   enable: False

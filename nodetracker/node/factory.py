@@ -19,7 +19,7 @@ from nodetracker.node.odernn import (
 from nodetracker.node.utils import LightningTrainConfig
 from nodetracker.node.utils.training import LightningModuleForecaster
 from nodetracker.standard.mlp import LightningMLPForecaster
-from nodetracker.standard.rnn import LightningRNNSeq2Seq, LightningARRNN, LightningSingleStepRNN
+from nodetracker.standard.rnn import LightningRNNSeq2Seq, LightningARRNN, LightningSingleStepRNN, LightningRNNFilterModel
 from nodetracker.standard.trainable_kalman_filter import LightningAdaptiveKalmanFilter
 from nodetracker.datasets.transforms import InvertibleTransform, InvertibleTransformWithVariance
 from nodetracker.node.nlp import LightningCategoryRNNODE
@@ -37,6 +37,7 @@ class ModelType(enum.Enum):
     RNN = 'rnn'
     RNNODE = 'rnnode'
     NODE_FILTER = 'node_filter'
+    RNN_FILTER = 'rnn_filter'
     CATEGORY_RNNODE = 'category_rnnode'
     COMPOSE_RNNODE = 'compose_rnnode'
     MLP = 'mlp'
@@ -96,6 +97,7 @@ def load_or_create_model(
         ModelType.ARRNN: LightningARRNN,
         ModelType.RNN: LightningRNNSeq2Seq,
         ModelType.SINGLE_STEP_RNN: LightningSingleStepRNN,
+        ModelType.RNN_FILTER: LightningRNNFilterModel,
         ModelType.MLP: LightningMLPForecaster,
         ModelType.MLPODE: LightningMLPODE,
         ModelType.KALMAN_FILTER: TorchConstantVelocityODKalmanFilter,

@@ -1,5 +1,6 @@
-experiment: 'NODEFilterModel-lasot-exp24-128dim-no-occ-no-oov-lasot-joat-augs-baseline-5-steps-ahead-wd-fixed-missing'
-description: 'NODEFilter - 128dim - joat - augs - RNN update - special augmentation in the trainer - 5 steps - Fixed missing training'
+# experiment: 'RNNFilterModel-lasot-exp21-128dim-no-occ-no-oov-lasot-joat-augs-baseline-5-steps-ahead-wd-fixed-augs'
+experiment: 'RNNFilterModel-lasot-exp02-128dim-no-occ-no-oov-lasot-joat-augs-baseline-5-steps-ahead-wd-update-rnn'
+description: 'RNNFilter like exp01 but with RNN update layer'
 batch_size: 256
 learning_rate: 1e-3
 max_epochs: 30
