@@ -1,5 +1,5 @@
-experiment: 'NODEFilterModel-lasot-exp24-128dim-no-occ-no-oov-lasot-joat-augs-baseline-5-steps-ahead-wd-fixed-missing'
-description: 'NODEFilter - 128dim - joat - augs - RNN update - special augmentation in the trainer - 5 steps - Fixed missing training'
+experiment: 'NODEFilterModel-lasot-exp25-128dim-no-occ-no-oov-lasot-joat-augs-baseline-5-steps-ahead-no-wd'
+description: 'NODEFilter - 128dim - joat - augs - RNN update - special augmentation in the trainer - 5 steps - no wd'
 batch_size: 256
 learning_rate: 1e-3
 max_epochs: 30
@@ -13,7 +13,7 @@ train_params:
   learning_rate: 1e-3
   sched_lr_gamma: 0.1
   sched_lr_step: 4
-  weight_decay: 0.0001
+  weight_decay: 0.0000
 
   loss_name: 'gaussian_nllloss'
   loss_params: {}

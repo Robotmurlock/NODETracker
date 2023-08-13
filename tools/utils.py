@@ -57,7 +57,8 @@ def create_dataloader(
         ),
         transform=transform,
         augmentation_before_transform=augmentation_before_transform,
-        augmentation_after_transform=augmentation_after_transform
+        augmentation_after_transform=augmentation_after_transform,
+        fps_multiplier=cfg.eval.fps_multiplier
     )
 
     if batch_size is None:

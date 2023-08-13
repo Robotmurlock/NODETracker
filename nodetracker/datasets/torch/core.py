@@ -8,15 +8,63 @@ from typing import Optional, Tuple, Dict, Any, List
 import numpy as np
 import torch
 from torch.utils.data import Dataset
+from scipy.interpolate import CubicSpline
 
 from nodetracker.datasets import augmentations, transforms
+
+
+def interpolate_by_fps(
+    fps_multiplier: float,
+    bboxes_obs: np.ndarray,
+    bboxes_unobs: np.ndarray,
+    ts_obs: np.ndarray,
+    ts_unobs: np.ndarray,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    if fps_multiplier == 1:
+        return bboxes_obs, bboxes_unobs, ts_obs, ts_unobs
+
+    ts = np.concatenate([ts_obs, ts_unobs]).reshape(-1)
+    bboxes = np.concatenate([bboxes_obs, bboxes_unobs])
+
+    # Base interval
+    t_start, t_middle, t_end = [round(float(x)) for x in [ts[0], ts_obs[-1, 0], ts[-1]]]
+    n_points = t_end - t_start + 1
+
+    # Transformed interval
+    if fps_multiplier > 1:
+        assert isinstance(fps_multiplier, int) or fps_multiplier.is_integer()
+        t_n_points = (round(fps_multiplier) - 1) * (n_points - 1) + n_points
+        t_ts = np.linspace(t_start, t_end, num=t_n_points, endpoint=True, dtype=ts.dtype)
+    else:
+        step = round(1 / fps_multiplier)
+        t_ts = np.arange(t_start, t_end, step, dtype=ts.dtype)
+
+    t_bboxes = np.zeros(shape=(t_ts.shape[0], bboxes.shape[-1]), dtype=bboxes.dtype)
+    for dim in range(bboxes.shape[-1]):
+        cs = CubicSpline(ts, bboxes[:, dim])
+        t_bboxes[:, dim] = cs(t_ts)
+
+    # Create new inputs
+    mask = (t_ts <= t_middle)
+    new_ts_obs = t_ts[mask].reshape(-1, 1)
+    new_ts_unobs = t_ts[~mask].reshape(-1, 1)
+    new_bboxes_obs = t_bboxes[mask]
+    new_bboxes_unobs = t_bboxes[~mask]
+
+    return new_bboxes_obs, new_bboxes_unobs, new_ts_obs, new_ts_unobs
 
 
 class TrajectoryDataset(ABC):
     """
     Defines interface for TrajectoryDataset.
     """
-    def __init__(self, history_len: int, future_len: int, sequence_list: Optional[List[str]] = None, **kwargs):
+    def __init__(
+        self,
+        history_len: int,
+        future_len: int,
+        sequence_list: Optional[List[str]] = None,
+        **kwargs
+    ):
         self._history_len = history_len
         self._future_len = future_len
         self._sequence_list = sequence_list
@@ -172,7 +220,8 @@ class TorchTrajectoryDataset(Dataset):
         dataset: TrajectoryDataset,
         transform: Optional[transforms.InvertibleTransform] = None,
         augmentation_before_transform: Optional[augmentations.TrajectoryAugmentation] = None,
-        augmentation_after_transform: Optional[augmentations.TrajectoryAugmentation] = None
+        augmentation_after_transform: Optional[augmentations.TrajectoryAugmentation] = None,
+        fps_multiplier: float = 1,
     ) -> None:
         """
         Args:
@@ -181,6 +230,7 @@ class TorchTrajectoryDataset(Dataset):
         """
         super().__init__()
         self._dataset = dataset
+        self._fps_multiplier = fps_multiplier
 
         self._transform = transform
         if self._transform is None:
@@ -207,6 +257,8 @@ class TorchTrajectoryDataset(Dataset):
     def __getitem__(self, index: int) \
             -> Tuple[torch.tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, dict]:
         bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, metadata = self._dataset[index]
+        bboxes_obs, bboxes_unobs, ts_obs, ts_unobs = interpolate_by_fps(self._fps_multiplier, bboxes_obs, bboxes_unobs, ts_obs, ts_unobs)
+
         orig_bboxes_obs = torch.from_numpy(bboxes_obs)
         orig_bboxes_unobs = torch.from_numpy(bboxes_unobs)
         ts_obs = torch.from_numpy(ts_obs)
@@ -226,3 +278,34 @@ class TorchTrajectoryDataset(Dataset):
             self._augmentation_after_transform(t_bboxes_obs, t_aug_bboxes_unobs, t_ts_obs, t_ts_unobs)
 
         return t_bboxes_obs, t_aug_bboxes_unobs, t_ts_obs, t_ts_unobs, orig_bboxes_obs, orig_bboxes_unobs, t_bboxes_unobs, metadata
+
+
+def run_test() -> None:
+    ts_obs = np.array([0, 1, 2, 3], dtype=np.float32).reshape(-1, 1)
+    ts_unobs = np.array([4, 5], dtype=np.float32).reshape(-1, 1)
+    bboxes_obs = np.array([[0, 0, 1, 1], [0.1, 0.1, 1.1, 1.1], [0.2, 0.2, 1.2, 1.2], [0.3, 0.3, 1.3, 1.3]], dtype=np.float32)
+    bboxes_unobs = np.array([[0.4, 0.4, 1.4, 1.4], [0.5, 0.5, 1.5, 1.5]], dtype=np.float32)
+
+    new_bboxes_obs, new_bboxes_unobs, new_ts_obs, new_ts_unobs = \
+        interpolate_by_fps(1, bboxes_obs, bboxes_unobs, ts_obs, ts_unobs)
+
+    print(f'Multiplier=1 (shape): {new_ts_obs.shape=}, {new_ts_unobs.shape=}, '
+          f'{new_bboxes_obs.shape=}, {new_bboxes_unobs.shape=}')
+    print(f'Multiplier=1: {new_ts_obs=}, {new_ts_unobs=}, {new_bboxes_obs=}, {new_bboxes_unobs=}')
+
+    new_bboxes_obs, new_bboxes_unobs, new_ts_obs, new_ts_unobs = \
+        interpolate_by_fps(2, bboxes_obs, bboxes_unobs, ts_obs, ts_unobs)
+
+    print(f'Multiplier=2 (shape): {new_ts_obs.shape=}, {new_ts_unobs.shape=}, '
+          f'{new_bboxes_obs.shape=}, {new_bboxes_unobs.shape=}')
+    print(f'Multiplier=2: {new_ts_obs=}, {new_ts_unobs=}, {new_bboxes_obs=}, {new_bboxes_unobs=}')
+
+    new_bboxes_obs, new_bboxes_unobs, new_ts_obs, new_ts_unobs = \
+        interpolate_by_fps(0.5, bboxes_obs, bboxes_unobs, ts_obs, ts_unobs)
+
+    print(f'Multiplier=0.5 (shape): {new_ts_obs.shape=}, {new_ts_unobs.shape=}, '
+          f'{new_bboxes_obs.shape=}, {new_bboxes_unobs.shape=}')
+    print(f'Multiplier=0.5: {new_ts_obs=}, {new_ts_unobs=}, {new_bboxes_obs=}, {new_bboxes_unobs=}')
+
+if __name__ == '__main__':
+    run_test()

@@ -264,7 +264,8 @@ def main(cfg: DictConfig):
             history_len=cfg.dataset.history_len,
             future_len=cfg.dataset.future_len,
             additional_params=cfg.dataset.additional_params
-        )
+        ),
+        fps_multiplier=cfg.eval.fps_multiplier
     )
 
     data_loader = DataLoader(

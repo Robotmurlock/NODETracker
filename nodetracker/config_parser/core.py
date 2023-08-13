@@ -197,6 +197,9 @@ class EvalConfig:
     # Override dataset configs
     dataset_future_len: Optional[int] = field(default=None)
 
+    # Custom evaluation
+    fps_multiplier: float = field(default=1.0)
+
 
 @dataclass
 class VisualizeConfig:
