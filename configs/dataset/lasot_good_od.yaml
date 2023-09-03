@@ -1,0 +1,21 @@
+name: 'LaSOT'
+path: '${dataset.name}'
+split_index_path: '${dataset.name}/.split_index.yaml'
+history_len: 10
+future_len: 5
+additional_params:
+  skip_occlusion: True
+  skip_out_of_view: True
+  return_image_paths: True
+  category_list:
+    - 'flag'
+    - 'tank'
+    - 'skateboard'
+    - 'shark'
+    - 'spider'
+    - 'airplane'
+    - 'pool'
+    - 'tiger'
+    - 'bicycle'
+    - 'hippo'
+    - 'boat'

@@ -1,6 +1,7 @@
 defaults:
   - resources: cuda.yaml
   - dataset: lasot10_1.yaml
+  # - dataset: mot.yaml
   - transform: lasot/standardized_first_difference.yaml
   - model: single_step_rnn.yaml
   - train: single_step_rnn.yaml

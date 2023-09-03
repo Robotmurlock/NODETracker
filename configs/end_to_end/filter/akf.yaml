@@ -1,3 +1,5 @@
 type: 'akf'
 params:
   use_optimal_motion_mat: True
+  optimal_motion_mat_name: 'lasot'
+  # override_std_weight_position: 0.05

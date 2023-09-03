@@ -13,14 +13,12 @@ from typing import Dict, Tuple, List, Any, Union, Optional
 
 import numpy as np
 import pandas as pd
-import torch
 from tqdm import tqdm
 
 from nodetracker.datasets.torch import TrajectoryDataset
 from nodetracker.datasets.torch import run_dataset_test
 from nodetracker.datasets.utils import split_trajectory_observed_unobserved
 from nodetracker.utils.logging import configure_logging
-
 
 CATEGORY = 'pedestrian'
 
@@ -190,6 +188,18 @@ class MOTDataset(TrajectoryDataset):
         return os.path.join(dirpath, cache_filename)
 
     @staticmethod
+    def parse_scene_ini_file(scene_directory: str, label_type_name) -> SceneInfo:
+        gt_path = os.path.join(scene_directory, label_type_name, f'{label_type_name}.txt')
+        scene_info_path = os.path.join(scene_directory, 'seqinfo.ini')
+        raw_info = configparser.ConfigParser()
+        raw_info.read(scene_info_path)
+        raw_info = dict(raw_info['Sequence'])
+        raw_info['gt_path'] = gt_path
+        raw_info['dirpath'] = scene_directory
+
+        return SceneInfo(**raw_info, category=CATEGORY)
+
+    @staticmethod
     def _index_dataset(
         path: str,
         label_type: LabelType,
@@ -235,16 +245,7 @@ class MOTDataset(TrajectoryDataset):
             if skip_scene:
                 continue
 
-            # Extracting scene data
-            gt_path = os.path.join(scene_directory, label_type.value, f'{label_type.value}.txt')
-            scene_info_path = os.path.join(scene_directory, 'seqinfo.ini')
-            raw_info = configparser.ConfigParser()
-            raw_info.read(scene_info_path)
-            raw_info = dict(raw_info['Sequence'])
-            raw_info['gt_path'] = gt_path
-            raw_info['dirpath'] = scene_directory
-
-            scene_info = SceneInfo(**raw_info, category=CATEGORY)
+            scene_info = MOTDataset.parse_scene_ini_file(scene_directory, label_type.value)
             scene_info_index[scene_name] = scene_info
             logger.debug(f'Scene info {scene_info}.')
 
@@ -272,7 +273,7 @@ class MOTDataset(TrajectoryDataset):
 
         for scene_name, scene_info in scene_infos.items():
             df = pd.read_csv(scene_info.gt_path, header=None)
-            df = df[df[7] == 1]  # Ignoring non-pedestrian objects
+            df = df[df[7] == 1]  # Ignoring values that are not evaluated
 
             df = df.iloc[:, :6]
             df.columns = ['frame_id', 'object_id', 'ymin', 'xmin', 'w', 'h']  # format: yxwh
@@ -295,6 +296,7 @@ class MOTDataset(TrajectoryDataset):
                         'image_path': MOTDataset._get_image_path(scene_info, frame_id),
                         'occ': False,
                         'oov': False,
+                        'scene': scene_name,
                         'category': CATEGORY
                     })
                     frame_to_data_index_lookup[object_global_id][frame_id] = len(data[object_global_id]) - 1

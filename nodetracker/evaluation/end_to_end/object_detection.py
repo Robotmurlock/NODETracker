@@ -2,14 +2,19 @@
 Object Detection support for E2E evaluation.
 Supports YOLOv8 realtime inference and Mock object detection with ground truths.
 """
+import os
 from abc import ABC, abstractmethod
-from typing import List, Tuple
+from typing import List, Tuple, Dict
 
 import cv2
+import pandas as pd
 import torch
 import ultralytics
 
+from nodetracker.datasets.mot.core import SceneInfoIndex, MOTDataset
+from nodetracker.utils import file_system
 from nodetracker.utils.lookup import LookupTable
+from tqdm import tqdm
 
 
 class ObjectDetectionInference(ABC):
@@ -97,6 +102,64 @@ class YOLOv8Inference(ObjectDetectionInference):
         return bboxes, classes, confidences
 
 
+MOT20Detections = Dict[str, Dict[str, List[List[float]]]]
+
+
+class MOT20OfflineInference(ObjectDetectionInference):
+    def __init__(self, lookup: LookupTable, dataset_path: str):
+        super().__init__(lookup)
+
+        # Parse data
+        self._scene_info_index = self._create_scene_info_index(dataset_path)
+        self._detections = self._parse_detection(self._scene_info_index)
+
+    @staticmethod
+    def _create_scene_info_index(dataset_path) -> SceneInfoIndex:
+        scene_names = file_system.listdir(dataset_path)
+        scene_info_index: SceneInfoIndex = {}
+
+        for scene_name in scene_names:
+            scene_filepath = os.path.join(dataset_path, scene_name)
+            scene_info_index[scene_name] = MOTDataset.parse_scene_ini_file(scene_filepath, 'det')
+
+        return scene_info_index
+
+    @staticmethod
+    def _parse_detection(scene_info_index: SceneInfoIndex) -> MOT20Detections:
+        detections: MOT20Detections = {scene_name: {} for scene_name in scene_info_index.keys()}
+
+        for scene_name, scene_info in scene_info_index.items():
+            df = pd.read_csv(scene_info.gt_path, header=None)
+            df = df.iloc[:, :7]
+            df.columns = ['frame_id', 'object_id', 'ymin', 'xmin', 'w', 'h', 'conf']  # format: yxwh
+            # df = df[df['conf'] == 1]
+            df = df.drop(columns=['object_id', 'conf'], axis=1)
+            df['ymin'] /= scene_info.imwidth
+            df['xmin'] /= scene_info.imheight
+            df['w'] /= scene_info.imwidth
+            df['h'] /= scene_info.imheight
+
+            for _, row in df.iterrows():
+                frame_id = row.iloc[0]
+                bbox = row.iloc[1:].values.tolist()
+
+                if frame_id not in detections[scene_name]:
+                    detections[scene_name][frame_id] = []
+                detections[scene_name][frame_id].append(bbox)
+
+        return detections
+
+    def predict(self, data: dict) -> Tuple[torch.Tensor, List[str], torch.Tensor]:
+        scene_name = data['scene']
+        category = data['category']
+        frame_id = data['frame_id']
+
+        bboxes = torch.tensor(self._detections[scene_name].get(frame_id, []), dtype=torch.float32)
+        classes = [category] * bboxes.shape[0]
+        conf = torch.tensor([1] * bboxes.shape[0], dtype=torch.float32)
+        return bboxes, classes, conf
+
+
 def object_detection_inference_factory(name: str, params: dict, lookup: LookupTable) -> ObjectDetectionInference:
     """
     Creates object detection inference for given name and parameters.
@@ -111,7 +174,8 @@ def object_detection_inference_factory(name: str, params: dict, lookup: LookupTa
     """
     catalog = {
         'ground_truth': GroundTruthInference,
-        'yolo': YOLOv8Inference
+        'yolo': YOLOv8Inference,
+        'mot20_offline': MOT20OfflineInference
     }
 
     name = name.lower()

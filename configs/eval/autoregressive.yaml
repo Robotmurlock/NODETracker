@@ -7,4 +7,5 @@ inference_name: 'initial'
 checkpoint: 'last.ckpt'
 
 dataset_future_len: 5
-autoregressive: True
+
+autoregressive: false
