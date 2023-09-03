@@ -30,6 +30,7 @@ class EvaluationConfig:
     n_steps: int = field(default=5)
     occlusion_as_skip_detection: bool = field(default=True)
     disable_eval_after_n_fns: Optional[int] = field(default=None)
+    assoc_use_gt: bool = field(default=False)
 
 
 @dataclass

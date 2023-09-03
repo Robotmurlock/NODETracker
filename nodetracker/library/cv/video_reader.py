@@ -9,6 +9,9 @@ import numpy as np
 
 
 class MP4Reader:
+    """
+    RAII mp4 reader
+    """
     def __init__(self, path: str):
         """
         Args:

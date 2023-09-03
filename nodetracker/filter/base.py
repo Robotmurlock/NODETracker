@@ -91,3 +91,16 @@ class StateModelFilter(ABC):
             Mean, Covariance
         """
         pass
+
+    @abstractmethod
+    def singlestep_to_multistep_state(self, state: State) -> State:
+        """
+        Converts singlestep state to multistep state. Used as an optimization.
+
+        Args:
+            state: Single step state
+
+        Returns:
+            Multistep state
+        """
+        pass

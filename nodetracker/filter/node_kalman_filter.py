@@ -89,6 +89,10 @@ class NODEKalmanFilter(StateModelFilter):
         prior_mean, prior_std = self.multistep_predict(state, n_steps=1)
         return prior_mean[0], prior_std[0]
 
+    def singlestep_to_multistep_state(self, state: State) -> State:
+        prior_mean, prior_std = state
+        return prior_mean.unsqueeze(0),  prior_std.unsqueeze(0)
+
     def update(self, state: State, measurement: torch.Tensor) -> State:
         x_unobs_mean_hat, x_unobs_std_hat = state
         det_std = (x_unobs_mean_hat[2:].repeat(2) * self._det_uncertainty_multiplier)

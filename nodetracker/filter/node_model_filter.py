@@ -105,6 +105,11 @@ class NODEModelFilter(StateModelFilter):
         state.mean, state.std = state.mean[0], state.std[0]
         return state
 
+    def singlestep_to_multistep_state(self, state: State) -> State:
+        state.mean = state.mean.unsqueeze(0)
+        state.std = state.std.unsqueeze(0)
+        return state
+
     def update(self, state: State, measurement: torch.Tensor) -> State:
         state: NODEState
         state = state.copy()
@@ -202,11 +207,13 @@ class BufferedNodeModelFilter(StateModelFilter):
             # Only one bbox in history - using baseline (propagate last bbox) instead of NN model
             x_unobs_mean_hat = torch.stack([x_obs[-1].clone() for _ in range(ts_unobs.shape[0])]).to(ts_obs)
             x_unobs_std_hat = 10 * torch.ones_like(x_unobs_mean_hat).to(ts_obs)
+
             z0, _ = self._model.core.initialize(batch_size=1, device=self._accelerator)
             t_obs, t_unobs = self._get_ts()
             t_obs, t_unobs = t_obs.to(self._accelerator), t_unobs.to(self._accelerator)
             _, _, z1_prior = self._model.core.estimate_prior(z0, t_obs, t_unobs)
             z1_prior = z1_prior.detach().cpu()
+
             return x_unobs_mean_hat[:, 0, :], x_unobs_std_hat[:, 0, :], z1_prior
 
         t_x_obs, _, t_ts_obs, t_ts_unobs, *_ = self._transform.apply(data=[x_obs, None, ts_obs, ts_unobs, None], shallow=False)
@@ -228,6 +235,10 @@ class BufferedNodeModelFilter(StateModelFilter):
     def predict(self, state: State) -> State:
         prior_mean, prior_std, z1_prior = self.multistep_predict(state, n_steps=1)
         return prior_mean[0], prior_std[0], z1_prior
+
+    def singlestep_to_multistep_state(self, state: State) -> State:
+        prior_mean, prior_std, z1_prior = state
+        return prior_mean.unsqueeze(0), prior_std.unsqueeze(0), z1_prior
 
     def update(self, state: State, measurement: torch.Tensor) -> State:
         _, _, z_prior = state

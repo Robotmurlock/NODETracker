@@ -12,10 +12,16 @@ class BotSortKalmanFilterWrapper(StateModelFilter):
     """
     Wrapper for BotSortKalman filter for StateModelFilter interface.
     """
-    def __init__(self, use_optimal_motion_mat: bool = False, override_std_weight_position: Optional[float] = None):
+    def __init__(
+        self,
+        use_optimal_motion_mat: bool = False,
+        override_std_weight_position: Optional[float] = None,
+        optimal_motion_mat_name: str = 'lasot'
+    ):
         self._kf = BotSortKalmanFilter(
             use_optimal_motion_mat=use_optimal_motion_mat,
-            override_std_weight_position=override_std_weight_position
+            override_std_weight_position=override_std_weight_position,
+            optimal_motion_mat_name=optimal_motion_mat_name
         )
 
     @staticmethod
@@ -72,6 +78,10 @@ class BotSortKalmanFilterWrapper(StateModelFilter):
         mean, covariance = self._kf.update(mean_hat, covariance_hat, measurement)
         mean, covariance = self._all_to_tensor([mean, covariance])
         return mean, covariance
+
+    def singlestep_to_multistep_state(self, state: State) -> State:
+        mean, covariance = state
+        return mean.unsqueeze(0), covariance.unsqueeze(0)
 
     def missing(self, state: State) -> State:
         return state  # Use prior instead of posterior

@@ -253,39 +253,6 @@ def greedy_pick(
 
     return picked_bbox, skip_detection
 
-# def greedy_pick(
-#     predictions: torch.Tensor,
-#     prediction_confs: torch.Tensor,
-#     prior_bbox_mean: torch.Tensor,
-#     n_skipped_detection: int,
-#     max_skip_threshold: int = 5,
-#     min_iou_match: float = 0.3
-# ) -> Tuple[Optional[torch.Tensor], bool]:
-#     prior_bbox_object = BBox.from_xyhw(*prior_bbox_mean[:4], clip=True)
-#
-#     filtered_predictions: List[torch.Tensor] = []
-#     filtered_confidences: List[torch.Tensor] = []
-#     for p, c in zip(predictions, prediction_confs):
-#         p_bbox = BBox.from_xyhw(*p[:4], clip=True)
-#         iou_score = prior_bbox_object.iou(p_bbox)
-#
-#         if (n_skipped_detection < max_skip_threshold) and (iou_score < min_iou_match):
-#             continue
-#
-#         filtered_predictions.append(p)
-#         filtered_confidences.append(c)
-#
-#     if len(filtered_predictions) == 0:
-#         return None, True
-#
-#     max_conf, picked_bbox = None, None
-#     for p, c in zip(filtered_predictions, filtered_confidences):
-#         if max_conf is None or c > max_conf:
-#             max_conf = c
-#             picked_bbox = p
-#
-#     return picked_bbox, False
-
 
 def bbox_clip(bboxes: torch.Tensor) -> torch.Tensor:
     return torch.clip(bboxes, min=0.0, max=0.0)
@@ -397,14 +364,15 @@ def main(cfg: DictConfig):
                     total_predict_time += time.time() - start_predict_time
                     n_predict_steps += 1
 
-                    prior_multistep_state = smf.multistep_predict(posterior_state, n_pred_steps)
+                    prior_multistep_state = smf.multistep_predict(posterior_state, n_pred_steps) \
+                        if n_pred_steps > 1 else smf.singlestep_to_multistep_state(prior_state)
 
                     # Perform object detection inference
                     inf_bboxes, inf_classes, inf_conf = od_inference.predict(point_data)
                     bboxes, skip_detection = greedy_pick(
                         predictions=inf_bboxes,
                         prediction_confs=inf_conf,
-                        prior_bbox_mean=smf.project(prior_state)[0],
+                        prior_bbox_mean=measurement if cfg.end_to_end.eval.assoc_use_gt else smf.project(prior_state)[0],
                         n_skipped_detection=n_skipped_detection,
                         max_skip_threshold=cfg.end_to_end.es.max_skip_threshold,
                         min_iou_match=cfg.end_to_end.es.min_iou_match
