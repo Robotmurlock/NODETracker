@@ -8,4 +8,4 @@ checkpoint: 'last.ckpt'
 
 dataset_future_len: 5
 
-autoregressive: false
+autoregressive: true

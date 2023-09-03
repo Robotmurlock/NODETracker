@@ -68,8 +68,9 @@ def run_inference(
     batch_cnt = 0
     first_chunk = True
 
-    for bboxes_obs, bboxes_aug_unobs, ts_obs, ts_unobs, orig_bboxes_obs, orig_bboxes_unobs, bboxes_unobs, metadata\
-            in tqdm(data_loader, unit='sample', desc='Running inference'):
+    for batch in tqdm(data_loader, unit='sample', desc='Running inference'):
+        bboxes_obs, bboxes_aug_unobs, ts_obs, ts_unobs, orig_bboxes_obs, orig_bboxes_unobs, bboxes_unobs, metadata = batch.values()
+
         # `t` prefix means that tensor is mapped to transformed space
         t_bboxes_obs, t_bboxes_unobs, t_ts_obs, t_ts_unobs, metadata, *other = \
             transform.apply([bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, metadata, None], shallow=False)  # preprocess

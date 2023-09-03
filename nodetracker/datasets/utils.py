@@ -1,7 +1,8 @@
 """
 Dataset utils
 """
-from typing import List, Tuple, Optional
+from collections import defaultdict
+from typing import List, Optional, Dict, Union
 
 import numpy as np
 import torch
@@ -28,8 +29,8 @@ class OdeDataloaderCollateFunctional:
         if self._augmentation is None:
             self._augmentation = IdentityAugmentation()
 
-    def __call__(self, items: List[torch.Tensor]) \
-            -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, dict]:
+    def __call__(self, items: List[Dict[str, Union[dict, torch.Tensor]]]) \
+            -> Dict[str, Union[dict, torch.Tensor]]:
         """
         ODE's collate func: Standard way to batch sequences of dimension (T, *shape)
         where T is time dimension and shape is feature dimension is to create batch
@@ -42,31 +43,23 @@ class OdeDataloaderCollateFunctional:
         Returns:
             collated tensors
         """
-        x_obss, t_obss, x_aug_unobss, t_unobss, orig_bboxes_obs, orig_bboxes_unobs, bboxes_unobs, metadata = zip(*items)
-        x_obs, t_obs, x_aug_unobs, t_unobs, orig_bboxes_obs, orig_bboxes_unobs, bboxes_unobs = \
-            [torch.stack(v, dim=1) for v in [x_obss, t_obss, x_aug_unobss, t_unobss, orig_bboxes_obs, orig_bboxes_unobs, bboxes_unobs]]
-        metadata = default_collate(metadata)
+        unstack_items: Dict[str, List[Union[dict, torch.Tensor]]] = defaultdict(list)
+        for item in items:
+            for k, v in item.items():
+                unstack_items[k].append(v)
+        batch = {k: (torch.stack(v, dim=1) if k != 'metadata' else default_collate(v)) for k, v in unstack_items.items()}
+
+        x_obs, x_aug_unobs, t_obs, t_unobs = \
+            [batch[k] for k in ['t_bboxes_obs', 't_aug_bboxes_unobs', 't_ts_obs', 't_ts_unobs']]
 
         # Apply augmentations at batch level (optional)
-        x_obs, t_obs, x_aug_unobs, t_unobs = self._augmentation(x_obs, t_obs, x_aug_unobs, t_unobs)
+        x_obs, x_aug_unobs, t_obs, t_unobs = self._augmentation(x_obs, x_aug_unobs, t_obs, t_unobs)
+        batch['t_bboxes_obs'] = x_obs
+        batch['t_aug_bboxes_unobs'] = x_aug_unobs
+        batch['t_ts_obs'] = t_obs
+        batch['t_ts_unobs'] = t_unobs
 
-        return x_obs, t_obs, x_aug_unobs, t_unobs, orig_bboxes_obs, orig_bboxes_unobs, bboxes_unobs, metadata
-
-
-def preprocess_batch(batch: tuple) -> tuple:
-    """
-    Unpacks batch and creates full trajectory tensors
-
-    Args:
-        batch: Raw batch
-
-    Returns:
-        Preprocessing batch
-    """
-    bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, metadata, orig_bboxes = batch
-    ts_all = torch.cat([ts_obs, ts_unobs], dim=0)
-    bboxes_all = torch.cat([bboxes_obs, bboxes_unobs], dim=0)
-    return bboxes_obs, bboxes_unobs, bboxes_all, ts_obs, ts_unobs, ts_all, orig_bboxes, metadata
+        return batch
 
 
 def split_trajectory_observed_unobserved(frame_ids: List[int], bboxes: np.ndarray, history_len: int):

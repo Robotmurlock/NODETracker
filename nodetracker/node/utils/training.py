@@ -278,8 +278,9 @@ class LightningModuleForecaster(LightningModuleBase):
         for name, value in metrics.items():
             self._meter.push(f'{prefix}-metrics/{name}', value)
 
-    def training_step(self, batch: Tuple[torch.Tensor, ...], *args, **kwargs) -> torch.Tensor:
-        bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, orig_bboxes_obs, _, _, metadata = batch
+    def training_step(self, batch: Dict[str, Union[dict, torch.Tensor]], *args, **kwargs) -> torch.Tensor:
+        bboxes_obs, bboxes_aug_unobs, ts_obs, ts_unobs, orig_bboxes_obs, orig_bboxes_unobs, bboxes_unobs, metadata = batch.values()
+
         output = self.forward(bboxes_obs, ts_obs, ts_unobs)
         bboxes_unobs_hat = output[0] if isinstance(output, tuple) else output
 
@@ -290,8 +291,9 @@ class LightningModuleForecaster(LightningModuleBase):
 
         return loss
 
-    def validation_step(self, batch: Tuple[torch.Tensor, ...], *args, **kwargs) -> torch.Tensor:
-        bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, orig_bboxes_obs, _, _, metadata = batch
+    def validation_step(self, batch: Dict[str, Union[dict, torch.Tensor]], *args, **kwargs) -> torch.Tensor:
+        bboxes_obs, bboxes_aug_unobs, ts_obs, ts_unobs, orig_bboxes_obs, orig_bboxes_unobs, bboxes_unobs, metadata = batch.values()
+
         output = self.forward(bboxes_obs, ts_obs, ts_unobs)
         bboxes_unobs_hat = output[0] if isinstance(output, tuple) else output
 
@@ -330,8 +332,9 @@ class LightningModuleForecasterWithTeacherForcing(LightningModuleForecaster):
         )
         self._teacher_forcing = teacher_forcing
 
-    def training_step(self, batch: Tuple[torch.Tensor, ...], *args, **kwargs) -> torch.Tensor:
-        bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, orig_bboxes_obs, metadata = batch
+    def training_step(self, batch: Dict[str, Union[dict, torch.Tensor]], *args, **kwargs) -> torch.Tensor:
+        bboxes_obs, bboxes_aug_unobs, ts_obs, ts_unobs, orig_bboxes_obs, orig_bboxes_unobs, bboxes_unobs, metadata = batch.values()
+
         bboxes_unobs_hat, *_ = self.forward(bboxes_obs, ts_obs, ts_unobs,
                                             x_tf=bboxes_unobs if self._teacher_forcing else None)
 

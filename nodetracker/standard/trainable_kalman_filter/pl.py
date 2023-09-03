@@ -3,7 +3,7 @@ Kalman Filter trainer.
 """
 import functools
 import logging
-from typing import Any, Tuple, Optional, Union
+from typing import Any, Tuple, Optional, Union, Dict
 
 import torch
 
@@ -149,14 +149,14 @@ class LightningAdaptiveKalmanFilter(LightningModuleBase):
 
         return total_loss / (n_steps - 1)
 
-    def training_step(self, batch: Tuple[torch.Tensor, ...], *args, **kwargs) -> torch.Tensor:
-        zs_obs, zs_unobs, _, _, _, _ = batch
+    def training_step(self, batch: Dict[str, Union[dict, torch.Tensor]], *args, **kwargs) -> torch.Tensor:
+        zs_obs, zs_unobs, _, _, _, _, _, _ = batch.values()
         loss = self.forward_loss_step(zs_obs, zs_unobs)
         self._meter.push('training/loss', loss)
         return loss
 
-    def validation_step(self, batch: Tuple[torch.Tensor, ...], *args, **kwargs) -> torch.Tensor:
-        zs_obs, zs_unobs, _, _, _, _ = batch
+    def validation_step(self, batch: Dict[str, Union[dict, torch.Tensor]], *args, **kwargs) -> torch.Tensor:
+        zs_obs, zs_unobs, _, _, _, _, _, _ = batch.values()
         loss = self.forward_loss_step(zs_obs, zs_unobs)
         self._meter.push('val/loss', loss)
         return loss

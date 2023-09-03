@@ -3,7 +3,7 @@ Torch dataset support.
 Any Dataset that implements `TrajectoryDataset` interface can be used for training and evaluation.
 """
 from abc import abstractmethod, ABC
-from typing import Optional, Tuple, Dict, Any, List
+from typing import Optional, Tuple, Dict, Any, List, Union
 
 import numpy as np
 import torch
@@ -254,8 +254,7 @@ class TorchTrajectoryDataset(Dataset):
     def __len__(self) -> int:
         return len(self._dataset)
 
-    def __getitem__(self, index: int) \
-            -> Tuple[torch.tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, dict]:
+    def __getitem__(self, index: int) -> Dict[str, Union[dict, torch.Tensor]]:
         bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, metadata = self._dataset[index]
         bboxes_obs, bboxes_unobs, ts_obs, ts_unobs = interpolate_by_fps(self._fps_multiplier, bboxes_obs, bboxes_unobs, ts_obs, ts_unobs)
 
@@ -277,7 +276,16 @@ class TorchTrajectoryDataset(Dataset):
         t_bboxes_obs, t_aug_bboxes_unobs, t_ts_obs, t_ts_unobs = \
             self._augmentation_after_transform(t_bboxes_obs, t_aug_bboxes_unobs, t_ts_obs, t_ts_unobs)
 
-        return t_bboxes_obs, t_aug_bboxes_unobs, t_ts_obs, t_ts_unobs, orig_bboxes_obs, orig_bboxes_unobs, t_bboxes_unobs, metadata
+        return {
+            't_bboxes_obs': t_bboxes_obs,
+            't_aug_bboxes_unobs': t_aug_bboxes_unobs,
+            't_ts_obs': t_ts_obs,
+            't_ts_unobs': t_ts_unobs,
+            'orig_bboxes_obs': orig_bboxes_obs,
+            'orig_bboxes_unobs': orig_bboxes_unobs,
+            't_bboxes_unobs': t_bboxes_unobs,
+            'metadata': metadata
+        }
 
 
 def run_test() -> None:

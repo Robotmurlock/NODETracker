@@ -403,8 +403,8 @@ class LightningRNNFilterModel(LightningModuleBase):
         for name, value in metrics.items():
             self._meter.push(f'{prefix}-metrics/{name}', value)
 
-    def training_step(self, batch: Tuple[torch.Tensor, ...], *args, **kwargs) -> torch.Tensor:
-        bboxes_obs, bboxes_aug_unobs, ts_obs, ts_unobs, orig_bboxes_obs, orig_bboxes_unobs, bboxes_unobs, metadata = batch
+    def training_step(self, batch: Dict[str, Union[dict, torch.Tensor]], *args, **kwargs) -> torch.Tensor:
+        bboxes_obs, bboxes_aug_unobs, ts_obs, ts_unobs, orig_bboxes_obs, orig_bboxes_unobs, bboxes_unobs, metadata = batch.values()
 
         bboxes_unobs_posterior = bboxes_unobs
         orig_bboxes_unobs_posterior = orig_bboxes_unobs
@@ -460,8 +460,9 @@ class LightningRNNFilterModel(LightningModuleBase):
 
         return loss
 
-    def validation_step(self, batch: Tuple[torch.Tensor, ...], *args, **kwargs) -> torch.Tensor:
-        bboxes_obs, bboxes_aug_unobs, ts_obs, ts_unobs, orig_bboxes_obs, orig_bboxes_unobs, bboxes_unobs, metadata = batch
+    def validation_step(self, batch: Dict[str, Union[dict, torch.Tensor]], *args, **kwargs) -> torch.Tensor:
+        bboxes_obs, bboxes_aug_unobs, ts_obs, ts_unobs, orig_bboxes_obs, orig_bboxes_unobs, bboxes_unobs, metadata = batch.values()
+
         bboxes_prior_mean, bboxes_prior_log_var, bboxes_posterior_mean, bboxes_posterior_log_var = \
             self.forward(bboxes_obs, ts_obs, bboxes_aug_unobs, ts_unobs)
 

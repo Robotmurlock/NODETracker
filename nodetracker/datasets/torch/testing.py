@@ -20,7 +20,9 @@ def run_dataset_test(dataset: TrajectoryDataset) -> None:
     )
 
     print(f'Torch Dataset size: {len(torch_dataset)}')
-    print(f'Torch sample example shapes: {[x.shape for x in torch_dataset[5][:-1]]}')
+    data = torch_dataset[5]
+    data_shapes = {k: v.shape for k, v in data.items() if k != 'metadata'}
+    print(f'Torch sample example shapes: {data_shapes}')
     print(f'Torch sample example: {torch_dataset[5]}')
 
     torch_dataloader = DataLoader(torch_dataset, batch_size=4, collate_fn=OdeDataloaderCollateFunctional())

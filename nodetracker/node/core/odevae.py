@@ -1,12 +1,11 @@
 """
 Generative latent functions time-series model
 """
-from typing import Tuple, Optional
+from typing import Tuple, Optional, Dict, Union
 
 import torch
 from torch import nn
 
-from nodetracker.datasets.utils import preprocess_batch
 from nodetracker.library import time_series
 from nodetracker.node.core import ODEF, NeuralODE, ode_solver_factory
 from nodetracker.node.losses.vae import ELBO
@@ -231,8 +230,9 @@ class LightningODEVAE(LightningModuleBase):
     ) -> Tuple[torch.Tensor, ...]:
         return self._model(x, t_obs, t_unobs, generate)
 
-    def training_step(self, batch: Tuple[torch.Tensor, ...], *args, **kwargs) -> torch.Tensor:
-        bboxes_obs, _, bboxes_all, ts_obs, ts_unobs, _, _, _ = preprocess_batch(batch)
+    def training_step(self, batch: Dict[str, Union[dict, torch.Tensor]], *args, **kwargs) -> torch.Tensor:
+        bboxes_obs, bboxes_aug_unobs, ts_obs, ts_unobs, orig_bboxes_obs, orig_bboxes_unobs, bboxes_unobs, metadata = batch.values()
+        bboxes_all = torch.cat([bboxes_obs, bboxes_unobs], dim=0)
 
         _, bboxes_hat_all, z0_mean, z0_log_var = self.forward(bboxes_obs, ts_obs, ts_unobs)
         loss, kl_div_loss, likelihood_loss = self._loss_func(bboxes_hat_all, bboxes_all, z0_mean, z0_log_var)
@@ -243,8 +243,9 @@ class LightningODEVAE(LightningModuleBase):
 
         return loss
 
-    def validation_step(self, batch: Tuple[torch.Tensor, ...], *args, **kwargs) -> torch.Tensor:
-        bboxes_obs, bboxes_unobs, bboxes_all, ts_obs, ts_unobs, _, _, _ = preprocess_batch(batch)
+    def validation_step(self, batch: Dict[str, Union[dict, torch.Tensor]], *args, **kwargs) -> torch.Tensor:
+        bboxes_obs, bboxes_aug_unobs, ts_obs, ts_unobs, orig_bboxes_obs, orig_bboxes_unobs, bboxes_unobs, metadata = batch.values()
+        bboxes_all = torch.cat([bboxes_obs, bboxes_unobs], dim=0)
 
         bboxes_unobs_hat, bboxes_all_hat, z0_mean, z0_log_var = self.forward(bboxes_obs, ts_obs, ts_unobs)
         all_loss, all_kl_div_loss, all_likelihood_loss = \

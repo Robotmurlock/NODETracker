@@ -2,7 +2,7 @@
 Custom ODE-RNN-VAE implementation
 https://arxiv.org/pdf/1907.03907.pdf
 """
-from typing import Tuple, Optional, List
+from typing import Tuple, Optional, List, Dict, Union
 
 import torch
 from torch import nn
@@ -215,8 +215,9 @@ class LightningODERNNVAE(LightningModuleBase):
             -> Tuple[torch.Tensor, ...]:
         return self._model(x, t_obs, t_unobs)
 
-    def training_step(self, batch: Tuple[torch.Tensor, ...], *args, **kwargs) -> torch.Tensor:
-        bboxes_obs, _, ts_obs, _, _ = batch
+    def training_step(self, batch: Dict[str, Union[dict, torch.Tensor]], *args, **kwargs) -> torch.Tensor:
+        bboxes_obs, bboxes_aug_unobs, ts_obs, ts_unobs, orig_bboxes_obs, orig_bboxes_unobs, bboxes_unobs, metadata = batch.values()
+
         bboxes_obs_hat, _, z0_mean, z0_log_var = self.forward(bboxes_obs, ts_obs, ts_obs)
         loss, kl_div_loss, likelihood_loss = self._loss_func(bboxes_obs_hat, bboxes_obs, z0_mean, z0_log_var)
 
@@ -226,8 +227,9 @@ class LightningODERNNVAE(LightningModuleBase):
 
         return loss
 
-    def validation_step(self, batch: Tuple[torch.Tensor, ...], *args, **kwargs) -> torch.Tensor:
-        bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, _ = batch
+    def validation_step(self, batch: Dict[str, Union[dict, torch.Tensor]], *args, **kwargs) -> torch.Tensor:
+        bboxes_obs, bboxes_aug_unobs, ts_obs, ts_unobs, orig_bboxes_obs, orig_bboxes_unobs, bboxes_unobs, metadata = batch.values()
+
         bboxes_obs_hat, _, z0_mean, z0_log_var = self.forward(bboxes_obs, ts_obs, ts_obs)
         loss, kl_div_loss, likelihood_loss = self._loss_func(bboxes_obs_hat, bboxes_obs, z0_mean, z0_log_var)
 
