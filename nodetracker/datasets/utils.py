@@ -47,19 +47,29 @@ class OdeDataloaderCollateFunctional:
         for item in items:
             for k, v in item.items():
                 unstack_items[k].append(v)
-        batch = {k: (torch.stack(v, dim=1) if k != 'metadata' else default_collate(v)) for k, v in unstack_items.items()}
+        collated_batch = {}
+        for k, v in unstack_items.items():
+            if k != 'metadata':
+                collated_batch[k] = torch.stack(v, dim=1)
+            else:
+                collated_batch[k] = {}
+                for m_k in v[0].keys():
+                    if m_k in ['flow', 'images']:
+                        collated_batch[k][m_k] = torch.stack([item[m_k] for item in v], dim=1)
+                    else:
+                        collated_batch[k][m_k] = default_collate([item[m_k] for item in v])
 
         x_obs, x_aug_unobs, t_obs, t_unobs = \
-            [batch[k] for k in ['t_bboxes_obs', 't_aug_bboxes_unobs', 't_ts_obs', 't_ts_unobs']]
+            [collated_batch[k] for k in ['t_bboxes_obs', 't_aug_bboxes_unobs', 't_ts_obs', 't_ts_unobs']]
 
         # Apply augmentations at batch level (optional)
         x_obs, x_aug_unobs, t_obs, t_unobs = self._augmentation(x_obs, x_aug_unobs, t_obs, t_unobs)
-        batch['t_bboxes_obs'] = x_obs
-        batch['t_aug_bboxes_unobs'] = x_aug_unobs
-        batch['t_ts_obs'] = t_obs
-        batch['t_ts_unobs'] = t_unobs
+        collated_batch['t_bboxes_obs'] = x_obs
+        collated_batch['t_aug_bboxes_unobs'] = x_aug_unobs
+        collated_batch['t_ts_obs'] = t_obs
+        collated_batch['t_ts_unobs'] = t_unobs
 
-        return batch
+        return collated_batch
 
 
 def split_trajectory_observed_unobserved(frame_ids: List[int], bboxes: np.ndarray, history_len: int):

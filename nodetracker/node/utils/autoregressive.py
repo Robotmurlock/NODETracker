@@ -45,13 +45,13 @@ class AutoregressiveForecasterDecorator(nn.Module):
         self._keep_history = keep_history
 
     @torch.no_grad()
-    def forward(self, x: torch.Tensor, t_obs: torch.Tensor, t_unobs: Optional[torch.Tensor] = None) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, t_obs: torch.Tensor, t_unobs: Optional[torch.Tensor] = None, metadata: Optional[dict] = None) -> torch.Tensor:
         result = []
 
         n_steps = t_unobs.shape[0]
         for t_i in range(n_steps):
             t_unobs_i = t_unobs[t_i:t_i+1, ...]
-            x_hat = self._model(x, t_obs, t_unobs_i)
+            x_hat = self._model(x, t_obs, t_unobs_i, metadata)
             if hasattr(self._model, 'is_modeling_gaussian') and self._model.is_modeling_gaussian:
                 x_hat, _ = extract_mean_and_std(x_hat)
 

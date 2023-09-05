@@ -69,6 +69,12 @@ class MOTDataset(TrajectoryDataset):
         path: str,
         history_len: int,
         future_len: int,
+        image_load: bool = False,
+        image_shape: Union[None, List[int], Tuple[int, int]] = None,
+        image_bgr_to_rgb: bool = True,
+        optical_flow: bool = False,
+        optical_flow_3d: bool = False,
+        optical_flow_only: bool = True,
         sequence_list: Optional[List[str]] = None,
         label_type: LabelType = LabelType.GROUND_TRUTH,
         skip_corrupted: bool = False,
@@ -79,11 +85,25 @@ class MOTDataset(TrajectoryDataset):
             path: Path to dataset
             history_len: Number of observed data points
             future_len: Number of unobserved data points
+            image_load: Load images (optional - default: False)
+            image_shape: Resize images (optional - default: no resize)
+            image_bgr_to_rgb: Convert BGR to RGB
             sequence_list: Sequence filter by defined list
             label_type: Label Type
             skip_corrupted: Skip corrupted scenes (otherwise error is raised)
         """
-        super().__init__(history_len=history_len, future_len=future_len, sequence_list=sequence_list, **kwargs)
+        super().__init__(
+            history_len=history_len,
+            future_len=future_len,
+            sequence_list=sequence_list,
+            image_load=image_load,
+            image_shape=image_shape,
+            image_bgr_to_rgb=image_bgr_to_rgb,
+            optical_flow=optical_flow,
+            optical_flow_3d=optical_flow_3d,
+            optical_flow_only=optical_flow_only,
+            **kwargs
+        )
 
         self._path = path
         self._label_type = label_type
@@ -350,6 +370,8 @@ class MOTDataset(TrajectoryDataset):
             'frame_ids': frame_ids,
             'image_paths': [item['image_path'] for item in raw_traj]
         }
+
+        metadata = self.update_visual_metadata(metadata)
 
         # Bboxes
         bboxes = np.array([item['bbox'] for item in raw_traj], dtype=np.float32)

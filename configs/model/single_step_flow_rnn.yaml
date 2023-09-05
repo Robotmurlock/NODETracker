@@ -1,0 +1,7 @@
+type: 'single-step-flow-rnn'
+params:
+  input_dim: 4
+  hidden_dim: 128
+  output_dim: 4
+
+  model_gaussian: true

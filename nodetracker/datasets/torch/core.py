@@ -5,10 +5,11 @@ Any Dataset that implements `TrajectoryDataset` interface can be used for traini
 from abc import abstractmethod, ABC
 from typing import Optional, Tuple, Dict, Any, List, Union
 
+import cv2
 import numpy as np
 import torch
-from torch.utils.data import Dataset
 from scipy.interpolate import CubicSpline
+from torch.utils.data import Dataset
 
 from nodetracker.datasets import augmentations, transforms
 
@@ -63,11 +64,110 @@ class TrajectoryDataset(ABC):
         history_len: int,
         future_len: int,
         sequence_list: Optional[List[str]] = None,
+        image_load: bool = False,
+        image_shape: Union[None, List[int], Tuple[int, int]] = None,
+        image_bgr_to_rgb: bool = True,
+        optical_flow: bool = False,
+        optical_flow_3d: bool = False,
+        optical_flow_only: bool = True,
         **kwargs
     ):
         self._history_len = history_len
         self._future_len = future_len
         self._sequence_list = sequence_list
+
+        # Image configuration
+        self._image_load = image_load
+
+        if image_shape is not None:
+            assert isinstance(image_shape, tuple) or isinstance(image_shape, list), \
+                f'Invalid image shape type "{type(image_shape)}".'
+            image_shape = tuple(image_shape)
+            assert len(image_shape) == 2, f'Invalid image shape length "{len(image_shape)}"'
+
+        self._image_shape = image_shape
+        self._image_bgr_to_rgb = image_bgr_to_rgb
+
+        # Optical flow configuration
+        self._optical_flow = optical_flow
+        self._optical_flow_3d = optical_flow_3d
+        self._optical_flow_only = optical_flow_only
+
+    def load_image(self, path: str) -> np.ndarray:
+        """
+        Loads image using cv2.
+
+        Args:
+            path: Image source path
+
+        Returns:
+            Loaded image
+        """
+        image = cv2.imread(path)
+        if self._image_bgr_to_rgb:
+            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        if self._image_shape is not None:
+            image = cv2.resize(image, self._image_shape, interpolation=cv2.INTER_NEAREST)
+        return image
+
+    def perform_optical_flow(self, images: List[np.ndarray]) -> List[np.ndarray]:
+        flow_result = []
+
+        for prev_rgb, next_rgb in zip(images[:-1], images[1:]):
+            prev_gray = cv2.cvtColor(prev_rgb, cv2.COLOR_RGB2GRAY)
+            next_gray = cv2.cvtColor(next_rgb, cv2.COLOR_RGB2GRAY)
+
+            flow = cv2.calcOpticalFlowFarneback(prev_gray, next_gray, None, 0.5, 3, 15, 3, 5, 1.2, 0)
+            mag, ang = cv2.cartToPolar(flow[..., 0], flow[..., 1])
+
+            ch1 = ang * 180 / np.pi / 2
+            ch2 = cv2.normalize(mag, None, 0, 255, cv2.NORM_MINMAX)
+            if self._optical_flow_3d:
+                hsv = np.zeros(shape=(*prev_gray.shape[:2], 3), dtype=ch1.dtype)
+                hsv[..., 1] = 255
+                hsv[..., 0] = ch1
+                hsv[..., 2] = ch2
+                flow = cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
+            else:
+                # hsv with a missing (1) channel*
+                hsv = np.zeros(shape=(*prev_gray.shape[:2], 2), dtype=ch1.dtype)
+                hsv[..., 0] = ch1
+                hsv[..., 1] = ch2
+                flow = hsv
+
+            if len(flow_result) == 0:
+                # First frame is all zeros (filler)
+                flow_result.append(np.zeros_like(flow))
+
+            flow_result.append(flow)
+
+        # Transpose flow "images"
+        flow_result = [np.transpose(fr, (2, 0, 1)) for fr in flow_result]
+        # Normalize flow "images"
+        flow_result = [(fr / 255.0) for fr in flow_result]
+
+        return flow_result
+
+    def update_visual_metadata(self, metadata: dict) -> dict:
+        if self._image_load:
+            # Images
+            image_paths = metadata['image_paths'][:self._history_len]
+            metadata['raw_images'] = [self.load_image(path) for path in image_paths]
+            metadata['images'] = [np.transpose(img, (2, 0, 1)) / 255.0 for img in metadata['raw_images']]
+            metadata['images'] = np.stack(metadata['images'])
+
+            # Optical flow
+            if self._optical_flow:
+                metadata['flow'] = self.perform_optical_flow(metadata['raw_images'])
+                metadata['flow'] = np.stack(metadata['flow'])
+                metadata['flow'] = np.nan_to_num(metadata['flow'])
+
+            # Cleanup
+            metadata.pop('raw_images')
+            if self._optical_flow and self._optical_flow_only:
+                metadata.pop('images')
+
+        return metadata
 
     @abstractmethod
     def __getitem__(self, index: int) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, Dict[str, Any]]:
@@ -262,6 +362,10 @@ class TorchTrajectoryDataset(Dataset):
         orig_bboxes_unobs = torch.from_numpy(bboxes_unobs)
         ts_obs = torch.from_numpy(ts_obs)
         ts_unobs = torch.from_numpy(ts_unobs)
+        if 'images' in metadata:
+            metadata['images'] = torch.from_numpy(metadata['images'])
+        if 'flow' in metadata:
+            metadata['flow'] = torch.from_numpy(metadata['flow'])
 
         # Trajectory transformations
         bboxes_obs, aug_bboxes_unobs, ts_obs, ts_unobs = \

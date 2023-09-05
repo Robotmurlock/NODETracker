@@ -134,12 +134,24 @@ class LightningModuleForecaster(LightningModuleBase):
         self._transform_func = transform_func
         self._log_epoch_metrics = log_epoch_metrics
 
-    def forward(self, x: torch.Tensor, t_obs: torch.Tensor, t_unobs: Optional[torch.Tensor] = None, *args, **kwargs) \
-            -> Tuple[torch.Tensor, ...]:
-        return self._model(x, t_obs, t_unobs, *args, **kwargs)
+    def forward(
+        self,
+        x: torch.Tensor,
+        t_obs: torch.Tensor,
+        t_unobs: Optional[torch.Tensor] = None,
+        metadata: Optional[dict] = None,
+        *args, **kwargs
+    ) -> Tuple[torch.Tensor, ...]:
+        return self._model(x, t_obs, t_unobs, metadata, *args, **kwargs)
 
-    def inference(self, x: torch.Tensor, t_obs: torch.Tensor, t_unobs: Optional[torch.Tensor] = None) \
-            -> Tuple[torch.Tensor, ...]:
+    def inference(
+        self,
+        x: torch.Tensor,
+        t_obs: torch.Tensor,
+        t_unobs: Optional[torch.Tensor] = None,
+        metadata: Optional[dict] = None,
+        *args, **kwargs
+    ) -> Tuple[torch.Tensor, ...]:
         """
         By default, this function is synonym for `forward`
         but optionally it can be overriden for preprocessing or postprocessing.
@@ -152,7 +164,7 @@ class LightningModuleForecaster(LightningModuleBase):
         Returns:
             Model inference (output)
         """
-        return self._model(x, t_obs, t_unobs)
+        return self._model(x, t_obs, t_unobs, metadata)
 
     def _calc_metrics(
         self,
@@ -281,7 +293,7 @@ class LightningModuleForecaster(LightningModuleBase):
     def training_step(self, batch: Dict[str, Union[dict, torch.Tensor]], *args, **kwargs) -> torch.Tensor:
         bboxes_obs, bboxes_aug_unobs, ts_obs, ts_unobs, orig_bboxes_obs, orig_bboxes_unobs, bboxes_unobs, metadata = batch.values()
 
-        output = self.forward(bboxes_obs, ts_obs, ts_unobs)
+        output = self.forward(bboxes_obs, ts_obs, ts_unobs, metadata)
         bboxes_unobs_hat = output[0] if isinstance(output, tuple) else output
 
         # noinspection PyTypeChecker
@@ -294,7 +306,7 @@ class LightningModuleForecaster(LightningModuleBase):
     def validation_step(self, batch: Dict[str, Union[dict, torch.Tensor]], *args, **kwargs) -> torch.Tensor:
         bboxes_obs, bboxes_aug_unobs, ts_obs, ts_unobs, orig_bboxes_obs, orig_bboxes_unobs, bboxes_unobs, metadata = batch.values()
 
-        output = self.forward(bboxes_obs, ts_obs, ts_unobs)
+        output = self.forward(bboxes_obs, ts_obs, ts_unobs, metadata)
         bboxes_unobs_hat = output[0] if isinstance(output, tuple) else output
 
         # noinspection PyTypeChecker

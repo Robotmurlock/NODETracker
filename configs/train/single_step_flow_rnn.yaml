@@ -1,8 +1,7 @@
-# experiment: 'SSRNN-lasot-exp04-128dim-no-occ-no-oov-fod-one-step-ahead-no-wd'
-# experiment: 'SSRNN-lasot-airplane-exp01-128dim'
-experiment: 'SSRNN-lasot-tiger-exp01-128dim'
-description: 'SSRNN - Simplicity'
-batch_size: 256
+# experiment: 'SSRNNFlow-lasot-exp01-128dim-baseline'
+experiment: 'SSRNNFlow-lasot-tiger-exp01-128dim'
+description: 'SSRNN - Flow'
+batch_size: 64
 learning_rate: 1e-3
 max_epochs: 30
 

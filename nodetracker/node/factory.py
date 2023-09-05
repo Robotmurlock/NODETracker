@@ -20,6 +20,7 @@ from nodetracker.node.utils import LightningTrainConfig
 from nodetracker.node.utils.training import LightningModuleForecaster
 from nodetracker.standard.mlp import LightningMLPForecaster
 from nodetracker.standard.rnn import LightningRNNSeq2Seq, LightningARRNN, LightningSingleStepRNN, LightningRNNFilterModel
+from nodetracker.standard.flow import SingleStepFlowRNN, LightningSingleStepFlowRNN
 from nodetracker.standard.trainable_kalman_filter import LightningAdaptiveKalmanFilter
 from nodetracker.datasets.transforms import InvertibleTransform, InvertibleTransformWithVariance
 from nodetracker.node.nlp import LightningCategoryRNNODE
@@ -34,6 +35,7 @@ class ModelType(enum.Enum):
     ODERNNVAE = 'odernnvae'
     ARRNN = 'arrnn'
     SINGLE_STEP_RNN = 'single-step-rnn'
+    SINGLE_STEP_FLOW_RNN = 'single-step-flow-rnn'
     RNN = 'rnn'
     RNNODE = 'rnnode'
     NODE_FILTER = 'node_filter'
@@ -97,6 +99,7 @@ def load_or_create_model(
         ModelType.ARRNN: LightningARRNN,
         ModelType.RNN: LightningRNNSeq2Seq,
         ModelType.SINGLE_STEP_RNN: LightningSingleStepRNN,
+        ModelType.SINGLE_STEP_FLOW_RNN: LightningSingleStepFlowRNN,
         ModelType.RNN_FILTER: LightningRNNFilterModel,
         ModelType.MLP: LightningMLPForecaster,
         ModelType.MLPODE: LightningMLPODE,

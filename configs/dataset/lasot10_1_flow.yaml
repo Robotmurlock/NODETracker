@@ -6,8 +6,9 @@ future_len: 1
 additional_params:
   skip_occlusion: True
   skip_out_of_view: True
-  image_load: False
-  optical_flow: False
+  image_load: True
+  optical_flow: True
   image_shape: [224, 224]
   category_list:
-    - 'airplane'
+    # - 'airplane'
+    - 'tiger'

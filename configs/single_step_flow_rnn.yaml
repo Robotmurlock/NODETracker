@@ -1,0 +1,13 @@
+defaults:
+  - resources: cuda.yaml
+  - dataset: lasot10_1_flow.yaml
+  # - dataset: mot.yaml
+  - transform: lasot/standardized_first_difference.yaml
+  - model: single_step_flow_rnn.yaml
+  - train: single_step_flow_rnn.yaml
+  - eval: default_flow.yaml
+  - visualize: default.yaml
+  - augmentations: lasot/no_augs.yaml
+  - path: lasot.yaml
+  - end_to_end: default.yaml
+  - _self_

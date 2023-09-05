@@ -1,11 +1,9 @@
 experiment: '${train.experiment}'
 split: 'val'
-batch_size: 256
+batch_size: 128
 num_workers: 8
 
 inference_name: 'initial'
 checkpoint: 'last.ckpt'
 
 dataset_future_len: 1
-
-autoregressive: false

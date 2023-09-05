@@ -5,7 +5,7 @@ import logging
 import os
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import Dict, List, Tuple, Any, Optional
+from typing import Dict, List, Tuple, Any, Optional, Union
 
 import cv2
 import numpy as np
@@ -98,6 +98,12 @@ class LaSOTDataset(TrajectoryDataset):
         path: str,
         history_len: int,
         future_len: int,
+        image_load: bool = False,
+        image_shape: Union[None, List[int], Tuple[int, int]] = None,
+        image_bgr_to_rgb: bool = True,
+        optical_flow: bool = False,
+        optical_flow_3d: bool = False,
+        optical_flow_only: bool = True,
         sequence_list: Optional[List[str]] = None,
         category_list: Optional[List[str]] = None,
         skip_occlusion: bool = False,
@@ -111,11 +117,25 @@ class LaSOTDataset(TrajectoryDataset):
             path: Dataset path
             history_len: Observed trajectory length
             future_len: Unobserved trajectory length
+            image_load: Load images (optional - default: False)
+            image_shape: Resize images (optional - default: no resize)
+            image_bgr_to_rgb: Convert BGR to RGB
             sequence_list: Sequence list for dataset split
             skip_occlusion: Skip trajectories with occlusions
             skip_out_of_view: Skip trajectories that are out of view
         """
-        super().__init__(history_len=history_len, future_len=future_len, sequence_list=sequence_list, **kwargs)
+        super().__init__(
+            history_len=history_len,
+            future_len=future_len,
+            sequence_list=sequence_list,
+            image_load=image_load,
+            image_shape=image_shape,
+            image_bgr_to_rgb=image_bgr_to_rgb,
+            optical_flow=optical_flow,
+            optical_flow_3d=optical_flow_3d,
+            optical_flow_only=optical_flow_only,
+            **kwargs
+        )
 
         self._sequence_index = self._create_dataset_index(
             path=path,
@@ -332,6 +352,8 @@ class LaSOTDataset(TrajectoryDataset):
             'frame_ids': frame_ids,
             'image_paths': image_paths
         }
+
+        metadata = self.update_visual_metadata(metadata)
 
         bboxes_obs, bboxes_unobs, frame_ts_obs, frame_ts_unobs = \
             split_trajectory_observed_unobserved(frame_ids, bboxes, self._history_len)

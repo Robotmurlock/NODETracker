@@ -75,11 +75,15 @@ def run_inference(
         t_bboxes_obs, t_bboxes_unobs, t_ts_obs, t_ts_unobs, metadata, *other = \
             transform.apply([bboxes_obs, bboxes_unobs, ts_obs, ts_unobs, metadata, None], shallow=False)  # preprocess
         t_bboxes_obs, t_ts_obs, t_bboxes_unobs, t_ts_unobs = [v.to(accelerator) for v in [t_bboxes_obs, t_ts_obs, t_bboxes_unobs, t_ts_unobs]]
+        for key in ['images', 'flow']:
+            if key in metadata:
+                metadata[key] = metadata[key].to(accelerator)
+
         # FIXME: Improvisation
         if isinstance(model, LightningNODEFilterModel):
             output = model.inference(t_bboxes_obs, t_ts_obs, t_bboxes_unobs, t_ts_unobs)  # inference
         else:
-            output = model.inference(t_bboxes_obs, t_ts_obs, t_ts_unobs)  # inference
+            output = model.inference(t_bboxes_obs, t_ts_obs, t_ts_unobs, metadata)  # inference
         # In case of multiple suffix values output (tuple) ignore everything except first output
         t_bboxes_unobs_hat = output[0] if isinstance(output, tuple) else output
         t_bboxes_unobs_hat = t_bboxes_unobs_hat.detach().cpu()

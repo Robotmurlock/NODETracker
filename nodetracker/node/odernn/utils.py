@@ -63,9 +63,15 @@ class LightningGaussianModel(LightningModuleForecaster):
         """
         return self._is_modeling_gaussian
 
-    def inference(self, x: torch.Tensor, t_obs: torch.Tensor, t_unobs: Optional[torch.Tensor] = None) \
-            -> Tuple[torch.Tensor, ...]:
-        output = self._model(x, t_obs, t_unobs)
+    def inference(
+        self,
+        x: torch.Tensor,
+        t_obs: torch.Tensor,
+        t_unobs: Optional[torch.Tensor] = None,
+        metadata: Optional[dict] = None,
+        *args, **kwargs
+    ) -> Tuple[torch.Tensor, ...]:
+        output = self._model(x, t_obs, t_unobs, metadata)
         if isinstance(output, tuple):
             # Case 1: Model outputs single value
             x_hat, *other = output
