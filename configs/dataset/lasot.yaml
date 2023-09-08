@@ -6,5 +6,3 @@ future_len: 5
 additional_params:
   skip_occlusion: True
   skip_out_of_view: True
-  category_list:
-    - 'airplane'

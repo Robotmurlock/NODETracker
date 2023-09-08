@@ -7,6 +7,7 @@ from typing import Union, Optional
 from pytorch_lightning import LightningModule
 
 from nodetracker.node.core.odevae import LightningODEVAE
+from nodetracker.np import LightningBaselineCNP
 from nodetracker.node.kalman_filter import TorchConstantVelocityODKalmanFilter
 from nodetracker.node.odernn import (
     LightningODERNN,
@@ -30,22 +31,32 @@ class ModelType(enum.Enum):
     """
     Enumerated implemented architectures
     """
+    # NODE
     ODEVAE = 'odevae'
     ODERNN = 'odernn'
     ODERNNVAE = 'odernnvae'
+    RNNODE = 'rnnode'
+    CATEGORY_RNNODE = 'category_rnnode'
+    COMPOSE_RNNODE = 'compose_rnnode'
+    MLPODE = 'mlpode'
+    NODE_FILTER = 'node_filter'
+
+    # RNN
     ARRNN = 'arrnn'
     SINGLE_STEP_RNN = 'single-step-rnn'
     SINGLE_STEP_FLOW_RNN = 'single-step-flow-rnn'
     RNN = 'rnn'
-    RNNODE = 'rnnode'
-    NODE_FILTER = 'node_filter'
     RNN_FILTER = 'rnn_filter'
-    CATEGORY_RNNODE = 'category_rnnode'
-    COMPOSE_RNNODE = 'compose_rnnode'
+
+    # MLP
     MLP = 'mlp'
-    MLPODE = 'mlpode'
+
+    # KF
     KALMAN_FILTER = 'kf'
     TAKF = 'takf'
+
+    # NP
+    BASELINE_CNP = 'baseline-cnp'
 
     @classmethod
     def from_str(cls, value: str) -> 'ModelType':
@@ -106,7 +117,8 @@ def load_or_create_model(
         ModelType.KALMAN_FILTER: TorchConstantVelocityODKalmanFilter,
         ModelType.TAKF: LightningAdaptiveKalmanFilter,
         ModelType.CATEGORY_RNNODE: LightningCategoryRNNODE,
-        ModelType.COMPOSE_RNNODE: LightningComposeRNNODE
+        ModelType.COMPOSE_RNNODE: LightningComposeRNNODE,
+        ModelType.BASELINE_CNP: LightningBaselineCNP
     }
 
     model_cls = catalog[model_type]

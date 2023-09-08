@@ -87,13 +87,18 @@ class LightningGaussianModel(LightningModuleForecaster):
         return x_hat, *other
 
 
-def run_simple_lightning_guassian_model_test(model_class: Type[LightningGaussianModel], params: Dict[str, Any]):
+def run_simple_lightning_guassian_model_test(
+    model_class: Type[LightningGaussianModel],
+    params: Dict[str, Any],
+    model_gaussian_only: bool = False
+):
     """
     Performs tests on implemented inherited LightningGaussianModel model.
 
     Args:
         model_class: Model class
         params: Parameters
+        model_gaussian_only: Model only density estimation based (only)
     """
     # Test Model
     xs = torch.randn(4, 3, 7)
@@ -102,15 +107,17 @@ def run_simple_lightning_guassian_model_test(model_class: Type[LightningGaussian
     expected_shape = (2, 3, 7)
 
     # Test standard (no gaussian)
-    model = model_class(**params)
+    if not model_gaussian_only:
+        model = model_class(**params)
 
-    output = model(xs, ts_obs, ts_unobs)
-    if isinstance(output, tuple):
-        output, *_ = output
-    assert output.shape == expected_shape, f'Expected shape {expected_shape} but found {output.shape}!'
+        output = model(xs, ts_obs, ts_unobs)
+        if isinstance(output, tuple):
+            output, *_ = output
+        assert output.shape == expected_shape, f'Expected shape {expected_shape} but found {output.shape}!'
 
     # Test model (gaussian)
-    model = model_class(model_gaussian=True, **params)
+    model = model_class(model_gaussian=True, **params) if not model_gaussian_only \
+        else model_class(**params)
 
     expected_shape = (2, 3, 14)
     output = model(xs, ts_obs, ts_unobs)

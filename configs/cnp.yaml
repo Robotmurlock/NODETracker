@@ -1,0 +1,12 @@
+defaults:
+  - resources: cuda.yaml
+  - dataset: lasot.yaml
+  - transform: lasot/standardized_first_difference.yaml
+  - model: cnp.yaml
+  - train: cnp.yaml
+  - eval: default.yaml
+  - visualize: default.yaml
+  - augmentations: lasot/obs_only.yaml
+  - path: lasot.yaml
+  - end_to_end: default.yaml
+  - _self_
