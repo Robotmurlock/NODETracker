@@ -29,29 +29,30 @@ class DotProductAttention(nn.Module):
 
 class MultiHeadAttention(nn.Module):
     """
-    Implementation of multi-head attention
+    Implementation of multi-head attention without projections.
+    Base for SelfAttention and CrossAttention.
     Ref: https://arxiv.org/pdf/1706.03762.pdf
     """
-    def __init__(self, n_heads: int, dim: int):
-        """
-        Args:
-            n_heads: Number of attention heads
-            dim: Input/output dimension
-        """
+    def __init__(self, n_heads: int):
         super().__init__()
         self._n_heads = n_heads
         self._attention = DotProductAttention()
-        self._w_q = nn.Linear(dim, dim)
-        self._w_k = nn.Linear(dim, dim)
-        self._w_v = nn.Linear(dim, dim)
-        self._w_o = nn.Linear(dim, dim)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        q, k, v = self._w_q(x), self._w_k(x), self._w_v(x)  # project input
+    def _multi_head_attention(self, q: torch.Tensor, k: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
+        """
+        Multi head attention without projections.
+
+        Args:
+            q: Query
+            k: Keys
+            v: Values
+
+        Returns:
+            Attention result
+        """
         q, k, v = self._split(q), self._split(k), self._split(v)
         o = self._attention(q, k, v)
         o = self._concat(o)
-        o = self._w_o(o)  # project output
         return o
 
     def _split(self, x: torch.Tensor) -> torch.Tensor:
@@ -91,9 +92,41 @@ class MultiHeadAttention(nn.Module):
         return x
 
 
-class TemporalFirstMultiHeadAttention(nn.Module):
+class MultiHeadSelfAttention(MultiHeadAttention):
     """
-    Wrapper for `MultiHeadAttention` in case of "batch_first=False" input
+    Implementation of self multi-head attention.
+    """
+    def __init__(self, n_heads: int, dim: int):
+        """
+        Args:
+            n_heads: Number of attention heads
+            dim: Input/output dimension
+        """
+        super().__init__(n_heads=n_heads)
+        self._n_heads = n_heads
+        self._w_q = nn.Linear(dim, dim)
+        self._w_k = nn.Linear(dim, dim)
+        self._w_v = nn.Linear(dim, dim)
+        self._w_o = nn.Linear(dim, dim)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        q, k, v = self._w_q(x), self._w_k(x), self._w_v(x)  # project input
+        o = self._multi_head_attention(q, k, v)
+        o = self._w_o(o)  # project output
+        return o
+
+
+class MultiHeadCrossAttention(MultiHeadAttention):
+    """
+    Implementation of cross multi-head attention.
+    """
+    def forward(self, q: torch.Tensor, k: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
+        return self._multi_head_attention(q, k, v)
+
+
+class TemporalFirstMultiHeadSelfAttention(nn.Module):
+    """
+    Wrapper for `MultiHeadSelfAttention` in case of "batch_first=False" input.
     """
     def __init__(self, n_heads: int, dim: int):
         """
@@ -102,24 +135,43 @@ class TemporalFirstMultiHeadAttention(nn.Module):
             dim: Input/output dimension
         """
         super().__init__()
-        self._mha = MultiHeadAttention(n_heads=n_heads, dim=dim)
+        self._mhsa = MultiHeadSelfAttention(n_heads=n_heads, dim=dim)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = torch.transpose(x, 0, 1).contiguous()
-        x = self._mha(x)
+        x = self._mhsa(x)
         x = torch.transpose(x, 0, 1).contiguous()
         return x
 
 
+class TemporalFirstMultiHeadCrossAttention(nn.Module):
+    """
+    Wrapper for `MultiHeadCrossAttention` in case of "batch_first=False" input.
+    """
+    def __init__(self, n_heads: int):
+        """
+        Args:
+            n_heads: Number of attention heads
+        """
+        super().__init__()
+        self._mhca = MultiHeadCrossAttention(n_heads=n_heads)
+
+    def forward(self, q: torch.TensorType, k: torch.TensorType, v: torch.Tensor) -> torch.Tensor:
+        q, k, v = [torch.transpose(value, 0, 1).contiguous() for value in [q, k, v]]
+        x = self._mhca(q, k, v)
+        x = torch.transpose(x, 0, 1)
+        return x
+
+
 def run_test() -> None:
-    mha = MultiHeadAttention(4, 16)
+    mha = MultiHeadSelfAttention(4, 16)
     x = torch.randn(10, 3, 16)
     o = mha(x)
     print(f'Output shape: {o.shape}')
 
-    tf_mha = TemporalFirstMultiHeadAttention(4, 16)
+    tf_mhsa = TemporalFirstMultiHeadSelfAttention(4, 16)
     x = torch.randn(3, 10, 16)
-    o = tf_mha(x)
+    o = tf_mhsa(x)
     print(f'Output shape (: {o.shape}')
 
 

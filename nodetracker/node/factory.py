@@ -6,9 +6,10 @@ from typing import Union, Optional
 
 from pytorch_lightning import LightningModule
 
+from nodetracker.datasets.transforms import InvertibleTransform, InvertibleTransformWithVariance
 from nodetracker.node.core.odevae import LightningODEVAE
-from nodetracker.np import LightningBaselineCNP
 from nodetracker.node.kalman_filter import TorchConstantVelocityODKalmanFilter
+from nodetracker.node.nlp import LightningCategoryRNNODE
 from nodetracker.node.odernn import (
     LightningODERNN,
     LightningODERNNVAE,
@@ -19,12 +20,11 @@ from nodetracker.node.odernn import (
 )
 from nodetracker.node.utils import LightningTrainConfig
 from nodetracker.node.utils.training import LightningModuleForecaster
+from nodetracker.np import LightningBaselineCNP, LightningBaselineAttnCNP
+from nodetracker.standard.flow import LightningSingleStepFlowRNN
 from nodetracker.standard.mlp import LightningMLPForecaster
 from nodetracker.standard.rnn import LightningRNNSeq2Seq, LightningARRNN, LightningSingleStepRNN, LightningRNNFilterModel
-from nodetracker.standard.flow import SingleStepFlowRNN, LightningSingleStepFlowRNN
 from nodetracker.standard.trainable_kalman_filter import LightningAdaptiveKalmanFilter
-from nodetracker.datasets.transforms import InvertibleTransform, InvertibleTransformWithVariance
-from nodetracker.node.nlp import LightningCategoryRNNODE
 
 
 class ModelType(enum.Enum):
@@ -57,6 +57,7 @@ class ModelType(enum.Enum):
 
     # NP
     BASELINE_CNP = 'baseline-cnp'
+    BASELINE_ATTN_CNP = 'baseline-attn-cnp'
 
     @classmethod
     def from_str(cls, value: str) -> 'ModelType':
@@ -118,7 +119,8 @@ def load_or_create_model(
         ModelType.TAKF: LightningAdaptiveKalmanFilter,
         ModelType.CATEGORY_RNNODE: LightningCategoryRNNODE,
         ModelType.COMPOSE_RNNODE: LightningComposeRNNODE,
-        ModelType.BASELINE_CNP: LightningBaselineCNP
+        ModelType.BASELINE_CNP: LightningBaselineCNP,
+        ModelType.BASELINE_ATTN_CNP: LightningBaselineAttnCNP
     }
 
     model_cls = catalog[model_type]

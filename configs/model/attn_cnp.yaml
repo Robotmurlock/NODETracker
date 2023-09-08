@@ -1,0 +1,4 @@
+type: 'baseline-attn-cnp'
+params:
+  observable_dim: 4
+  hidden_dim: 128

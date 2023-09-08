@@ -1,5 +1,5 @@
 """
-Implementation of Conditional Neural Processes for time series
+Implementation of Conditional Attentive Neural Processes for time series.
 """
 from typing import Optional, Union
 
@@ -9,14 +9,15 @@ from torch import nn
 from nodetracker.datasets.transforms import InvertibleTransform, InvertibleTransformWithVariance
 from nodetracker.node.odernn.utils import LightningGaussianModel, run_simple_lightning_guassian_model_test
 from nodetracker.node.utils import LightningTrainConfig
-from nodetracker.np.core.cnp import CNP
+from nodetracker.np.core.attn_cnp import AttnCNP
 
 
-class BaselineCNP(nn.Module):
+class BaselineAttnCNP(nn.Module):
     def __init__(
         self,
         input_dim: int,
         target_dim: int,
+        n_heads: int,
         n_classes: Optional[int] = None,
 
         hidden_dim: int = 8,
@@ -28,9 +29,10 @@ class BaselineCNP(nn.Module):
     ):
         super().__init__()
 
-        self._cnp = CNP(
+        self._cnp = AttnCNP(
             input_dim=input_dim,
             target_dim=target_dim,
+            n_heads=n_heads,
             n_classes=n_classes,
             hidden_dim=hidden_dim,
             n_input2hidden_layers=n_input2hidden_layers,
@@ -44,14 +46,15 @@ class BaselineCNP(nn.Module):
         return self._cnp(ts_obs, x_obs, ts_unobs)
 
 
-class LightningBaselineCNP(LightningGaussianModel):
+class LightningBaselineAttnCNP(LightningGaussianModel):
     """
-    Trainer wrapper for CNP.
+    Simple RNN implementation to compare with NODE models.
     """
     def __init__(
         self,
         observable_dim: int,
         hidden_dim: int,
+        n_heads: int,
 
         n_input2hidden_layers: int = 2,
         n_target2hidden_layers: int = 2,
@@ -69,10 +72,11 @@ class LightningBaselineCNP(LightningGaussianModel):
             observable_dim: Trajectory point dimension
             hidden_dim: Hidden trajectory dimension
         """
-        model = BaselineCNP(
+        model = BaselineAttnCNP(
             input_dim=1,
             target_dim=observable_dim,
             hidden_dim=hidden_dim,
+            n_heads=n_heads,
             n_input2hidden_layers=n_input2hidden_layers,
             n_target2hidden_layers=n_target2hidden_layers,
             n_enc_layers=n_enc_layers,
@@ -89,10 +93,11 @@ class LightningBaselineCNP(LightningGaussianModel):
 
 def main() -> None:
     run_simple_lightning_guassian_model_test(
-        model_class=LightningBaselineCNP,
+        model_class=LightningBaselineAttnCNP,
         params={
             'observable_dim': 7,
-            'hidden_dim': 3,
+            'hidden_dim': 16,
+            'n_heads': 4
         },
         model_gaussian_only=True
     )
