@@ -10,6 +10,7 @@ from nodetracker.datasets.transforms import InvertibleTransform, InvertibleTrans
 from nodetracker.node.odernn.utils import LightningGaussianModel, run_simple_lightning_guassian_model_test
 from nodetracker.node.utils import LightningTrainConfig
 from nodetracker.np.core.attn_cnp import AttnCNP
+from nodetracker.np.utils import to_scaled_relative_ts
 
 
 class BaselineAttnCNP(nn.Module):
@@ -25,11 +26,12 @@ class BaselineAttnCNP(nn.Module):
         n_target2hidden_layers: int = 2,
         n_enc_layers: int = 2,
 
-        n_head_layers: int = 2
+        n_head_layers: int = 2,
+        t_scale: float = 5.0
     ):
         super().__init__()
 
-        self._cnp = AttnCNP(
+        self._attn_cnp = AttnCNP(
             input_dim=input_dim,
             target_dim=target_dim,
             n_heads=n_heads,
@@ -41,9 +43,14 @@ class BaselineAttnCNP(nn.Module):
             n_head_layers=n_head_layers
         )
 
+        self._t_scale = t_scale
+
     def forward(self, x_obs: torch.Tensor, ts_obs: torch.Tensor, ts_unobs: torch.Tensor, metadata: dict) -> torch.Tensor:
+        with torch.no_grad():
+            ts_obs, ts_unobs = to_scaled_relative_ts(ts_obs, ts_unobs, self._t_scale)
+
         _ = metadata  # Ignored
-        return self._cnp(ts_obs, x_obs, ts_unobs)
+        return self._attn_cnp(ts_obs, x_obs, ts_unobs)
 
 
 class LightningBaselineAttnCNP(LightningGaussianModel):

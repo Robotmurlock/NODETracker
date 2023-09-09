@@ -1,4 +1,4 @@
-experiment: 'BaselineCNP-lasot-exp02-128-with-augs'
+experiment: 'BaselineCNP-lasot-exp01-128-no-augs'
 description: 'Baseline CNP'
 batch_size: 256
 learning_rate: 1e-3

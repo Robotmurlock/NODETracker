@@ -34,18 +34,14 @@ class AttentionCNPBackbone(nn.Module):
             n_layers=n_target2hidden_layers
         )
 
-        self._enc = nn.Sequential(
-            MLP(
-                input_dim=2 * hidden_dim,
-                output_dim=hidden_dim,
-                n_layers=n_enc_layers
-            ),
-            TemporalFirstMultiHeadSelfAttention(
-                n_heads=n_heads,
-                dim=hidden_dim
-            )
+        self._enc = MLP(
+            input_dim=2 * hidden_dim,
+            output_dim=hidden_dim,
+            n_layers=n_enc_layers
         )
 
+        self._mhsa = TemporalFirstMultiHeadSelfAttention(n_heads=n_heads, dim=hidden_dim)
+        self._norm = nn.LayerNorm(hidden_dim)
         self._mhca = TemporalFirstMultiHeadCrossAttention(n_heads=n_heads)
 
     def forward(self, x1: torch.Tensor, x2: torch.Tensor, y1: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
@@ -54,11 +50,12 @@ class AttentionCNPBackbone(nn.Module):
         yh1 = self._target2hidden(y1)
 
         xyh1 = torch.cat([xh1, yh1], dim=-1)
-        r1 = self._enc(xyh1)  # Values
+        r1 = self._enc(xyh1)
+        r1 = self._norm(r1 + self._mhsa(r1))  # Values
 
         # Encoding target nodes
         xh2 = self._input2hidden(x2)  # Queries
-        r_all = self._mhca(q=xh2, k=xh1, v=r1)
+        r_all = self._norm(xh2 + self._mhca(q=xh2, k=xh1, v=r1))
 
         return r_all, xh2
 

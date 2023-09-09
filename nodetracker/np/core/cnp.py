@@ -40,6 +40,7 @@ class CNPBackbone(nn.Module):
         # Encoding observed nodes
         xh1 = self._input2hidden(x1)
         yh1 = self._target2hidden(y1)
+
         xyh1 = torch.cat([xh1, yh1], dim=-1)
         r1 = self._enc(xyh1)
 

@@ -23,8 +23,8 @@ class DotProductAttention(nn.Module):
         if mask is not None:
             scaled_dot_product = torch.masked_fill(scaled_dot_product, mask=mask, value=self.NEG_INF)
 
-        score = torch.softmax(scaled_dot_product, dim=-1)  # (q @ k.T / sqrt(dim)) @ v
-        return score @ v
+        score = torch.softmax(scaled_dot_product, dim=-1)  # softmax(q @ k.T / sqrt(dim))
+        return score @ v  # softmax(q @ k.T / sqrt(dim)) @ v
 
 
 class MultiHeadAttention(nn.Module):
@@ -156,7 +156,7 @@ class TemporalFirstMultiHeadCrossAttention(nn.Module):
         super().__init__()
         self._mhca = MultiHeadCrossAttention(n_heads=n_heads)
 
-    def forward(self, q: torch.TensorType, k: torch.TensorType, v: torch.Tensor) -> torch.Tensor:
+    def forward(self, q: torch.Tensor, k: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
         q, k, v = [torch.transpose(value, 0, 1).contiguous() for value in [q, k, v]]
         x = self._mhca(q, k, v)
         x = torch.transpose(x, 0, 1)
