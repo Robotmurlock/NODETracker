@@ -20,7 +20,8 @@ class MLP(nn.Module):
         hidden_dim: Optional[int] = None,
         output_dim: Optional[int] = None,
         n_layers: int = 1,
-        lrelu_slope: float = 1e-2
+        lrelu_slope: float = 1e-2,
+        residual: bool = False
     ):
         """
         Args:
@@ -33,8 +34,10 @@ class MLP(nn.Module):
                 - equal to `input_dim` if not defined
             n_layers: Number of Perceptron layers
             lrelu_slope: LeakyReLU slope
+            residual: Use skip connections
         """
         super().__init__()
+        self._residual = residual
         assert n_layers >= 1, f'Minimum number of layers is 1 but found {n_layers}'
         if output_dim is None:
             output_dim = input_dim
@@ -66,7 +69,10 @@ class MLP(nn.Module):
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self._model(x)
+        if not self._residual:
+            return self._model(x)
+
+        return x + self._model(x)
 
 
 def main() -> None:

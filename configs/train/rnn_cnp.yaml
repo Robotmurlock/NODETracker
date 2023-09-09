@@ -1,5 +1,5 @@
-experiment: 'BaselineAttnCNP-lasot-exp08-with-augs-128dim-warmup-lower-lr'
-description: 'Baseline AttnCNP, x64, warmup 3 epochs, lr 1e-4, 6 scheduler steps'
+experiment: 'BaselineRNNCNP-lasot-exp04-128-with-augs-warmup-3head-layers'
+description: 'Baseline RNN-CNP, warmup'
 batch_size: 256
 learning_rate: 1e-3
 max_epochs: 30
@@ -10,10 +10,10 @@ gradient_clip_algorithm: value
 
 train_params:
   optim_name: adam
-  learning_rate: 1e-4
+  learning_rate: 1e-3
   n_warmup_epochs: 3
   sched_lr_gamma: 0.1
-  sched_lr_step: 6
+  sched_lr_step: 4
   weight_decay: 0.0000
 
   loss_name: 'gaussian_nllloss'

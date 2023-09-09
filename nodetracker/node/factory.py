@@ -20,7 +20,7 @@ from nodetracker.node.odernn import (
 )
 from nodetracker.node.utils import LightningTrainConfig
 from nodetracker.node.utils.training import LightningModuleForecaster
-from nodetracker.np import LightningBaselineCNP, LightningBaselineAttnCNP
+from nodetracker.np import LightningBaselineCNP, LightningBaselineAttnCNP, LightningBaselineRNNCNP
 from nodetracker.standard.flow import LightningSingleStepFlowRNN
 from nodetracker.standard.mlp import LightningMLPForecaster
 from nodetracker.standard.rnn import LightningRNNSeq2Seq, LightningARRNN, LightningSingleStepRNN, LightningRNNFilterModel
@@ -58,6 +58,7 @@ class ModelType(enum.Enum):
     # NP
     BASELINE_CNP = 'baseline-cnp'
     BASELINE_ATTN_CNP = 'baseline-attn-cnp'
+    BASELINE_RNN_CNP = 'baseline-rnn-cnp'
 
     @classmethod
     def from_str(cls, value: str) -> 'ModelType':
@@ -79,6 +80,7 @@ def load_or_create_model(
     model_type: Union[ModelType, str],
     params: dict,
     checkpoint_path: Optional[str] = None,
+    n_train_steps: Optional[int] = None,
     train_params: Optional[dict] = None,
     transform_func: Optional[Union[InvertibleTransform, InvertibleTransformWithVariance]] = None
 ) -> Union[LightningModuleForecaster, LightningModule]:
@@ -94,6 +96,7 @@ def load_or_create_model(
         model_type: Model type
         params: Model parameters'
         checkpoint_path: Load pretrained model
+        n_train_steps: Number of train steps
         train_params: Parameters for model training
         transform_func: Transform function (applied before loss)
     Returns:
@@ -120,13 +123,17 @@ def load_or_create_model(
         ModelType.CATEGORY_RNNODE: LightningCategoryRNNODE,
         ModelType.COMPOSE_RNNODE: LightningComposeRNNODE,
         ModelType.BASELINE_CNP: LightningBaselineCNP,
-        ModelType.BASELINE_ATTN_CNP: LightningBaselineAttnCNP
+        ModelType.BASELINE_ATTN_CNP: LightningBaselineAttnCNP,
+        ModelType.BASELINE_RNN_CNP: LightningBaselineRNNCNP
     }
 
     model_cls = catalog[model_type]
 
     if not model_type.trainable:
         return model_cls(**params)
+
+    if n_train_steps is not None:
+        train_params['n_train_steps'] = n_train_steps
 
     train_config = LightningTrainConfig(**train_params) if train_params is not None else None
     if checkpoint_path is None and train_config is None:

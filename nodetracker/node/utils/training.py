@@ -27,11 +27,14 @@ class LightningTrainConfig:
     learning_rate: float = field(default=1e-3)
     sched_lr_gamma: float = field(default=1.0)
     sched_lr_step: int = field(default=1)
+    n_warmup_epochs: int = field(default=0)
 
     optim_name: str = field(default='default')
     optim_additional_params: dict = field(default_factory=dict)
 
     weight_decay: float = field(default=0.0)
+
+    n_train_steps: int = field(default=1000)
 
 
 class LightningModuleBase(pl.LightningModule):
@@ -63,13 +66,6 @@ class LightningModuleBase(pl.LightningModule):
             show_on_prog_bar = name.endswith('/loss')
             self.log(name, value, prog_bar=show_on_prog_bar)
 
-        # noinspection PyTypeChecker
-        optimizer: torch.optim.Optimizer = self.optimizers()
-        if isinstance(optimizer, list):
-            optimizer = optimizer[0]
-        lr = torch_helper.get_optim_lr(optimizer)
-        self.log('general/lr', lr)
-
     def configure_optimizers(self):
         optim_name = self._train_config.optim_name.lower()
         optim_catalog = {
@@ -86,13 +82,28 @@ class LightningModuleBase(pl.LightningModule):
             weight_decay=self._train_config.weight_decay
         )
 
+        def warmup_scheduler_func(current_step: int):
+            return current_step / (self._train_config.n_warmup_epochs * self._train_config.n_train_steps)
+
+        scheduler_obj = torch.optim.lr_scheduler.SequentialLR(
+           optimizer=optimizer,
+           schedulers=[
+               torch.optim.lr_scheduler.LambdaLR(
+                   optimizer=optimizer,
+                   lr_lambda=warmup_scheduler_func
+               ),
+               torch.optim.lr_scheduler.StepLR(
+                   optimizer=optimizer,
+                   step_size=self._train_config.sched_lr_step * self._train_config.n_train_steps,
+                   gamma=self._train_config.sched_lr_gamma
+               )
+           ],
+           milestones=[self._train_config.n_warmup_epochs * self._train_config.n_train_steps]
+        )
+
         scheduler = {
-            'scheduler': torch.optim.lr_scheduler.StepLR(
-                optimizer=optimizer,
-                step_size=self._train_config.sched_lr_step,
-                gamma=self._train_config.sched_lr_gamma
-            ),
-            'interval': 'epoch',
+            'scheduler': scheduler_obj,
+            'interval': 'step',
             'frequency': 1
         }
 
@@ -300,6 +311,13 @@ class LightningModuleForecaster(LightningModuleBase):
         loss, metrics = self._calc_loss_and_metrics(orig_bboxes_obs, bboxes_unobs, bboxes_unobs_hat, metadata)
         self._log_loss(loss, prefix='training', log_step=True)
         self._log_metrics(metrics, prefix='training')
+
+        # noinspection PyTypeChecker
+        optimizer: torch.optim.Optimizer = self.optimizers()
+        if isinstance(optimizer, list):
+            optimizer = optimizer[0]
+        lr = torch_helper.get_optim_lr(optimizer)
+        self.log('general/lr', lr)
 
         return loss
 
