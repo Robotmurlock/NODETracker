@@ -131,7 +131,7 @@ def create_filter(cfg: ExtendedE2EGlobalConfig, experiment_path: str) -> StateMo
     name = cfg.end_to_end.filter.type
     params = cfg.end_to_end.filter.params
 
-    if 'node' in name:
+    if 'node' in name or 'cnp' in name:
         model = create_inference_model(cfg, experiment_path)
         transform_func = transforms.transform_factory(cfg.transform.name, cfg.transform.params)
         params['model'] = model

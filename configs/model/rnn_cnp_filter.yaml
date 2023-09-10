@@ -2,3 +2,6 @@ type: 'rnn-cnp-filter'
 params:
   observable_dim: 4
   hidden_dim: 128
+
+  bounded_variance: true
+  bounded_value: 0.01

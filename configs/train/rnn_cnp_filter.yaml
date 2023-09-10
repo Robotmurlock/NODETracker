@@ -1,4 +1,4 @@
-experiment: 'RNNCNPFilter-lasot-exp01-128-with-augs-warmup'
+experiment: 'RNNCNPFilter-lasot-exp04-128-with-augs-warmup-bounded-variance'
 description: 'Baseline RNN-CNP, warmup'
 batch_size: 256
 learning_rate: 1e-3

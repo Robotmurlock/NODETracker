@@ -117,10 +117,14 @@ class RNNCNPFilter(nn.Module):
 
         n_head_layers: int = 2,
         n_agg_layers: int = 2,
-        t_scale: float = 5.0
+        t_scale: float = 5.0,
+        bounded_variance: bool = False,
+        bounded_value: float = 0.1
     ):
         super().__init__()
         self._t_scale = t_scale
+        self._bounded_variance = bounded_variance
+        self._bounded_value = bounded_value
 
         self._backbone = RNNCNPBackbone(
             input_dim=input_dim,
@@ -183,3 +187,14 @@ class RNNCNPFilter(nn.Module):
 
         _ = metadata  # Ignored
         return self._forward(ts_obs, x_obs, ts_unobs, x_unobs)
+
+    def unpack_output(self, x_unobs_hat: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        x_unobs_hat = x_unobs_hat.view(*x_unobs_hat.shape[:-1], -1, 2)
+        x_unobs_hat_mean = x_unobs_hat[..., 0]
+        x_unobs_hat_log_var = x_unobs_hat[..., 1]
+        if not self._bounded_variance:
+            x_unobs_hat_var = torch.exp(x_unobs_hat_log_var)
+        else:
+            x_unobs_hat_var = self._bounded_value + (1 - self._bounded_value) * torch.nn.functional.softplus(x_unobs_hat_log_var)
+
+        return x_unobs_hat_mean, x_unobs_hat_var

@@ -2,7 +2,8 @@ defaults:
   # - filter: rnn_kalman.yaml
   # - filter: buffered_node_model.yaml
   # - filter: akf.yaml
-  - filter: node_kalman.yaml
+  # - filter: node_kalman.yaml
+  - filter: cnp_filter.yaml
   # - selection: good_od.yaml
   # - selection: default.yaml
   - selection: good_od.yaml

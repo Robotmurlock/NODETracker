@@ -1,7 +1,7 @@
 defaults:
   - resources: cuda.yaml
   - dataset: lasot.yaml
-  - transform: lasot/standardized_first_difference.yaml
+  - transform: lasot/standardized_relative_to_last_obs.yaml
   - model: rnn_cnp_filter.yaml
   - train: rnn_cnp_filter.yaml
   - eval: default.yaml

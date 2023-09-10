@@ -113,6 +113,8 @@ class LightningRNNCNPFilter(LightningModuleBase):
         n_head_layers: int = 2,
         n_agg_layers: int = 2,
         t_scale: float = 5.0,
+        bounded_variance: bool = False,
+        bounded_value: float = 0.1,
 
         transform_func: Optional[Union[InvertibleTransform, InvertibleTransformWithVariance]] = None,
 
@@ -129,7 +131,9 @@ class LightningRNNCNPFilter(LightningModuleBase):
             n_enc_layers=n_enc_layers,
             n_head_layers=n_head_layers,
             n_agg_layers=n_agg_layers,
-            t_scale=t_scale
+            t_scale=t_scale,
+            bounded_variance=bounded_variance,
+            bounded_value=bounded_value
         )
 
         self._loss_func = factory_loss_function(train_config.loss_name, train_config.loss_params) \
@@ -260,8 +264,8 @@ class LightningRNNCNPFilter(LightningModuleBase):
     def training_step(self, batch: Dict[str, Union[dict, torch.Tensor]], *args, **kwargs) -> torch.Tensor:
         bboxes_obs, bboxes_aug_unobs, ts_obs, ts_unobs, orig_bboxes_obs, orig_bboxes_unobs, bboxes_unobs, metadata = batch.values()
         bboxes_prior, bboxes_posterior = self.forward(bboxes_obs, ts_obs, bboxes_aug_unobs, ts_unobs, metadata)
-        bboxes_prior_mean, bboxes_prior_var = extract_mean_and_var(bboxes_prior)
-        bboxes_posterior_mean, bboxes_posterior_var = extract_mean_and_var(bboxes_posterior)
+        bboxes_prior_mean, bboxes_prior_var = self._model.unpack_output(bboxes_prior)
+        bboxes_posterior_mean, bboxes_posterior_var = self._model.unpack_output(bboxes_posterior)
 
         # noinspection PyTypeChecker
         loss, metrics = self._calc_loss_and_metrics(
