@@ -457,6 +457,7 @@ class LightningNODEFilterModel(LightningModuleBase):
 
         return loss
 
+
 def run_test() -> None:
     nfm = NODEFilterModel(
         observable_dim=4,

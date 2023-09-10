@@ -1,9 +1,10 @@
-from typing import Tuple, Optional
+from typing import Tuple
 
 import torch
 from torch import nn
 
 from nodetracker.library.building_blocks.mlp import MLP
+from nodetracker.np.utils import to_scaled_relative_ts
 
 
 class RNNCNPBackbone(nn.Module):
@@ -64,7 +65,6 @@ class RNNCNP(nn.Module):
         self,
         input_dim: int,
         target_dim: int,
-        n_classes: Optional[int] = None,
 
         hidden_dim: int = 8,
         n_input2hidden_layers: int = 2,
@@ -75,7 +75,52 @@ class RNNCNP(nn.Module):
         n_agg_layers: int = 2,
     ):
         super().__init__()
-        self._is_classifier = (n_classes is not None)
+        self._backbone = RNNCNPBackbone(
+            input_dim=input_dim,
+            target_dim=target_dim,
+            hidden_dim=hidden_dim,
+            n_input2hidden_layers=n_input2hidden_layers,
+            n_target2hidden_layers=n_target2hidden_layers,
+            n_enc_layers=n_enc_layers,
+            n_agg_layers=n_agg_layers
+        )
+
+        self._head = nn.Sequential(
+            MLP(
+                input_dim=2 * hidden_dim,
+                output_dim=hidden_dim,
+                n_layers=n_head_layers
+            ),
+            nn.Linear(hidden_dim, 2 * target_dim, bias=True)
+        )
+
+    def forward(self, x1: torch.Tensor, y1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
+        n_nodes, _ , _ = x2.shape
+
+        r_agg, xh2 = self._backbone(x1, x2, y1)
+        r_agg = r_agg.unsqueeze(0).repeat(n_nodes, 1, 1)
+
+        xhr2 = torch.cat([xh2, r_agg], dim=-1)
+        return self._head(xhr2)
+
+
+class RNNCNPFilter(nn.Module):
+    def __init__(
+        self,
+        input_dim: int,
+        target_dim: int,
+
+        hidden_dim: int = 8,
+        n_input2hidden_layers: int = 2,
+        n_target2hidden_layers: int = 2,
+        n_enc_layers: int = 2,
+
+        n_head_layers: int = 2,
+        n_agg_layers: int = 2,
+        t_scale: float = 5.0
+    ):
+        super().__init__()
+        self._t_scale = t_scale
 
         self._backbone = RNNCNPBackbone(
             input_dim=input_dim,
@@ -87,20 +132,54 @@ class RNNCNP(nn.Module):
             n_agg_layers=n_agg_layers
         )
 
-        output_dim = n_classes if self._is_classifier else 2 * target_dim
-        self._head = nn.Sequential(
+        self._prior_head = nn.Sequential(
             MLP(
                 input_dim=2 * hidden_dim,
                 output_dim=hidden_dim,
                 n_layers=n_head_layers
             ),
-            nn.Linear(hidden_dim, output_dim, bias=True)
+            nn.Linear(hidden_dim, 2 * target_dim, bias=True)
         )
 
-    def forward(self, x1: torch.Tensor, y1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
-        n_nodes, _ , _ = x2.shape
+        self._evidence2hidden = MLP(
+            input_dim=target_dim,
+            output_dim=hidden_dim,
+            n_layers=n_target2hidden_layers
+        )
 
+        self._posterior_head = nn.Sequential(
+            MLP(
+                input_dim=3 * hidden_dim,
+                output_dim=hidden_dim,
+                n_layers=n_head_layers
+            ),
+            nn.Linear(hidden_dim, 2 * target_dim, bias=True)
+        )
+
+    def estimate_prior(self, x1: torch.Tensor, y1: torch.Tensor, x2: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        n_nodes, _, _ = x2.shape
         r_agg, xh2 = self._backbone(x1, x2, y1)
         r_agg = r_agg.unsqueeze(0).repeat(n_nodes, 1, 1)
 
-        return self._head(torch.cat([xh2, r_agg], dim=-1))
+        xhr2 = torch.cat([xh2, r_agg], dim=-1)
+        prior = self._prior_head(xhr2)
+
+        return prior, xhr2
+
+    def estimate_posterior(self, xhr2: torch.Tensor, y2: torch.Tensor) -> torch.Tensor:
+        yh2 = self._evidence2hidden(y2)
+        xyhr2 = torch.cat([xhr2, yh2], dim=-1)
+        return self._posterior_head(xyhr2)
+
+    def _forward(self, x1: torch.Tensor, y1: torch.Tensor, x2: torch.Tensor, y2: torch.Tensor):
+        prior, xhr2 = self.estimate_prior(x1, y1, x2)
+        posterior = self.estimate_posterior(xhr2, y2)
+        return prior, posterior
+
+    def forward(self, x_obs: torch.Tensor, ts_obs: torch.Tensor, x_unobs: torch.Tensor, ts_unobs: torch.Tensor, metadata: dict) \
+            -> Tuple[torch.Tensor, torch.Tensor]:
+        with torch.no_grad():
+            ts_obs, ts_unobs = to_scaled_relative_ts(ts_obs, ts_unobs, self._t_scale)
+
+        _ = metadata  # Ignored
+        return self._forward(ts_obs, x_obs, ts_unobs, x_unobs)

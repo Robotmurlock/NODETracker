@@ -20,7 +20,7 @@ from nodetracker.node.odernn import (
 )
 from nodetracker.node.utils import LightningTrainConfig
 from nodetracker.node.utils.training import LightningModuleForecaster
-from nodetracker.np import LightningBaselineCNP, LightningBaselineAttnCNP, LightningBaselineRNNCNP
+from nodetracker.np import LightningBaselineCNP, LightningBaselineAttnCNP, LightningBaselineRNNCNP, LightningRNNCNPFilter
 from nodetracker.standard.flow import LightningSingleStepFlowRNN
 from nodetracker.standard.mlp import LightningMLPForecaster
 from nodetracker.standard.rnn import LightningRNNSeq2Seq, LightningARRNN, LightningSingleStepRNN, LightningRNNFilterModel
@@ -59,6 +59,7 @@ class ModelType(enum.Enum):
     BASELINE_CNP = 'baseline-cnp'
     BASELINE_ATTN_CNP = 'baseline-attn-cnp'
     BASELINE_RNN_CNP = 'baseline-rnn-cnp'
+    RNN_CNP_FILTER = 'rnn-cnp-filter'
 
     @classmethod
     def from_str(cls, value: str) -> 'ModelType':
@@ -124,7 +125,8 @@ def load_or_create_model(
         ModelType.COMPOSE_RNNODE: LightningComposeRNNODE,
         ModelType.BASELINE_CNP: LightningBaselineCNP,
         ModelType.BASELINE_ATTN_CNP: LightningBaselineAttnCNP,
-        ModelType.BASELINE_RNN_CNP: LightningBaselineRNNCNP
+        ModelType.BASELINE_RNN_CNP: LightningBaselineRNNCNP,
+        ModelType.RNN_CNP_FILTER: LightningRNNCNPFilter
     }
 
     model_cls = catalog[model_type]

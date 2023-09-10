@@ -1,3 +1,4 @@
 type: 'mot20_offline'
 params:
-  dataset_path: /home/robotmurlock/NODETracker-tmp/assets/MOT20
+  # dataset_path: /home/robotmurlock/NODETracker-tmp/assets/MOT20
+  dataset_path: /media/home/MOT20

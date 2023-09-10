@@ -1,34 +1,34 @@
 defaults:
-  - filter: rnn_kalman.yaml
+  # - filter: rnn_kalman.yaml
   # - filter: buffered_node_model.yaml
   # - filter: akf.yaml
-  # - filter: node_kalman.yaml
+  - filter: node_kalman.yaml
   # - selection: good_od.yaml
   # - selection: default.yaml
   - selection: good_od.yaml
+  # - selection: all.yaml
   # - object_detection: mot20_offline.yaml
   - object_detection: yolo.yaml
 
 
-# lookup_path: '/home/robotmurlock/Desktop/datasets/LaSOT-YOLO/YOLO-LaSOT/lookup.json'
+lookup_path: '/home/robotmurlock/Desktop/datasets/LaSOT-YOLO/YOLO-LaSOT/lookup.json'
 # lookup_path: '/media/home/nodetracker-outputs/lookup.json'
-lookup_path: '/media/home/LaSOT-YOLO-baseline-lower-lr/lookup.json'
+# lookup_path: '/media/home/LaSOT-YOLO-baseline-lower-lr/lookup.json'
 # lookup_path: '/home/robotmurlock/Desktop/datasets/MOT20/.lookup.json'
 
 eval:
   n_steps: 1
-  # disable_eval_after_n_fns: 1
   disable_eval_after_n_fns: 5
-  assoc_use_gt: true
-  eval_split_only: true
+  assoc_use_gt: false  # LaSOT
+  # assoc_use_gt: true  # MOT20
 
 jitter:
   detection_noise_sigma: 0.00
   detection_skip_proba: 0.00
 
 es:
-  # min_iou_match: 0.0  # LaSOT
-  min_iou_match: 0.3  # MOT20
+  min_iou_match: 0.0  # LaSOT
+  # min_iou_match: 0.3  # MOT20
   max_skip_threshold: 5  # MOT20
 
 visualization:
