@@ -1,0 +1,7 @@
+name: 'MOT20'
+path: 'DanceTrack'
+split_index_path: '${dataset.path}/.split_index.yaml'
+history_len: 10
+future_len: 5
+additional_params:
+  allow_missing_annotations: true

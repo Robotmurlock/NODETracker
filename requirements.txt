@@ -5,6 +5,7 @@ numpy==1.23.4
 omegaconf==2.2.3
 opencv_python==4.6.0.66
 pandas==1.5.1
+plotly==5.14.1
 PyYAML==6.0
 scipy==1.10.1
 tqdm==4.64.1

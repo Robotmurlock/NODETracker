@@ -246,9 +246,9 @@ class LaSOTDataset(TrajectoryDataset):
         )
         for category, category_data in pbar:
             for sequence_name, sequence_info in category_data.items():
-                traj_time_points = list(range(sequence_info.seqlength - trajectory_len + 1))
+                traj_start_time_points = list(range(sequence_info.seqlength - trajectory_len + 1))
 
-                for i in traj_time_points:
+                for i in traj_start_time_points:
                     if skip_occlusion:
                         if any(sequence_info.occlusions[j] for j in range(i, i + trajectory_len)):
                             continue

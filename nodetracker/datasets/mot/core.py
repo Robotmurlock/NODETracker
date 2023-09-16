@@ -78,6 +78,7 @@ class MOTDataset(TrajectoryDataset):
         sequence_list: Optional[List[str]] = None,
         label_type: LabelType = LabelType.GROUND_TRUTH,
         skip_corrupted: bool = False,
+        allow_missing_annotations: bool = False,
         **kwargs
     ) -> None:
         """
@@ -107,6 +108,7 @@ class MOTDataset(TrajectoryDataset):
 
         self._path = path
         self._label_type = label_type
+        self._allow_missing_annotations = allow_missing_annotations
 
         self._scene_info_index = self._index_dataset(path, label_type, sequence_list, skip_corrupted)
         self._data_labels, self._n_labels, self._frame_to_data_index_lookup = self._parse_labels(self._scene_info_index)
@@ -271,8 +273,7 @@ class MOTDataset(TrajectoryDataset):
 
         return scene_info_index
 
-    @staticmethod
-    def _parse_labels(scene_infos: SceneInfoIndex) -> Tuple[Dict[str, list], int, Dict[str, Dict[int, int]]]:
+    def _parse_labels(self, scene_infos: SceneInfoIndex) -> Tuple[Dict[str, list], int, Dict[str, Dict[int, int]]]:
         """
         Loads all labels dictionary with format:
         {
@@ -306,14 +307,16 @@ class MOTDataset(TrajectoryDataset):
             object_groups = df.groupby('object_global_id')
             for object_global_id, df_grp in tqdm(object_groups, desc=f'Parsing {scene_name}', unit='pedestrian'):
                 df_grp = df_grp.drop(columns='object_global_id', axis=1).set_index('frame_id')
-                assert df_grp.index.max() - df_grp.index.min() + 1 == df_grp.index.shape[0], \
-                    f'Object {object_global_id} has missing data points!'
+
+                if not self._allow_missing_annotations:
+                    assert df_grp.index.max() - df_grp.index.min() + 1 == df_grp.index.shape[0], \
+                        f'Object {object_global_id} has missing data points!'
 
                 for frame_id, row in df_grp.iterrows():
                     data[object_global_id].append({
                         'frame_id': frame_id,
                         'bbox': row.values.tolist(),
-                        'image_path': MOTDataset._get_image_path(scene_info, frame_id),
+                        'image_path': self._get_image_path(scene_info, frame_id),
                         'occ': False,
                         'oov': False,
                         'scene': scene_name,
@@ -325,14 +328,15 @@ class MOTDataset(TrajectoryDataset):
         data = dict(data)  # Disposing unwanted defaultdict side-effects
         return data, n_labels, frame_to_data_index_lookup
 
-    @staticmethod
     def _create_trajectory_index(
+        self,
         labels: Dict[str, list],
         history_len: int,
         future_len: int
     ) -> List[Tuple[str, int, int]]:
         """
-        Creates trajectory index by going through every object and creating bbox trajectory of consecutive time points
+        Creates trajectory index by going through every object and creating bbox trajectory of consecutive time points.
+        All trajectories that are not continuous are skipped.
 
         Args:
             labels: List of bboxes for each object
@@ -345,10 +349,39 @@ class MOTDataset(TrajectoryDataset):
         trajectory_len = history_len + future_len
         traj_index = []
 
-        for object_id, data in tqdm(labels.items(), desc='Creating trajectories', unit='object'):
-            object_trajectory_len = len(data)
-            for i in range(object_trajectory_len - trajectory_len + 1):
-                traj_index.append((object_id, i, i + trajectory_len))
+        # Skipped trajectories stats
+        n_skipped = 0
+        n_total = 0
+
+        for object_global_id, data in tqdm(labels.items(), desc='Creating trajectories', unit='object'):
+            # Fetch scene length
+            scene_name, scene_object_id = self.parse_object_id(object_global_id)
+            seqlength = self._scene_info_index[scene_name].seqlength
+
+            # Create lookup of existing frames
+            frame_id_lookup = {int(d['frame_id']) for d in data}
+
+            # Add trajectories to the index
+            traj_start_time_point_candidates = list(range(seqlength))
+            for i in traj_start_time_point_candidates:
+                n_total += 1
+
+                trajectory_range = list(range(i, i + trajectory_len))
+                if any((j not in frame_id_lookup) for j in trajectory_range):
+                    # Trajectory is not continuous -> skipping
+                    # Note: This is only for motion model training
+                    n_skipped += 1
+                    continue
+
+                traj_index.append((object_global_id, i, i + trajectory_len))
+
+        n_kept = n_total - n_skipped
+        logger.info(f'Total number of trajectory candidates: {n_total}.')
+        logger.info(f'Total number of skipped trajectories: {n_skipped} (ratio: {100 * (n_skipped / n_total):.2f}%).')
+        logger.info(f'Total number of kept trajectories: {n_kept}.')
+        logger.info(f'Trajectory index size: {len(traj_index)}')
+        if not self._allow_missing_annotations:
+            assert n_kept == n_total and n_skipped == 0
 
         return traj_index
 

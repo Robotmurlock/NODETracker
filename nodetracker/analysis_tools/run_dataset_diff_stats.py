@@ -32,10 +32,11 @@ def main(cfg: DictConfig):
             sequence_list=cfg.dataset.split_index['train'],
             history_len=cfg.dataset.history_len,
             future_len=cfg.dataset.future_len,
+            additional_params=cfg.dataset.additional_params
         ),
-        # transform=transforms.BBoxRelativeToLastObsTransform(),
-        augmentation_before_transform=cfg.augmentations.before_transform,
-        augmentation_after_transform=cfg.augmentations.after_transform
+        transform=transforms.BBoxRelativeToLastObsTransform(),
+        # augmentation_before_transform=cfg.augmentations.before_transform,
+        # augmentation_after_transform=cfg.augmentations.after_transform
     )
 
     category_data = defaultdict(lambda: {
@@ -48,17 +49,20 @@ def main(cfg: DictConfig):
     sum_bbox2 = torch.zeros(4, dtype=torch.float32)  # Used to calculate std
     n_total = 0
     # noinspection PyTypeChecker
-    for bboxes_obs, bboxes_unobs, _, _, _, _, _, metadata in tqdm(dataset, unit='sample', desc='Calculating diff statistics'):
-        for data in [bboxes_obs, bboxes_unobs]:
+    for sample in tqdm(dataset, unit='sample', desc='Calculating diff statistics'):
+        bboxes_obs, bboxes_unobs, _, _, _, _, _, metadata = sample.values()
+        category = metadata['category']
+
+        for bboxes in [bboxes_obs, bboxes_unobs]:
             # General stats
-            sum_bbox += data.sum(dim=0)
-            sum_bbox2 += torch.pow(data, 2).sum(dim=0)
-            n_total += data.shape[0]
+            sum_bbox += bboxes.sum(dim=0)
+            sum_bbox2 += torch.pow(bboxes, 2).sum(dim=0)
+            n_total += bboxes.shape[0]
 
             # Category stats
-            category_data[metadata['category']]['sum_bbox'] += data.sum(dim=0)
-            category_data[metadata['category']]['sum_bbox2'] += torch.pow(data, 2).sum(dim=0)
-            category_data[metadata['category']]['n_total'] += data.shape[0]
+            category_data[category]['sum_bbox'] += bboxes.sum(dim=0)
+            category_data[category]['sum_bbox2'] += torch.pow(bboxes, 2).sum(dim=0)
+            category_data[category]['n_total'] += bboxes.shape[0]
 
     # Calculate statistics (global)
     mean_bbox = sum_bbox / n_total

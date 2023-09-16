@@ -26,3 +26,4 @@ ENV PYTHONPATH="/node"
 
 WORKDIR /node
 
+CMD ["bash"]
