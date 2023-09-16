@@ -22,27 +22,45 @@ class AttentionCNPBackbone(nn.Module):
         super().__init__()
         assert hidden_dim % n_heads == 0
 
-        self._input2hidden = MLP(
+        self._input2hidden = self._create_mlp_residual_block(
             input_dim=input_dim,
-            output_dim=hidden_dim,
+            hidden_dim=hidden_dim,
             n_layers=n_input2hidden_layers
         )
 
-        self._target2hidden = MLP(
+        self._target2hidden = self._create_mlp_residual_block(
             input_dim=target_dim,
-            output_dim=hidden_dim,
+            hidden_dim=hidden_dim,
             n_layers=n_target2hidden_layers
         )
 
-        self._enc = MLP(
+        self._enc = self._create_mlp_residual_block(
             input_dim=2 * hidden_dim,
-            output_dim=hidden_dim,
+            hidden_dim=hidden_dim,
             n_layers=n_enc_layers
         )
 
         self._mhsa = TemporalFirstMultiHeadSelfAttention(n_heads=n_heads, dim=hidden_dim)
         self._norm = nn.LayerNorm(hidden_dim)
         self._mhca = TemporalFirstMultiHeadCrossAttention(n_heads=n_heads)
+
+    @staticmethod
+    def _create_mlp_residual_block(input_dim: int, hidden_dim: int, n_layers: int):
+        return nn.Sequential(
+            MLP(
+                input_dim=input_dim,
+                output_dim=hidden_dim,
+                n_layers=1
+            ),
+            *[
+                MLP(
+                    input_dim=hidden_dim,
+                    output_dim=hidden_dim,
+                    n_layers=n_layers-1,
+                    residual=True
+                )
+            ]
+        )
 
     def forward(self, x1: torch.Tensor, x2: torch.Tensor, y1: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         # Encoding observed nodes
@@ -94,8 +112,15 @@ class AttnCNP(nn.Module):
             MLP(
                 input_dim=2 * hidden_dim,
                 output_dim=hidden_dim,
-                n_layers=n_head_layers
+                n_layers=1
             ),
+            *[
+                MLP(
+                    input_dim=hidden_dim,
+                    output_dim=hidden_dim,
+                    n_layers=1
+                ) for _ in range(n_head_layers - 1)
+            ],
             nn.Linear(hidden_dim, output_dim, bias=True)
         )
 

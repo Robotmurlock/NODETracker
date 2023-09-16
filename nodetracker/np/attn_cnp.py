@@ -69,6 +69,9 @@ class LightningBaselineAttnCNP(LightningGaussianModel):
 
         n_head_layers: int = 2,
 
+        bounded_variance: bool = False,
+        bounded_value: float = 0.01,
+
         transform_func: Optional[Union[InvertibleTransform, InvertibleTransformWithVariance]] = None,
 
         train_config: Optional[LightningTrainConfig] = None,
@@ -94,7 +97,9 @@ class LightningBaselineAttnCNP(LightningGaussianModel):
             model=model,
             model_gaussian=True,
             transform_func=transform_func,
-            log_epoch_metrics=log_epoch_metrics
+            log_epoch_metrics=log_epoch_metrics,
+            bounded_variance=bounded_variance,
+            bounded_value=bounded_value
         )
 
 

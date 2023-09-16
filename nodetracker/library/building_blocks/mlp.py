@@ -38,11 +38,14 @@ class MLP(nn.Module):
         """
         super().__init__()
         self._residual = residual
+
         assert n_layers >= 1, f'Minimum number of layers is 1 but found {n_layers}'
         if output_dim is None:
             output_dim = input_dim
         if hidden_dim is None:
             hidden_dim = output_dim
+
+        assert not residual or (input_dim == hidden_dim == output_dim)
 
         layers_args = [[hidden_dim, hidden_dim] for _ in range(n_layers)]
         layers_args[0][0] = input_dim

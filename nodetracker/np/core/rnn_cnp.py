@@ -146,7 +146,7 @@ class RNNCNPFilter(nn.Module):
         )
 
         self._evidence2hidden = MLP(
-            input_dim=target_dim,
+            input_dim=2 * target_dim,
             output_dim=hidden_dim,
             n_layers=n_target2hidden_layers
         )
@@ -170,14 +170,17 @@ class RNNCNPFilter(nn.Module):
 
         return prior, xhr2
 
-    def estimate_posterior(self, xhr2: torch.Tensor, y2: torch.Tensor) -> torch.Tensor:
-        yh2 = self._evidence2hidden(y2)
-        xyhr2 = torch.cat([xhr2, yh2], dim=-1)
+    def estimate_posterior(self, xhr2: torch.Tensor, y2: torch.Tensor, prior: torch.Tensor) -> torch.Tensor:
+        prior_mean, _ = self.unpack_output(prior)
+        innovation = y2 - prior_mean
+        yhi2 = self._evidence2hidden(torch.cat([y2, innovation], dim=-1))
+
+        xyhr2 = torch.cat([xhr2, yhi2], dim=-1)
         return self._posterior_head(xyhr2)
 
     def _forward(self, x1: torch.Tensor, y1: torch.Tensor, x2: torch.Tensor, y2: torch.Tensor):
         prior, xhr2 = self.estimate_prior(x1, y1, x2)
-        posterior = self.estimate_posterior(xhr2, y2)
+        posterior = self.estimate_posterior(xhr2.detach(), y2, prior.detach())
         return prior, posterior
 
     def forward(self, x_obs: torch.Tensor, ts_obs: torch.Tensor, x_unobs: torch.Tensor, ts_unobs: torch.Tensor, metadata: dict) \

@@ -430,6 +430,7 @@ class LightningNODEFilterModel(LightningModuleBase):
         )
         self._log_loss(loss, prefix='training', log_step=True)
         self._log_metrics(metrics, prefix='training')
+        self._log_lr()
 
         return loss
 

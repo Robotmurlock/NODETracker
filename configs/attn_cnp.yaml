@@ -1,7 +1,7 @@
 defaults:
   - resources: cuda.yaml
-  # - dataset: lasot.yaml
-  - dataset: mot.yaml
+  - dataset: lasot.yaml
+  # - dataset: mot.yaml
   - transform: lasot/standardized_first_difference.yaml
   - model: attn_cnp.yaml
   - train: attn_cnp.yaml

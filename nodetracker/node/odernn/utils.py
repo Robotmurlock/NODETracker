@@ -7,42 +7,7 @@ import torch
 from torch import nn
 
 from nodetracker.datasets.transforms import InvertibleTransform, InvertibleTransformWithVariance
-from nodetracker.node.utils.training import LightningModuleForecaster, LightningTrainConfig
-
-
-def extract_mean_and_var(bboxes_unobs_hat: torch.Tensor) \
-        -> Tuple[torch.Tensor, torch.Tensor]:
-    """
-    Helper function for Gaussian model postprocess
-
-    Args:
-        bboxes_unobs_hat: Prediction
-
-    Returns:
-        bboxes_hat_mean, bboxes_hat_var
-    """
-    bboxes_unobs_hat = bboxes_unobs_hat.view(*bboxes_unobs_hat.shape[:-1], -1, 2)
-    bboxes_unobs_hat_mean = bboxes_unobs_hat[..., 0]
-    bboxes_unobs_hat_log_var = bboxes_unobs_hat[..., 1]
-    bboxes_unobs_hat_var = torch.exp(bboxes_unobs_hat_log_var)
-
-    return bboxes_unobs_hat_mean, bboxes_unobs_hat_var
-
-
-def extract_mean_and_std(bboxes_unobs_hat: torch.Tensor) \
-        -> Tuple[torch.Tensor, torch.Tensor]:
-    """
-    Helper function for Gaussian model postprocess
-
-    Args:
-        bboxes_unobs_hat: Prediction
-
-    Returns:
-        bboxes_hat_mean, bboxes_hat_std
-    """
-    bboxes_unobs_hat_mean, bboxes_unobs_hat_var = extract_mean_and_var(bboxes_unobs_hat)
-    bboxes_unobs_hat_std = torch.sqrt(bboxes_unobs_hat_var)
-    return bboxes_unobs_hat_mean, bboxes_unobs_hat_std
+from nodetracker.node.utils.training import LightningModuleForecaster, LightningTrainConfig, extract_mean_and_std
 
 
 class LightningGaussianModel(LightningModuleForecaster):
@@ -53,6 +18,8 @@ class LightningGaussianModel(LightningModuleForecaster):
         self,
         model: nn.Module,
         model_gaussian: bool = False,
+        bounded_variance: bool = False,
+        bounded_value: float = 0.01,
         train_config: Optional[LightningTrainConfig] = None,
         transform_func: Optional[Union[InvertibleTransform, InvertibleTransformWithVariance]] = None,
         log_epoch_metrics: bool = True
@@ -61,6 +28,8 @@ class LightningGaussianModel(LightningModuleForecaster):
             train_config=train_config,
             model=model,
             model_gaussian=model_gaussian,
+            bounded_variance=bounded_variance,
+            bounded_value=bounded_value,
             transform_func=transform_func,
             log_epoch_metrics=log_epoch_metrics
         )
@@ -96,7 +65,11 @@ class LightningGaussianModel(LightningModuleForecaster):
             other = tuple()
 
         if self._model_gaussian:
-            x_hat_mean, x_hat_std = extract_mean_and_std(x_hat)
+            x_hat_mean, x_hat_std = extract_mean_and_std(
+                bboxes_unobs_hat=x_hat,
+                bounded_variance=self._bounded_variance,
+                bounded_value=self._bounded_value
+            )
             return x_hat_mean, x_hat_std, *other
 
         return x_hat, *other

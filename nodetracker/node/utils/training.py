@@ -16,6 +16,49 @@ from nodetracker.utils import torch_helper
 from nodetracker.utils.meter import MetricMeter
 
 
+def extract_mean_and_var(bboxes_unobs_hat: torch.Tensor, bounded_variance: bool = False, bounded_value: float = 0.01) \
+        -> Tuple[torch.Tensor, torch.Tensor]:
+    """
+    Helper function for Gaussian model postprocess
+
+    Args:
+        bboxes_unobs_hat: Prediction
+        bounded_variance: Bound minimal variance
+        bounded_value: Bounded variance value
+
+    Returns:
+        bboxes_hat_mean, bboxes_hat_var
+    """
+    bboxes_unobs_hat = bboxes_unobs_hat.view(*bboxes_unobs_hat.shape[:-1], -1, 2)
+    bboxes_unobs_hat_mean = bboxes_unobs_hat[..., 0]
+    bboxes_unobs_hat_log_var = bboxes_unobs_hat[..., 1]
+
+    if not bounded_variance:
+        bboxes_unobs_hat_var = torch.exp(bboxes_unobs_hat_log_var)
+    else:
+        bboxes_unobs_hat_var = bounded_value + (1 - bounded_value) * torch.nn.functional.softplus(bboxes_unobs_hat_log_var)
+
+    return bboxes_unobs_hat_mean, bboxes_unobs_hat_var
+
+
+def extract_mean_and_std(bboxes_unobs_hat: torch.Tensor, bounded_variance: bool = False, bounded_value: float = 0.01) \
+        -> Tuple[torch.Tensor, torch.Tensor]:
+    """
+    Helper function for Gaussian model postprocess
+
+    Args:
+        bboxes_unobs_hat: Prediction
+        bounded_variance: Bound minimal variance
+        bounded_value: Bounded variance value
+
+    Returns:
+        bboxes_hat_mean, bboxes_hat_std
+    """
+    bboxes_unobs_hat_mean, bboxes_unobs_hat_var = extract_mean_and_var(bboxes_unobs_hat, bounded_variance, bounded_value)
+    bboxes_unobs_hat_std = torch.sqrt(bboxes_unobs_hat_var)
+    return bboxes_unobs_hat_mean, bboxes_unobs_hat_std
+
+
 @dataclass
 class LightningTrainConfig:
     """
@@ -109,6 +152,17 @@ class LightningModuleBase(pl.LightningModule):
 
         return [optimizer], [scheduler]
 
+    def _log_lr(self) -> None:
+        """
+        Logs learning rate at the current step.
+        """
+        # noinspection PyTypeChecker
+        optimizer: torch.optim.Optimizer = self.optimizers()
+        if isinstance(optimizer, list):
+            optimizer = optimizer[0]
+        lr = torch_helper.get_optim_lr(optimizer)
+        self.log('general/lr', lr)
+
 
 class LightningModuleForecaster(LightningModuleBase):
     """
@@ -119,6 +173,8 @@ class LightningModuleForecaster(LightningModuleBase):
         train_config: Optional[LightningTrainConfig],
         model: nn.Module,
         model_gaussian: bool = False,
+        bounded_variance: bool = False,
+        bounded_value: float = 0.01,
         transform_func: Optional[Union[InvertibleTransform, InvertibleTransformWithVariance]] = None,
         log_epoch_metrics: bool = True
     ):
@@ -131,6 +187,9 @@ class LightningModuleForecaster(LightningModuleBase):
         """
         super().__init__(train_config=train_config)
         self._model_gaussian = model_gaussian
+        self._bounded_variance = bounded_variance
+        self._bounded_value = bounded_value
+
         self._model = model
         self._loss_func = factory_loss_function(train_config.loss_name, train_config.loss_params) \
             if train_config is not None else None
@@ -176,6 +235,14 @@ class LightningModuleForecaster(LightningModuleBase):
             Model inference (output)
         """
         return self._model(x, t_obs, t_unobs, metadata)
+
+    @property
+    def is_bounded_variance(self) -> bool:
+        return self._bounded_variance
+
+    @property
+    def variance_bound(self) -> Optional[float]:
+        return self._bounded_value if self._bounded_variance else None
 
     def _calc_metrics(
         self,
@@ -224,10 +291,11 @@ class LightningModuleForecaster(LightningModuleBase):
             Loss value (or mapping)
         """
         if self._model_gaussian:
-            bboxes_unobs_hat = bboxes_unobs_hat.view(*bboxes_unobs_hat.shape[:-1], -1, 2)
-            bboxes_unobs_hat_mean = bboxes_unobs_hat[..., 0]
-            bboxes_unobs_hat_log_var = bboxes_unobs_hat[..., 1]
-            bboxes_unobs_hat_var = torch.exp(bboxes_unobs_hat_log_var)
+            bboxes_unobs_hat_mean, bboxes_unobs_hat_var = extract_mean_and_var(
+                bboxes_unobs_hat=bboxes_unobs_hat,
+                bounded_variance=self._bounded_variance,
+                bounded_value=self._bounded_value
+            )
 
             loss = self._loss_func(bboxes_unobs_hat_mean, bboxes_unobs, bboxes_unobs_hat_var)
             # metrics = self._calc_metrics(bboxes_obs, metadata, bboxes_unobs, bboxes_unobs_hat_mean)
@@ -311,13 +379,7 @@ class LightningModuleForecaster(LightningModuleBase):
         loss, metrics = self._calc_loss_and_metrics(orig_bboxes_obs, bboxes_unobs, bboxes_unobs_hat, metadata)
         self._log_loss(loss, prefix='training', log_step=True)
         self._log_metrics(metrics, prefix='training')
-
-        # noinspection PyTypeChecker
-        optimizer: torch.optim.Optimizer = self.optimizers()
-        if isinstance(optimizer, list):
-            optimizer = optimizer[0]
-        lr = torch_helper.get_optim_lr(optimizer)
-        self.log('general/lr', lr)
+        self._log_lr()
 
         return loss
 

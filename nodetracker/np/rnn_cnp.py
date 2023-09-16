@@ -1,7 +1,7 @@
 """
 Implementation of a custom Conditional Neural Processes with reccurent aggregation
 """
-from typing import Optional, Union, List, Tuple, Dict
+from typing import Optional, Union, Tuple, Dict
 
 import torch
 from torch import nn
@@ -9,7 +9,8 @@ from torch import nn
 from nodetracker.datasets.transforms import InvertibleTransform, InvertibleTransformWithVariance
 from nodetracker.evaluation.metrics.sot import metrics_func
 from nodetracker.node.losses.factory import factory_loss_function
-from nodetracker.node.odernn.utils import LightningGaussianModel, run_simple_lightning_guassian_model_test, extract_mean_and_var
+from nodetracker.node.odernn.utils import LightningGaussianModel, run_simple_lightning_guassian_model_test
+from nodetracker.node.utils.training import extract_mean_and_var
 from nodetracker.node.utils import LightningTrainConfig, LightningModuleBase
 from nodetracker.np.core.rnn_cnp import RNNCNP, RNNCNPFilter
 from nodetracker.np.utils import to_scaled_relative_ts

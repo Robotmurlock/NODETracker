@@ -1,7 +1,6 @@
-experiment: 'BaselineAttnCNP-lasot-exp08-with-augs-128dim-warmup-lower-lr'
-description: 'Baseline AttnCNP, x64, warmup 3 epochs, lr 1e-4, 6 scheduler steps'
+experiment: 'BaselineAttnCNP-lasot-exp14-with-augs-128dim-warmup-lower-lr-residuals-3layers-x160-bounded-variance'
+description: 'Baseline AttnCNP, x160, warmup 3 epochs, lr 1e-4, 6 scheduler steps'
 batch_size: 256
-learning_rate: 1e-3
 max_epochs: 30
 
 inverse_transform_before_loss: True

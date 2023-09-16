@@ -5,7 +5,6 @@ import torch
 from nodetracker.datasets import transforms
 from nodetracker.filter.base import StateModelFilter, State
 from nodetracker.filter.utils import ODETorchTensorBuffer
-from nodetracker.node.odernn.utils import extract_mean_and_var
 from nodetracker.np import LightningRNNCNPFilter
 
 
@@ -72,7 +71,7 @@ class CNPFilter(StateModelFilter):
         t_x_obs, t_ts_obs, t_ts_unobs = t_x_obs.to(self._accelerator), t_ts_obs.to(self._accelerator), t_ts_unobs.to(
             self._accelerator)
         t_prior, xhr2 = self._model.core.estimate_prior(t_ts_obs, t_x_obs, t_ts_unobs)
-        t_prior_mean, t_prior_var = extract_mean_and_var(t_prior)
+        t_prior_mean, t_prior_var = self._model.core.unpack_output(t_prior)
         t_prior_mean, t_prior_var = t_prior_mean.detach().cpu(), t_prior_var.detach().cpu()
         _, prior_mean, *_ = self._transform.inverse(data=[x_obs, t_prior_mean, None], shallow=False)
         prior_var = self._transform.inverse_var(t_prior_var, additional_data=[x_obs, None], shallow=False)
@@ -80,7 +79,7 @@ class CNPFilter(StateModelFilter):
 
         prior_mean, prior_std = prior_mean[:, 0, :], prior_std[:, 0, :]
 
-        return prior_mean, prior_std, xhr2
+        return prior_mean, prior_std, (xhr2, t_prior)
 
     def predict(self, state: State) -> State:
         prior_mean, prior_std, xhr2 = self.multistep_predict(state, n_steps=1)
@@ -93,20 +92,22 @@ class CNPFilter(StateModelFilter):
         return prior_mean, prior_std, xhr2
 
     def update(self, state: State, measurement: torch.Tensor) -> State:
-        _, _, xhr2 = state
+        _, _, prior_data = state
         x_obs, ts_obs, ts_unobs = self._buffer.get_input(1)
 
-        if xhr2 is None:
+        if prior_data is None:
             self._buffer.push(measurement)
 
             # Only one bbox in history - using baseline (propagate last bbox) instead of NN model
             return self.baseline(x_obs, ts_unobs, single_step=True)
 
+        xhr2, t_prior = prior_data
+
         _, t_measurement, *_ = self._transform.apply(data=[x_obs, measurement.view(1, 1, -1), ts_obs, ts_unobs, None], shallow=False)
-        xhr2, t_measurement = xhr2.to(self._accelerator), t_measurement.to(self._accelerator)
-        t_posterior = self._model.core.estimate_posterior(xhr2, t_measurement)
+        xhr2, t_prior, t_measurement = xhr2.to(self._accelerator), t_prior.to(self._accelerator), t_measurement.to(self._accelerator)
+        t_posterior = self._model.core.estimate_posterior(xhr2, t_measurement, t_prior)
         t_posterior = t_posterior.detach().cpu()
-        t_posterior_mean, t_posterior_var = extract_mean_and_var(t_posterior)
+        t_posterior_mean, t_posterior_var = self._model.core.unpack_output(t_posterior)
         _, posterior_mean, *_ = self._transform.inverse(data=[x_obs, t_posterior_mean.view(1, 1, -1), None], shallow=False)
         posterior_var = self._transform.inverse_var(t_posterior_var, additional_data=[posterior_mean, None], shallow=False)
         posterior_std = torch.sqrt(posterior_var)

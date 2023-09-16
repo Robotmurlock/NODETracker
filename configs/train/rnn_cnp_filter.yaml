@@ -1,7 +1,6 @@
-experiment: 'RNNCNPFilter-lasot-exp04-128-with-augs-warmup-bounded-variance'
-description: 'Baseline RNN-CNP, warmup'
+experiment: 'RNNCNPFilter-lasot-exp11-128-with-augs-warmup-bounded-variance-relative-coords-longer-train'
+description: 'RNN-CNP filter, warmup, innovation without full prior backprop, x160'
 batch_size: 256
-learning_rate: 1e-3
 max_epochs: 30
 
 inverse_transform_before_loss: True
@@ -10,10 +9,10 @@ gradient_clip_algorithm: value
 
 train_params:
   optim_name: adam
-  learning_rate: 1e-3
+  learning_rate: 1e-4
   n_warmup_epochs: 3
   sched_lr_gamma: 0.1
-  sched_lr_step: 4
+  sched_lr_step: 6
   weight_decay: 0.0000
 
   loss_name: 'gaussian_nllloss'
