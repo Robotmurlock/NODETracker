@@ -390,12 +390,15 @@ class BBox:
         return cv2.rectangle(image, (y1, x1), (y2, x2), color, thickness)
 
 
+LabelType = Union[int, str]
+
+
 @dataclass
 class PredBBox(BBox):
     """
     BBox with class label and detection confidence (optional).
     """
-    label: Union[int, str] = -1
+    label: LabelType = -1
     conf: Optional[float] = field(default=None)
 
     @property
@@ -415,7 +418,7 @@ class PredBBox(BBox):
         return f'PredBBox({coords_str} {self.label} ({self.conf_annot}))'
 
     @classmethod
-    def create(cls, bbox: BBox, label: int, conf: Optional[float] = None):
+    def create(cls, bbox: BBox, label: LabelType, conf: Optional[float] = None):
         """
         Creates PredBbox from regular BBox
 

@@ -53,19 +53,19 @@ def main(args: argparse.Namespace) -> None:
         } if args.dataset_type == 'MOT20' else None
     )
 
-    scenes = dataset.scenes
-    random.shuffle(scenes)
-    scenes = scenes[:args.n_scenes]
-    for scene in tqdm(scenes, desc='Creating scene videos', unit='scene'):
-        object_ids = dataset.get_scene_object_ids(scene)
-        scene_length = dataset.get_scene_info(scene).seqlength
+    scene_names = dataset.scenes
+    random.shuffle(scene_names)
+    scene_names = scene_names[:args.n_scenes]
+    for scene_name in tqdm(scene_names, desc='Creating scene videos', unit='scene'):
+        object_ids = dataset.get_scene_object_ids(scene_name)
+        scene_length = dataset.get_scene_info(scene_name).seqlength
 
-        scene_video_path = os.path.join(output_path, f'{scene}.mp4')
+        scene_video_path = os.path.join(output_path, f'{scene_name}.mp4')
         with MP4Writer(scene_video_path, fps=args.fps) as mp4_writer:
-            for i in tqdm(range(scene_length), desc=f'Visualizing "{scene}"', unit='frame'):
-                image_path = dataset.get_scene_image_path(scene, i)
+            for i in tqdm(range(scene_length), desc=f'Visualizing "{scene_name}"', unit='frame'):
+                image_path = dataset.get_scene_image_path(scene_name, i)
                 frame = cv2.imread(image_path)
-                assert frame is not None, f'Failed to load image for frame {i} on scene "{scene}" with path "{image_path}"!'
+                assert frame is not None, f'Failed to load image for frame {i} on scene "{scene_name}" with path "{image_path}"!'
 
                 for object_id in object_ids:
                     data = dataset.get_object_data_label_by_frame_index(object_id, frame_index=i)

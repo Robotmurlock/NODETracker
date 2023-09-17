@@ -21,7 +21,6 @@ class BaselineSortTracker(Tracker):
         remember_threshold: int,
         matcher_algorithm: str = 'hungarian_iou',
         matcher_params: Optional[Dict[str, Any]] = None,
-        use_bbox_id: bool = False
     ):
         """
         Args:
@@ -30,14 +29,12 @@ class BaselineSortTracker(Tracker):
                 it is deleted.
             matcher_algorithm: Choose matching algorithm (e.g. Hungarian IOU)
             matcher_params: Matching algorithm parameters
-            use_bbox_id: Use bbox id for tracklet
         """
         matcher_params = {} if matcher_params is None else matcher_params
 
         # Parameters
         self._remember_threshold = remember_threshold
         self._matcher = association_algorithm_factory(name=matcher_algorithm, params=matcher_params)
-        self._use_bbox_id = use_bbox_id
 
     def track(self, tracklets: List[Tracklet], detections: List[PredBBox], frame_index: int, inplace: bool = True) \
             -> Tuple[List[Tracklet], List[Tracklet], List[Tracklet]]:

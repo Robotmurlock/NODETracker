@@ -4,33 +4,42 @@ Supports YOLOv8 realtime inference and Mock object detection with ground truths.
 """
 import os
 from abc import ABC, abstractmethod
-from typing import List, Tuple, Dict
+from typing import List, Tuple, Dict, Optional
 
 import cv2
 import pandas as pd
 import torch
 import ultralytics
 
+from nodetracker.datasets import TrajectoryDataset
 from nodetracker.datasets.mot.core import SceneInfoIndex, MOTDataset
 from nodetracker.utils import file_system
 from nodetracker.utils.lookup import LookupTable
-from tqdm import tqdm
+from nodetracker.library.cv.bbox import PredBBox, BBox
 
 
 class ObjectDetectionInference(ABC):
     """
     ObjectDetection inference interface.
     """
-    def __init__(self, lookup: LookupTable):
+    def __init__(self, dataset: TrajectoryDataset, lookup: LookupTable):
+        self._dataset = dataset
         self._lookup = lookup
 
     @abstractmethod
-    def predict(self, data: dict) -> Tuple[torch.Tensor, List[str], torch.Tensor]:
+    def predict(
+        self,
+        scene_name: str,
+        frame_index: int,
+        object_id: Optional[str] = None
+    ) -> Tuple[torch.Tensor, List[str], torch.Tensor]:
         """
         Generates list of bbox prediction based on given data (any input)
 
         Args:
-            data: Data
+            scene_name: Prediction scene name
+            frame_index: Frame id
+            object_id: Object id (optional leakage)
 
         Returns:
             List of bbox predictions
@@ -42,17 +51,33 @@ class GroundTruthInference(ObjectDetectionInference):
     """
     Object Detection Mock (returns ground truths).
     """
-    def __init__(self, lookup: LookupTable):
-        super().__init__(lookup=lookup)
+    def __init__(self, dataset: TrajectoryDataset, lookup: LookupTable):
+        super().__init__(dataset=dataset, lookup=lookup)
 
-    def predict(self, data: dict) -> Tuple[torch.Tensor, List[str], torch.Tensor]:
-        if data is None:
-            return torch.empty(0, 4, dtype=torch.float32), [], torch.empty(0, 4, dtype=torch.float32)
+    def predict(
+        self,
+        scene_name: str,
+        frame_index: int,
+        object_id: Optional[str] = None
+    ) -> Tuple[torch.Tensor, List[str], torch.Tensor]:
+        # If `object_id` is given then only one bbox is returned (if it is present)
+        object_ids = [object_id] if object_id is not None else self._dataset.get_scene_object_ids(scene_name)
+        bboxes, classes = [], []
 
-        bboxes = torch.tensor(data['bbox'], dtype=torch.float32).view(1, 4)
-        classes = [data['category']]
-        conf = torch.tensor([1], dtype=torch.float32)
-        return bboxes, classes, conf
+        for object_id in object_ids:
+            data = self._dataset.get_object_data_label_by_frame_index(object_id, frame_index)
+            if data is None:
+                continue
+
+            bboxes.append(torch.tensor(data['bbox'], dtype=torch.float32))
+            classes.append(data['category'])
+
+        bboxes = torch.stack(bboxes) if len(bboxes) > 0 \
+            else torch.empty(0, 4, dtype=torch.float32)
+        confs = torch.ones(bboxes.shape[0], dtype=torch.float32) if bboxes.shape[0] > 0 \
+            else torch.empty(0, 4, dtype=torch.float32)
+
+        return bboxes, classes, confs
 
 
 class YOLOv8Inference(ObjectDetectionInference):
@@ -61,6 +86,7 @@ class YOLOv8Inference(ObjectDetectionInference):
     """
     def __init__(
         self,
+        dataset: TrajectoryDataset,
         lookup: LookupTable,
         model_path: str,
         accelerator: str,
@@ -68,15 +94,21 @@ class YOLOv8Inference(ObjectDetectionInference):
         conf: float = 0.25,
         known_class: bool = False
     ):
-        super().__init__(lookup=lookup)
+        super().__init__(dataset=dataset, lookup=lookup)
         self._yolo = ultralytics.YOLO(model_path)
         self._yolo.to(accelerator)
         self._verbose = verbose
         self._conf = conf
         self._known_class = known_class
 
-    def predict(self, data: dict) -> Tuple[torch.Tensor, List[str], torch.Tensor]:
-        image_path = data['image_path']
+    def predict(
+        self,
+        scene_name: str,
+        frame_index: int,
+        object_id: Optional[str] = None
+    ) -> Tuple[torch.Tensor, List[str], torch.Tensor]:
+        image_path = self._dataset.get_scene_image_path(scene_name, frame_index)
+
         # noinspection PyUnresolvedReferences
         image = cv2.imread(image_path)
         assert image is not None, f'Failed to load image "{image_path}".'
@@ -86,7 +118,8 @@ class YOLOv8Inference(ObjectDetectionInference):
             source=image,
             verbose=self._verbose,
             conf=self._conf,
-            classes=self._lookup.lookup(data['category']) if self._known_class else None
+            classes=self._lookup.lookup(self._dataset.get_scene_info(scene_name).category)
+                if self._known_class else None
         )[0]  # Remove batch
 
         # Process bboxes
@@ -109,8 +142,8 @@ MOT20Detections = Dict[str, Dict[str, List[List[float]]]]
 
 
 class MOT20OfflineInference(ObjectDetectionInference):
-    def __init__(self, lookup: LookupTable, dataset_path: str):
-        super().__init__(lookup)
+    def __init__(self, dataset: TrajectoryDataset, lookup: LookupTable, dataset_path: str):
+        super().__init__(dataset=dataset, lookup=lookup)
 
         # Parse data
         self._scene_info_index = self._create_scene_info_index(dataset_path)
@@ -152,10 +185,14 @@ class MOT20OfflineInference(ObjectDetectionInference):
 
         return detections
 
-    def predict(self, data: dict) -> Tuple[torch.Tensor, List[str], torch.Tensor]:
-        scene_name = data['scene']
-        category = data['category']
-        frame_id = data['frame_id']
+    def predict(
+        self,
+        scene_name: str,
+        frame_index: int,
+        object_id: Optional[str] = None
+    ) -> Tuple[torch.Tensor, List[str], torch.Tensor]:
+        category = self._dataset.get_scene_info(scene_name).category
+        frame_id = str(frame_index + 1)
 
         bboxes = torch.tensor(self._detections[scene_name].get(frame_id, []), dtype=torch.float32)
         classes = [category] * bboxes.shape[0]
@@ -163,17 +200,23 @@ class MOT20OfflineInference(ObjectDetectionInference):
         return bboxes, classes, conf
 
 
-def object_detection_inference_factory(name: str, params: dict, lookup: LookupTable) -> ObjectDetectionInference:
+def object_detection_inference_factory(
+    name: str,
+    params: dict,
+    dataset: TrajectoryDataset,
+    lookup: LookupTable
+) -> ObjectDetectionInference:
     """
-    Creates object detection inference for given name and parameters.
+    Creates object detection inference for single object tracking (filter evaluation) given name and parameters.
 
     Args:
         name: OD inference name (type)
         params: CTor parameters
+        dataset: Dataset info
         lookup: Used to decode classes
 
     Returns:
-        Initialized OD inference object
+        Initialized OD inference object for filter evaluation
     """
     catalog = {
         'ground_truth': GroundTruthInference,
@@ -185,4 +228,35 @@ def object_detection_inference_factory(name: str, params: dict, lookup: LookupTa
     if name not in catalog:
         raise ValueError(f'Name "{name}" not found in catalog. Available options: {list(catalog.keys())}.')
 
-    return catalog[name](**params, lookup=lookup)
+    return catalog[name](**params, dataset=dataset, lookup=lookup)
+
+
+@torch.no_grad()
+def create_bbox_objects(inf_bboxes: torch.Tensor, inf_classes: List[str], inf_conf: torch.Tensor) -> List[PredBBox]:
+    """
+    Creates bboxes from raw outputs.
+
+    Args:
+        inf_bboxes: Inference bboxes
+        inf_classes: Inference bbox classes
+        inf_conf: Inference bbox confidences
+
+    Returns:
+        List of PredBBox objects
+    """
+    inf_bboxes = inf_bboxes.detach().cpu().numpy().tolist()
+    inf_conf = inf_conf.detach().cpu().numpy().tolist()
+    assert inf_bboxes.shape[0] == len(inf_classes) == inf_conf.shape[0]
+
+    n_bboxes = len(inf_classes)
+    bboxes: List[PredBBox] = []
+
+    for i in range(n_bboxes):
+        bbox = PredBBox.create(
+            bbox=BBox.from_yxwh(*inf_bboxes[i], clip=True),
+            label=inf_classes[i],
+            conf=float(inf_conf[i])
+        )
+        bboxes.append(bbox)
+
+    return bboxes

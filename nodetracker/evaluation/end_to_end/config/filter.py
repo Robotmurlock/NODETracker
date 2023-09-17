@@ -5,18 +5,7 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 from nodetracker.config_parser import GlobalConfig
-
-
-@dataclass
-class FilterConfig:
-    type: str
-    params: dict
-
-
-@dataclass
-class ObjectDetectionInferenceConfig:
-    type: str
-    params: dict
+from nodetracker.evaluation.end_to_end.config.common import FilterConfig, ObjectDetectionInferenceConfig
 
 
 @dataclass
@@ -68,7 +57,7 @@ class E2EConfig:
 
 
 @dataclass
-class ExtendedE2EGlobalConfig(GlobalConfig):
+class FilterGlobalConfig(GlobalConfig):
     end_to_end: Optional[E2EConfig] = field(default=None)
 
     def __post_init__(self) -> None:

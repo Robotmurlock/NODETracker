@@ -11,4 +11,5 @@ defaults:
   - augmentations: lasot/node_filter_default.yaml
   - path: lasot.yaml
   - end_to_end: default.yaml
+  - tracker: default.yaml
   - _self_

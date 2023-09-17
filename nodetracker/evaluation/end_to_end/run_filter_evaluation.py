@@ -1,3 +1,6 @@
+"""
+Filter E2E evaluation
+"""
 import copy
 import json
 import logging
@@ -20,9 +23,9 @@ from nodetracker.datasets import transforms, TrajectoryDataset
 from nodetracker.datasets.factory import dataset_factory
 from nodetracker.evaluation import metrics as eval_metrics
 from nodetracker.evaluation.end_to_end import jitter
-from nodetracker.evaluation.end_to_end.config import ExtendedE2EGlobalConfig
+from nodetracker.evaluation.end_to_end.config import FilterGlobalConfig
 from nodetracker.evaluation.end_to_end.inference_writer import InferenceWriter, get_inference_path
-from nodetracker.evaluation.end_to_end.object_detection import object_detection_inference_factory
+from evaluation.end_to_end.object_detection import object_detection_inference_factory
 from nodetracker.filter import filter_factory, StateModelFilter
 from nodetracker.library.cv import drawing, BBox, color_palette, PredBBox
 from nodetracker.library.cv.video_writer import MP4Writer
@@ -31,7 +34,7 @@ from nodetracker.utils.collections import nesteddict
 from nodetracker.utils.lookup import LookupTable
 from tools.utils import create_inference_model
 
-logger = logging.getLogger('E2EFilterEvaluation')
+logger = logging.getLogger('FilterEvaluation')
 
 METRICS = [
     # (name, function, requires_var)
@@ -117,7 +120,7 @@ def merge_metrics(
     return global_metrics
 
 
-def create_filter(cfg: ExtendedE2EGlobalConfig, experiment_path: str) -> StateModelFilter:
+def create_filter(cfg: FilterGlobalConfig, experiment_path: str) -> StateModelFilter:
     """
     Creates filter based on the given config. Wraps "DIRTY" code.
 
@@ -286,8 +289,8 @@ def check_detection(detector_bboxes: Optional[torch.Tensor], measurement: Option
 @torch.no_grad()
 @hydra.main(config_path=CONFIGS_PATH, config_name='default', version_base='1.1')
 def main(cfg: DictConfig):
-    cfg, experiment_path = pipeline.preprocess(cfg, name='e2e_evaluation', cls=ExtendedE2EGlobalConfig)
-    cfg: ExtendedE2EGlobalConfig
+    cfg, experiment_path = pipeline.preprocess(cfg, name='filter_evaluation', cls=FilterGlobalConfig)
+    cfg: FilterGlobalConfig
 
     with open(cfg.end_to_end.lookup_path, 'r', encoding='utf-8') as f:
         lookup = LookupTable.deserialize(json.load(f))
@@ -304,6 +307,7 @@ def main(cfg: DictConfig):
     od_inference = object_detection_inference_factory(
         name=cfg.end_to_end.object_detection.type,
         params=cfg.end_to_end.object_detection.params,
+        dataset=dataset,
         lookup=lookup
     )
     total_predict_time, total_update_time = 0.0, 0.0
@@ -384,7 +388,11 @@ def main(cfg: DictConfig):
                         if n_pred_steps > 1 else smf.singlestep_to_multistep_state(prior_state)
 
                     # Perform object detection inference
-                    inf_bboxes, inf_classes, inf_conf = od_inference.predict(point_data)
+                    inf_bboxes, inf_classes, inf_conf = od_inference.predict(
+                        scene_name=scene_name,
+                        frame_index=index,
+                        object_id=object_id
+                    )
                     bboxes, skip_detection = greedy_pick(
                         predictions=inf_bboxes,
                         prediction_confs=inf_conf,

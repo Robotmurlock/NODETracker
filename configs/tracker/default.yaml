@@ -1,0 +1,6 @@
+defaults:
+  - object_detection: gt.yaml
+  - algorithm: sort_baseline.yaml
+
+lookup_path: '/media/home/DanceTrack/.lookup.json'
+output_path: 'tmp_tracker'
