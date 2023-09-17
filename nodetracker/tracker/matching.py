@@ -2,12 +2,14 @@
 Implementation of tracklets-detections association matching algorithms.
 """
 from abc import ABC, abstractmethod
-from typing import List, Tuple
+from typing import List, Tuple, Optional, Any, Dict, Union
 
 import numpy as np
 import scipy
 
-from nodetracker.library.cv.bbox import PredBBox, Point
+from nodetracker.library.cv.bbox import PredBBox
+
+LabelType = Union[int, str]
 
 
 class AssociationAlgorithm(ABC):
@@ -38,22 +40,60 @@ class HungarianAlgorithmIOU(AssociationAlgorithm):
     """
     Solves the linear sum assignment problem from given cost matrix based on IOU scores.
     """
-    def __init__(self, match_threshold: float):
+    def __init__(
+        self,
+        match_threshold: float = 0.01,
+        label_gating: Optional[Union[LabelType, List[Tuple[LabelType, LabelType]]]] = None,
+        *args, **kwargs
+    ):
         """
         Args:
             match_threshold: Min threshold do match tracklet with object.
                 If threshold is not met then cost is equal to infinity.
         """
+        super().__init__(*args, **kwargs)
+
         self._match_threshold = match_threshold
-        self._INF = 999
+        self._label_gating = set([tuple(e) for e in label_gating]) if label_gating is not None else None
+        self._INF = 999999  # Big number but less than np.inf
+
+    def _can_match(self, tracklet_label: LabelType, det_label: LabelType) -> bool:
+        """
+        Checks if matching between tracklet and detection is possible.
+
+        Args:
+            tracklet_label: Tracklet label
+            det_label: Detection label
+
+        Returns:
+            True if matching is possible else False
+        """
+        if tracklet_label == det_label:
+            # Objects with same label can always match
+            return True
+
+        if self._label_gating is None:
+            # If label gating is not set then any objects with same label can't match
+            return False
+
+        return (tracklet_label, det_label) in self._label_gating \
+            or (det_label, tracklet_label) in self._label_gating
 
     def match(self, tracklets: List[PredBBox], detections: List[PredBBox]) -> Tuple[List[Tuple[int, int]], List[int], List[int]]:
         n_tracklets, n_detections = len(tracklets), len(detections)
         cost_matrix = np.zeros(shape=(n_tracklets, n_detections), dtype=np.float32)
         for t_i in range(n_tracklets):
+            tracklet_bbox = tracklets[t_i]
+
             for d_i in range(n_detections):
-                tracklet_bbox = tracklets[t_i]
                 det_bbox = detections[d_i]
+
+                # Check if matching is possible
+                if not self._can_match(tracklet_bbox.label, det_bbox.label):
+                    cost_matrix[t_i][d_i] = np.inf
+                    continue
+
+                # Calculate IOU score
                 iou_score = tracklet_bbox.iou(det_bbox)
                 # Higher the IOU score the better is the match (using negative values because of min optim function)
                 # If score has very high value then
@@ -82,52 +122,24 @@ class HungarianAlgorithmIOU(AssociationAlgorithm):
         return matches, unmatched_tracklets, unmatched_detections
 
 
-def run_test():
-    matcher = HungarianAlgorithmIOU(0.2)
-    tracklets = [
-        PredBBox(  # matches with D0
-            label=1,
-            upper_left=Point(x=0.1, y=0.1),
-            bottom_right=Point(x=0.3, y=0.3)
-        ),
-        PredBBox(  # matches with D2
-            label=2,
-            upper_left=Point(x=0.7, y=0.9),
-            bottom_right=Point(x=0.8, y=0.95)
-        ),
-        PredBBox(  # does not match
-            label=0,
-            upper_left=Point(x=0.0, y=0.0),
-            bottom_right=Point(x=0.01, y=0.01)
-        )
-    ]
-    detections = [
-        PredBBox(  # matches with T0
-            label=0,
-            upper_left=Point(x=0.11, y=0.09),
-            bottom_right=Point(x=0.29, y=0.32)
-        ),
-        PredBBox(  # does not match
-            label=0,
-            upper_left=Point(x=0.1, y=0.9),
-            bottom_right=Point(x=0.2, y=0.8)
-        ),
-        PredBBox(  # matches T1
-            label=0,
-            upper_left=Point(x=0.65, y=0.9),
-            bottom_right=Point(x=0.8, y=0.95)
-        ),
-        PredBBox(  # does not match
-            label=0,
-            upper_left=Point(x=0.99, y=0.99),
-            bottom_right=Point(x=1.00, y=1.00)
-        )
-    ]
+def association_algorithm_factory(name: str, params: Dict[str, Any]) -> AssociationAlgorithm:
+    """
+    Association algorithm factory. Not case-sensitive.
 
-    output = matcher.match(tracklets, detections)
-    expected_output = ([(0, 0), (1, 2)], [2], [1, 3])
-    assert output == expected_output, f'Expected {expected_output} but found {output}!'
+    Args:
+        name: Algorithm name
+        params: Parameters
 
+    Returns:
+        AssociationAlgorithm object
+    """
+    name = name.lower()
 
-if __name__ == '__main__':
-    run_test()
+    catalog = {
+        'hungarian_iou': HungarianAlgorithmIOU
+    }
+
+    if name not in catalog:
+        raise ValueError(f'Unknown algorithm "{name}". Available: {list(catalog.keys())}')
+
+    return catalog[name](**params)
