@@ -1,9 +1,9 @@
 defaults:
   # - filter: rnn_kalman.yaml
-  # - filter: buffered_node_model.yaml
+  - filter: buffered_node_model.yaml
   # - filter: akf.yaml
   # - filter: node_kalman.yaml
-  - filter: cnp_filter.yaml
+  # - filter: cnp_filter.yaml
   # - selection: good_od.yaml
   # - selection: default.yaml
   - selection: good_od.yaml
@@ -12,9 +12,9 @@ defaults:
   - object_detection: yolo.yaml
 
 
-lookup_path: '/home/robotmurlock/Desktop/datasets/LaSOT-YOLO/YOLO-LaSOT/lookup.json'
+# lookup_path: '/home/robotmurlock/Desktop/datasets/LaSOT-YOLO/YOLO-LaSOT/lookup.json'
 # lookup_path: '/media/home/nodetracker-outputs/lookup.json'
-# lookup_path: '/media/home/LaSOT-YOLO-baseline-lower-lr/lookup.json'
+lookup_path: '/media/home/LaSOT-YOLO-baseline-lower-lr/lookup.json'
 # lookup_path: '/home/robotmurlock/Desktop/datasets/MOT20/.lookup.json'
 
 eval:

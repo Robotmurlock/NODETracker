@@ -1,6 +1,6 @@
 type: 'single-step-rnn'
 params:
-  input_dim: 4
+  input_dim: 12
   hidden_dim: 128
   output_dim: 4
 

@@ -14,8 +14,30 @@ by running the bash script `nodetracker/utility_tools/run_download_and_setup_mot
 
 ## Environment setup
 
+### Python virtual environment
+
 All required packages can be found in `requirements.txt`:
 - `pip install -r requirements.txt`
+
+### Docker
+
+Alternative to python virtual environment is to just create a docker container. Build docker image:
+
+```
+docker build -t nodetracker-image .
+```
+
+Run a container:
+
+```
+docker run -it \
+    -v {CODE_PATH}:/node \  # Link code
+    -v {ASSETS_PATH}:/media/home \  # Link datasets path
+    --gpus '"device={GPU_NUMBER}"' \  # Link GPU
+    --device /dev/nvidia1:/dev/nvidia1 \  # 
+    --name {NAME} \
+    nodetracker-image bash
+```
 
 ## Scripts
 

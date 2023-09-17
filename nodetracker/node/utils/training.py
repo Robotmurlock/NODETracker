@@ -126,6 +126,17 @@ class LightningModuleBase(pl.LightningModule):
         )
 
         def warmup_scheduler_func(current_step: int):
+            """
+            Warmup scheduler learning rate multiplier for warm-up steps.
+
+            Args:
+                current_step: Current step
+
+            Returns:
+                Learning rate multiplier.
+            """
+            if self._train_config.n_warmup_epochs == 0:
+                return 1.0
             return current_step / (self._train_config.n_warmup_epochs * self._train_config.n_train_steps)
 
         scheduler_obj = torch.optim.lr_scheduler.SequentialLR(

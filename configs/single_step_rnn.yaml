@@ -2,8 +2,8 @@ defaults:
   - resources: cuda.yaml
   # - dataset: lasot10_1.yaml
   # - dataset: mot.yaml
-  - dataset: dancetrack/default.yaml
-  - transform: lasot/standardized_first_difference.yaml
+  - dataset: dancetrack/dancetrack10_1.yaml
+  - transform: lasot/jack_of_all_trades.yaml
   - model: single_step_rnn.yaml
   - train: single_step_rnn.yaml
   - eval: autoregressive.yaml

@@ -48,6 +48,7 @@ def main(cfg: DictConfig):
     sum_bbox = torch.zeros(4, dtype=torch.float32)  # Used to calculate mean and std
     sum_bbox2 = torch.zeros(4, dtype=torch.float32)  # Used to calculate std
     n_total = 0
+
     # noinspection PyTypeChecker
     for sample in tqdm(dataset, unit='sample', desc='Calculating diff statistics'):
         bboxes_obs, bboxes_unobs, _, _, _, _, _, metadata = sample.values()

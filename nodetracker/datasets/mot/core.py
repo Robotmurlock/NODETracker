@@ -10,6 +10,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Tuple, List, Any, Union, Optional
+from nodetracker.utils import file_system
 
 import numpy as np
 import pandas as pd
@@ -21,7 +22,7 @@ from nodetracker.datasets.utils import split_trajectory_observed_unobserved
 from nodetracker.utils.logging import configure_logging
 
 CATEGORY = 'pedestrian'
-
+N_IMG_DIGITS = 6
 
 class LabelType(enum.Enum):
     DETECTION = 'det'
@@ -110,7 +111,7 @@ class MOTDataset(TrajectoryDataset):
         self._label_type = label_type
         self._allow_missing_annotations = allow_missing_annotations
 
-        self._scene_info_index = self._index_dataset(path, label_type, sequence_list, skip_corrupted)
+        self._scene_info_index, self._n_digits = self._index_dataset(path, label_type, sequence_list, skip_corrupted)
         self._data_labels, self._n_labels, self._frame_to_data_index_lookup = self._parse_labels(self._scene_info_index)
         self._trajectory_index = self._create_trajectory_index(self._data_labels, self._history_len, self._future_len)
 
@@ -143,8 +144,10 @@ class MOTDataset(TrajectoryDataset):
     def get_object_data_length(self, object_id: str) -> int:
         return len(self._data_labels[object_id])
 
-    def get_object_data_label(self, object_id: str, index: int, relative_bbox_coords: bool = True) -> dict:
+    def get_object_data_label(self, object_id: str, index: int, relative_bbox_coords: bool = True) -> Optional[dict]:
         data = copy.deepcopy(self._data_labels[object_id][index])
+        if data is None:
+            return data
 
         if relative_bbox_coords:
             scene_name, _ = self.parse_object_id(object_id)
@@ -166,17 +169,12 @@ class MOTDataset(TrajectoryDataset):
         frame_index: int,
         relative_bbox_coords: bool = True
     ) -> Optional[dict]:
-        index = self._frame_to_data_index_lookup[object_id].get(frame_index)
-        if index is None:
-            return None
-
-        return self.get_object_data_label(object_id, index, relative_bbox_coords=relative_bbox_coords)
+        return self.get_object_data_label(object_id, frame_index, relative_bbox_coords=relative_bbox_coords)
 
     def get_scene_info(self, scene_name: str) -> SceneInfo:
         return self._scene_info_index[scene_name]
 
-    @staticmethod
-    def _get_image_path(scene_info: SceneInfo, frame_id: int) -> str:
+    def _get_image_path(self, scene_info: SceneInfo, frame_id: int) -> str:
         """
         Get frame path for given scene and frame id
 
@@ -187,7 +185,7 @@ class MOTDataset(TrajectoryDataset):
         Returns:
             Path to image (frame)
         """
-        return os.path.join(scene_info.dirpath, scene_info.imdir, f'{frame_id:06d}{scene_info.imext}')
+        return os.path.join(scene_info.dirpath, scene_info.imdir, f'{frame_id:0{self._n_digits}d}{scene_info.imext}')
 
     def get_scene_image_path(self, scene_name: str, frame_id: int) -> str:
         scene_info = self._scene_info_index[scene_name]
@@ -227,7 +225,7 @@ class MOTDataset(TrajectoryDataset):
         label_type: LabelType,
         sequence_list: Optional[List[str]],
         skip_corrupted: bool
-    ) -> SceneInfoIndex:
+    ) -> Tuple[SceneInfoIndex, int]:
         """
         Index dataset content. Format: { {scene_name}: {scene_labels_path} }
 
@@ -238,10 +236,11 @@ class MOTDataset(TrajectoryDataset):
             skip_corrupted: Skips incomplete scenes
 
         Returns:
-            Index to scenes
+            Index to scenes, number of digits used in images name convention (may vary between datasets)
         """
-        scene_names = [file for file in os.listdir(path) if not file.startswith('.')]
+        scene_names = [file for file in file_system.listdir(path) if not file.startswith('.')]
         logger.debug(f'Found {len(scene_names)} scenes. Names: {scene_names}.')
+        n_digits = N_IMG_DIGITS
 
         scene_info_index: SceneInfoIndex = {}
 
@@ -250,19 +249,27 @@ class MOTDataset(TrajectoryDataset):
                 continue
 
             scene_directory = os.path.join(path, scene_name)
-            scene_files = os.listdir(scene_directory)
+            scene_files = file_system.listdir(scene_directory)
 
             # Scene content validation
             skip_scene = False
             for filename in [label_type.value, 'seqinfo.ini']:
                 if label_type.value not in scene_files:
-                    msg = f'Ground truth file "{filename}" not found. Contents: {scene_files}'
+                    msg = f'Ground truth file "{filename}" not found on path "{scene_directory}". Contents: {scene_files}'
                     if not skip_corrupted:
                         raise FileNotFoundError(msg)
 
                     logger.warning(f'Skipping scene "{scene_name}". Reason: `{msg}`')
                     skip_scene = True
                     break
+
+            if 'img1' in scene_files:
+                # Check number of digits used in image name (e.g. DanceTrack and MOT20 have different convention)
+                img1_path = os.path.join(scene_directory, 'img1')
+                image_names = file_system.listdir(img1_path)
+                assert len(image_names) > 0, 'Image folder exists but it is empty!'
+                image_name = Path(image_names[0]).stem
+                n_digits = len(image_name)
 
             if skip_scene:
                 continue
@@ -271,9 +278,12 @@ class MOTDataset(TrajectoryDataset):
             scene_info_index[scene_name] = scene_info
             logger.debug(f'Scene info {scene_info}.')
 
-        return scene_info_index
+        if n_digits != N_IMG_DIGITS:
+            logger.warning(f'This dataset does not have default number of digits in image name. Got {n_digits} where default is {N_IMG_DIGITS}.')
 
-    def _parse_labels(self, scene_infos: SceneInfoIndex) -> Tuple[Dict[str, list], int, Dict[str, Dict[int, int]]]:
+        return scene_info_index, n_digits
+
+    def _parse_labels(self, scene_infos: SceneInfoIndex) -> Tuple[Dict[str, List[dict]], int, Dict[str, Dict[int, int]]]:
         """
         Loads all labels dictionary with format:
         {
@@ -288,11 +298,13 @@ class MOTDataset(TrajectoryDataset):
         Returns:
             Labels dictionary
         """
-        data = defaultdict(list)
+        data: Dict[str, List[Optional[dict]]] = {}
         frame_to_data_index_lookup: Dict[str, Dict[int, int]] = defaultdict(dict)
         n_labels = 0
 
         for scene_name, scene_info in scene_infos.items():
+            seqlength = self._scene_info_index[scene_name].seqlength
+
             df = pd.read_csv(scene_info.gt_path, header=None)
             df = df[df[7] == 1]  # Ignoring values that are not evaluated
 
@@ -312,8 +324,9 @@ class MOTDataset(TrajectoryDataset):
                     assert df_grp.index.max() - df_grp.index.min() + 1 == df_grp.index.shape[0], \
                         f'Object {object_global_id} has missing data points!'
 
+                data[object_global_id] = [None for _ in range(seqlength)]
                 for frame_id, row in df_grp.iterrows():
-                    data[object_global_id].append({
+                    data[object_global_id][int(frame_id) - 1] = {
                         'frame_id': frame_id,
                         'bbox': row.values.tolist(),
                         'image_path': self._get_image_path(scene_info, frame_id),
@@ -321,7 +334,7 @@ class MOTDataset(TrajectoryDataset):
                         'oov': False,
                         'scene': scene_name,
                         'category': CATEGORY
-                    })
+                    }
                     frame_to_data_index_lookup[object_global_id][frame_id] = len(data[object_global_id]) - 1
 
         logger.debug(f'Parsed labels. Dataset size is {n_labels}.')
@@ -330,7 +343,7 @@ class MOTDataset(TrajectoryDataset):
 
     def _create_trajectory_index(
         self,
-        labels: Dict[str, list],
+        labels: Dict[str, List[Optional[dict]]],
         history_len: int,
         future_len: int
     ) -> List[Tuple[str, int, int]]:
@@ -358,16 +371,16 @@ class MOTDataset(TrajectoryDataset):
             scene_name, scene_object_id = self.parse_object_id(object_global_id)
             seqlength = self._scene_info_index[scene_name].seqlength
 
-            # Create lookup of existing frames
-            frame_id_lookup = {int(d['frame_id']) for d in data}
-
             # Add trajectories to the index
             traj_start_time_point_candidates = list(range(seqlength))
             for i in traj_start_time_point_candidates:
+                if i + trajectory_len > seqlength:  # Out of range
+                    continue
+
                 n_total += 1
 
                 trajectory_range = list(range(i, i + trajectory_len))
-                if any((j not in frame_id_lookup) for j in trajectory_range):
+                if any((data[frame_id] is None) for frame_id in trajectory_range):
                     # Trajectory is not continuous -> skipping
                     # Note: This is only for motion model training
                     n_skipped += 1
@@ -391,6 +404,10 @@ class MOTDataset(TrajectoryDataset):
     def __getitem__(self, index: int) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, Dict[str, Any]]:
         object_id, traj_start, traj_end = self._trajectory_index[index]
         raw_traj = self._data_labels[object_id][traj_start:traj_end]
+        traj_len = len(raw_traj)
+        expected_traj_len = self._history_len + self._future_len
+        assert traj_len == self._history_len + self._future_len, f'Expected length {expected_traj_len} but got {traj_len}!'
+
         scene_name = object_id.split('_')[0]
         scene_info = self._scene_info_index[scene_name]
 
