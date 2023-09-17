@@ -1,5 +1,6 @@
 import numpy as np
 import os
+from typing import Optional
 from pathlib import Path
 
 
@@ -42,20 +43,25 @@ class InferenceWriter:
         od_prediction: np.ndarray,
         occ: bool,
         oov: bool,
-        step_iou: float,
-        prior_iou: float,
-        posterior_iou: float
+        step_iou: Optional[float],
+        prior_iou: Optional[float],
+        posterior_iou: Optional[float]
     ):
         for vector in [prior, posterior, ground_truth, od_prediction]:
-            assert vector.shape == (4,), f'Expected vector shape (4,) but found {vector.shape}!'
+            assert vector is None or vector.shape == (4,), f'Expected vector shape (4,) but found {vector.shape}!'
+
+        step_iou_str = f'{100 * step_iou:.2f}' if step_iou is not None else 'null'
+        prior_iou_str = f'{100 * prior_iou:.2f}' if prior_iou is not None else 'null'
+        posterior_iou_str = f'{100 * posterior_iou:.2f}' if posterior_iou is not None else 'null'
+        ground_truth_values = [str(v) for v in ground_truth] if ground_truth is not None else 4 * ['null']
 
         data = [str(frame_index)] + \
                [str(v) for v in prior] + \
                [str(v) for v in posterior] + \
-               [str(v) for v in ground_truth] + \
+               ground_truth_values + \
                [str(v) for v in od_prediction] + \
                [str(int(occ)), str(int(oov))] + \
-               [f'{100 * step_iou:.2f}', f'{100 * prior_iou:.2f}', f'{100 * posterior_iou:.2f}']
+               [step_iou_str, prior_iou_str, posterior_iou_str]
 
         line = ','.join(data)
         line_sep_cnt = line.count(',')

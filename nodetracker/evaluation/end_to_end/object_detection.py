@@ -46,6 +46,9 @@ class GroundTruthInference(ObjectDetectionInference):
         super().__init__(lookup=lookup)
 
     def predict(self, data: dict) -> Tuple[torch.Tensor, List[str], torch.Tensor]:
+        if data is None:
+            return torch.empty(0, 4, dtype=torch.float32), [], torch.empty(0, 4, dtype=torch.float32)
+
         bboxes = torch.tensor(data['bbox'], dtype=torch.float32).view(1, 4)
         classes = [data['category']]
         conf = torch.tensor([1], dtype=torch.float32)

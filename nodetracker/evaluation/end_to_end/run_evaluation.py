@@ -227,11 +227,14 @@ def visualize_video(
 def greedy_pick(
     predictions: torch.Tensor,
     prediction_confs: torch.Tensor,
-    prior_bbox_mean: torch.Tensor,
+    prior_bbox_mean: Optional[torch.Tensor],
     n_skipped_detection: int,
     max_skip_threshold: int = 5,
     min_iou_match: float = 0.3
-) -> Tuple[torch.Tensor, bool]:
+) -> Tuple[Optional[torch.Tensor], bool]:
+    if prior_bbox_mean is None:
+        return None, True
+
     _ = prediction_confs
 
     prior_bbox_object = BBox.from_xyhw(*prior_bbox_mean[:4], clip=True)
@@ -258,7 +261,10 @@ def bbox_clip(bboxes: torch.Tensor) -> torch.Tensor:
     return torch.clip(bboxes, min=0.0, max=0.0)
 
 
-def check_detection(detector_bboxes: Optional[torch.Tensor], measurement: torch.Tensor, threshold: float) -> bool:
+def check_detection(detector_bboxes: Optional[torch.Tensor], measurement: Optional[torch.Tensor], threshold: float) -> bool:
+    if measurement is None:
+        return False
+
     n_bboxes = detector_bboxes.shape[0]
     if n_bboxes == 0:
         return True
@@ -327,9 +333,9 @@ def main(cfg: DictConfig):
             scene_metrics = defaultdict(list)
             has_metrics = False
             data_points = [dataset.get_object_data_label(object_id, i) for i in range(n_data_points)]
-            measurements = [dp['bbox'] for dp in data_points]
-            occs = [dp['occ'] for dp in data_points]
-            oovs = [dp['oov'] for dp in data_points]
+            measurements = [(dp['bbox'] if dp is not None else None) for dp in data_points]
+            occs = [(dp['occ'] if dp is not None else None) for dp in data_points]
+            oovs = [(dp['oov'] if dp is not None else None) for dp in data_points]
             n_skipped_detection = 0
             n_gt_skipped_detection = 0
 
@@ -345,11 +351,21 @@ def main(cfg: DictConfig):
 
                 # Extract point data
                 point_data = data_points[index]
-                frame_id = point_data['frame_id']
-                measurement = torch.tensor(measurements[index], dtype=torch.float32)
-                measurement_numpy = measurement.detach().cpu().numpy()
-                oov, occ = occs[index], oovs[index]
-                evaluate_step = True
+                if point_data is not None:
+                    frame_id = point_data['frame_id']
+                    measurement = torch.tensor(measurements[index], dtype=torch.float32)
+                    measurement_numpy = measurement.detach().cpu().numpy()
+                    oov, occ = occs[index], oovs[index]
+                    evaluate_step = True
+                else:
+                    if first_frame:
+                        continue
+
+                    frame_id = index + 1
+                    measurement, measurement_numpy = None, None
+                    oov, occ = True, True
+                    evaluate_step = False
+
 
                 if first_frame:
                     # First filter iteration
@@ -425,20 +441,21 @@ def main(cfg: DictConfig):
                     prior_multistep_var_numpy = prior_multistep_var.detach().cpu().numpy()
 
                     n_eval_steps = 0
-                    for p_index in range(n_pred_steps):
-                        gt = np.array(measurements[index + p_index], dtype=np.float32)
+                    if evaluate_step:  # TODO: CHECK THIS
+                        for p_index in range(n_pred_steps):
+                            gt = np.array(measurements[index + p_index], dtype=np.float32)
 
-                        if evaluate_step and not occs[index + p_index] and not oovs[index + p_index]:
-                            n_eval_steps += 1
-                            for metric_name, metric_func, requires_var in METRICS:
-                                score = metric_func(gt, prior_multistep_numpy[p_index], prior_multistep_var_numpy[p_index]) \
-                                    if requires_var else metric_func(gt, prior_multistep_numpy[p_index])
-                                scene_metrics[f'prior-{metric_name}-{p_index}'].append(score)
-                                multistep_score[metric_name] += score
+                            if not occs[index + p_index] and not oovs[index + p_index]:
+                                n_eval_steps += 1
+                                for metric_name, metric_func, requires_var in METRICS:
+                                    score = metric_func(gt, prior_multistep_numpy[p_index], prior_multistep_var_numpy[p_index]) \
+                                        if requires_var else metric_func(gt, prior_multistep_numpy[p_index])
+                                    scene_metrics[f'prior-{metric_name}-{p_index}'].append(score)
+                                    multistep_score[metric_name] += score
 
-                    if evaluate_step and n_eval_steps > 0:
-                        for metric_name, _, _ in METRICS:
-                            scene_metrics[f'prior-{metric_name}'].append(multistep_score[metric_name] / n_eval_steps)
+                        if n_eval_steps > 0:
+                            for metric_name, _, _ in METRICS:
+                                scene_metrics[f'prior-{metric_name}'].append(multistep_score[metric_name] / n_eval_steps)
 
                     posterior, posterior_var = smf.project(posterior_state)
                     posterior_numpy = posterior.detach().cpu().numpy()
@@ -464,9 +481,12 @@ def main(cfg: DictConfig):
                         inf_viz_cache[object_id]['posterior'][frame_id] = posterior_numpy.tolist()
 
                     if inference_writer is not None:
-                        step_iou = eval_metrics.sot.accuracy(prev_measurement, measurement_numpy)
-                        prior_iou = eval_metrics.sot.accuracy(prior_numpy, measurement_numpy)
-                        posterior_iou = eval_metrics.sot.accuracy(posterior_numpy, measurement_numpy)
+                        step_iou = eval_metrics.sot.accuracy(prev_measurement, measurement_numpy) \
+                            if measurement_numpy is not None else None
+                        prior_iou = eval_metrics.sot.accuracy(prior_numpy, measurement_numpy) \
+                            if measurement_numpy is not None else None
+                        posterior_iou = eval_metrics.sot.accuracy(posterior_numpy, measurement_numpy) \
+                            if measurement_numpy is not None else None
 
                         inference_writer.write(
                             frame_index=frame_id,
@@ -482,7 +502,7 @@ def main(cfg: DictConfig):
                         )
 
                 # Save data
-                prev_measurement = measurement.detach().cpu().numpy()
+                prev_measurement = measurement.detach().cpu().numpy() if measurement is not None else prev_measurement
 
             if inference_writer is not None:
                 inference_writer.close()
