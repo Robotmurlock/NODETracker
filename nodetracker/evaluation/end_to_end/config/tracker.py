@@ -15,11 +15,17 @@ class TrackerAlgorithmConfig:
 
 
 @dataclass
+class TrackerVisualizeConfig:
+    fps: int = 20
+
+
+@dataclass
 class TrackerConfig:
     object_detection: ObjectDetectionInferenceConfig
     lookup_path: str
     algorithm: TrackerAlgorithmConfig
-    output_path: str
+    output_path: str = 'tracker'
+    visualize: TrackerVisualizeConfig = field(default_factory=TrackerVisualizeConfig)
 
 @dataclass
 class TrackerGlobalConfig(GlobalConfig):

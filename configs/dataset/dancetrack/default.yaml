@@ -1,4 +1,4 @@
-name: 'MOT20'
+name: 'DanceTrack'
 path: 'DanceTrack'
 split_index_path: '${dataset.path}/.split_index.yaml'
 history_len: 10

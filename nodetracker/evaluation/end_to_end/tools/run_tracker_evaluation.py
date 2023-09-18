@@ -4,9 +4,7 @@ Tracker inference.
 import json
 import logging
 import os
-from pathlib import Path
 from typing import List
-from typing import TextIO
 
 import hydra
 import torch
@@ -17,70 +15,12 @@ from nodetracker.common.project import CONFIGS_PATH
 from nodetracker.datasets.factory import dataset_factory
 from nodetracker.evaluation.end_to_end.config import TrackerGlobalConfig
 from nodetracker.evaluation.end_to_end.object_detection import object_detection_inference_factory, create_bbox_objects
+from nodetracker.evaluation.end_to_end.tracker_utils import TrackerInferenceWriter
 from nodetracker.tracker import tracker_factory, Tracklet
 from nodetracker.utils import pipeline
 from nodetracker.utils.lookup import LookupTable
 
 logger = logging.getLogger('TrackerEvaluation')
-
-
-class TrackerInferenceWriter:
-    """
-    Writes tracker inference in MOT format. Can be used afterward for evaluation.
-    (RAII)
-    """
-    def __init__(self, output_path: str, scene_name: str):
-        """
-        Args:
-            output_path: Tracker inference output directory path
-            scene_name: Scene name
-        """
-        self._output_path = output_path
-        self._scene_name = scene_name
-        self._scene_output_path = os.path.join(output_path, f'{scene_name}.txt')
-
-        # State
-        self._writer = None
-
-    def open(self) -> None:
-        """
-        Opens writer.
-        """
-        Path(self._output_path).mkdir(parents=True, exist_ok=True)
-        self._writer: TextIO = open(self._scene_output_path, 'w', encoding='utf-8')
-
-    def close(self) -> None:
-        """
-        Closes writer.
-        """
-        self._writer.close()
-
-    def write(self, tracklet: Tracklet) -> None:
-        """
-        Writes info about one tracker tracklet.
-        One tracklet - one row.
-
-        Args:
-            tracklet: Tracklet
-        """
-        frame_id, bbox = tracklet.latest
-        cells = [
-            str(frame_id), str(tracklet.id),
-            str(bbox.upper_left.y), str(bbox.upper_left.x),
-            str(bbox.width), str(bbox.height),
-            str(bbox.conf),
-            '-1', '-1', '-1'
-        ]
-
-        row = ','.join(cells)
-        self._writer.write(f'{row}\n')
-
-    def __enter__(self) -> 'TrackerInferenceWriter':
-        self.open()
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.close()
 
 
 
@@ -89,6 +29,8 @@ class TrackerInferenceWriter:
 def main(cfg: DictConfig):
     cfg, experiment_path = pipeline.preprocess(cfg, name='tracker_evaluation', cls=TrackerGlobalConfig)
     cfg: TrackerGlobalConfig
+    tracker_output = os.path.join(experiment_path, cfg.tracker.output_path)
+    logger.info(f'Saving tracker inference on path "{tracker_output}".')
 
     with open(cfg.tracker.lookup_path, 'r', encoding='utf-8') as f:
         lookup = LookupTable.deserialize(json.load(f))
@@ -115,12 +57,12 @@ def main(cfg: DictConfig):
     )
 
     scene_names = dataset.scenes
-    for scene_name in tqdm(scene_names, desc='Evaluating tracker', unit='scene'):
+    for scene_name in tqdm(scene_names, desc='Simulating tracker', unit='scene'):
         scene_length = dataset.get_scene_info(scene_name).seqlength
 
-        with TrackerInferenceWriter(cfg.tracker.output_path, scene_name) as tracker_inf_writer:
+        with TrackerInferenceWriter(tracker_output, scene_name) as tracker_inf_writer:
             tracklets: List[Tracklet] = []
-            for index in tqdm(range(scene_length), desc=f'Evaluating "{scene_name}"', unit='frame'):
+            for index in tqdm(range(scene_length), desc=f'Simulating "{scene_name}"', unit='frame'):
                 # Perform OD inference
                 inf_bboxes, inf_classes, inf_conf = od_inference.predict(
                     scene_name=scene_name,
@@ -138,7 +80,7 @@ def main(cfg: DictConfig):
 
                 # Save inference
                 for tracklet in tracklets:
-                    tracker_inf_writer.write(tracklet)
+                    tracker_inf_writer.write(index, tracklet)
 
 
 if __name__ == '__main__':

@@ -10,6 +10,7 @@ from nodetracker.datasets.torch import TrajectoryDataset
 
 DATASET_CATALOG = {
     'MOT20': MOTDataset,
+    'DanceTrack': MOTDataset,
     'LaSOT': LaSOTDataset
 }
 

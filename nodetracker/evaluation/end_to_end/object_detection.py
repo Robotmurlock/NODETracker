@@ -244,16 +244,17 @@ def create_bbox_objects(inf_bboxes: torch.Tensor, inf_classes: List[str], inf_co
     Returns:
         List of PredBBox objects
     """
-    inf_bboxes = inf_bboxes.detach().cpu().numpy().tolist()
-    inf_conf = inf_conf.detach().cpu().numpy().tolist()
-    assert inf_bboxes.shape[0] == len(inf_classes) == inf_conf.shape[0]
+    inf_bboxes = inf_bboxes.detach().cpu().numpy()
+    inf_conf = inf_conf.detach().cpu().numpy()
+    assert len(inf_bboxes) == len(inf_classes) == len(inf_conf)
 
     n_bboxes = len(inf_classes)
     bboxes: List[PredBBox] = []
 
     for i in range(n_bboxes):
+        bbox_coords = [float(v) for v in inf_bboxes[i]]
         bbox = PredBBox.create(
-            bbox=BBox.from_yxwh(*inf_bboxes[i], clip=True),
+            bbox=BBox.from_yxwh(*bbox_coords, clip=True),
             label=inf_classes[i],
             conf=float(inf_conf[i])
         )
