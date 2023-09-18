@@ -38,8 +38,6 @@ class BaselineSortTracker(Tracker):
 
     def track(self, tracklets: List[Tracklet], detections: List[PredBBox], frame_index: int, inplace: bool = True) \
             -> Tuple[List[Tracklet], List[Tracklet], List[Tracklet]]:
-        # Note: set `inplace=False` in order to make sure that passed arguments are not changed
-
         predicted_tracklet_bboxes = [t.bbox for t in tracklets]  # Copy last position
         matches, unmatched_tracklets, unmatched_detections = self._matcher(predicted_tracklet_bboxes, detections)
 
