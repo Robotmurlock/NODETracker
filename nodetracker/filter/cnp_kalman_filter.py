@@ -24,12 +24,8 @@ class CNPFilter(StateModelFilter):
         self._accelerator = accelerator
         self._dtype = dtype
 
-        # Buffer
-        self._buffer = ODETorchTensorBuffer(
-            size=buffer_size,
-            min_size=buffer_min_size,
-            dtype=dtype
-        )
+        self._buffer_size = buffer_size
+        self._buffer_min_size = buffer_min_size
 
         # Model
         self._model.to(self._accelerator)
@@ -41,8 +37,13 @@ class CNPFilter(StateModelFilter):
         return t_obs, t_unobs
 
     def initiate(self, measurement: torch.Tensor) -> State:
-        self._buffer.push(measurement)
-        return None
+        buffer = ODETorchTensorBuffer(
+            size=self._buffer_size,
+            min_size=self._buffer_min_size,
+            dtype=self._dtype
+        )
+        buffer.push(measurement)
+        return buffer, None, None, None
 
     @staticmethod
     def baseline(
@@ -57,15 +58,16 @@ class CNPFilter(StateModelFilter):
         return x_unobs_mean_hat[:, 0, :], x_unobs_std_hat[:, 0, :], None
 
     def multistep_predict(self, state: State, n_steps: int) -> State:
-        assert n_steps == 1, 'Multistep prediction is not supported!'
+        buffer, _, _, _  = state
 
-        if not self._buffer.has_input:
+        if not buffer.has_input:
             raise BufferError('Buffer does not have an input!')
 
-        x_obs, ts_obs, ts_unobs = self._buffer.get_input(n_steps)
+        x_obs, ts_obs, ts_unobs = buffer.get_input(n_steps)
         if ts_obs.shape[0] == 1:
             # Only one bbox in history - using baseline (propagate last bbox) instead of NN model
-            return self.baseline(x_obs, ts_unobs, single_step=False)
+            baseline_output = self.baseline(x_obs, ts_unobs, single_step=False)
+            return buffer, *baseline_output
 
         t_x_obs, _, t_ts_obs, t_ts_unobs, *_ = self._transform.apply(data=[x_obs, None, ts_obs, ts_unobs, None], shallow=False)
         t_x_obs, t_ts_obs, t_ts_unobs = t_x_obs.to(self._accelerator), t_ts_obs.to(self._accelerator), t_ts_unobs.to(
@@ -79,27 +81,28 @@ class CNPFilter(StateModelFilter):
 
         prior_mean, prior_std = prior_mean[:, 0, :], prior_std[:, 0, :]
 
-        return prior_mean, prior_std, (xhr2, t_prior)
+        return buffer, prior_mean, prior_std, (xhr2, t_prior)
 
     def predict(self, state: State) -> State:
-        prior_mean, prior_std, xhr2 = self.multistep_predict(state, n_steps=1)
+        buffer, prior_mean, prior_std, xhr2 = self.multistep_predict(state, n_steps=1)
         prior_mean, prior_std = prior_mean[0], prior_std[0]
-        return prior_mean, prior_std, xhr2
+        return buffer, prior_mean, prior_std, xhr2
 
     def singlestep_to_multistep_state(self, state: State) -> State:
-        prior_mean, prior_std, xhr2 = state
+        buffer, prior_mean, prior_std, xhr2 = state
         prior_mean, prior_std = prior_mean.unsqueeze(0), prior_std.unsqueeze(0)
-        return prior_mean, prior_std, xhr2
+        return buffer, prior_mean, prior_std, xhr2
 
     def update(self, state: State, measurement: torch.Tensor) -> State:
-        _, _, prior_data = state
-        x_obs, ts_obs, ts_unobs = self._buffer.get_input(1)
+        buffer, _, _, prior_data = state
+        x_obs, ts_obs, ts_unobs = buffer.get_input(1)
 
         if prior_data is None:
-            self._buffer.push(measurement)
+            buffer.push(measurement)
 
             # Only one bbox in history - using baseline (propagate last bbox) instead of NN model
-            return self.baseline(x_obs, ts_unobs, single_step=True)
+            baseline_output = self.baseline(x_obs, ts_unobs, single_step=True)
+            return buffer, *baseline_output
 
         xhr2, t_prior = prior_data
 
@@ -115,15 +118,16 @@ class CNPFilter(StateModelFilter):
         posterior_mean = posterior_mean[0, 0, :]
         posterior_std = posterior_std[0, 0, :]
 
-        self._buffer.push(measurement)
+        buffer.push(measurement)
 
-        return posterior_mean, posterior_std, None
+        return buffer, posterior_mean, posterior_std, None
 
     def missing(self, state: State) -> State:
-        self._buffer.increment()
-        return state
+        buffer, mean, std, z_state = state
+        buffer.increment()
+        return buffer, mean, std, z_state
 
     def project(self, state: State) -> Tuple[torch.Tensor, torch.Tensor]:
-        mean, std, _ = state
+        _, mean, std, _ = state
         var = torch.square(std)
         return mean, var

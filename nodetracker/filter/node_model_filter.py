@@ -176,12 +176,8 @@ class BufferedNodeModelFilter(StateModelFilter):
         self._accelerator = accelerator
         self._dtype = dtype
 
-        # Buffer
-        self._buffer = ODETorchTensorBuffer(
-            size=buffer_size,
-            min_size=buffer_min_size,
-            dtype=dtype
-        )
+        self._buffer_size = buffer_size
+        self._buffer_min_size = buffer_min_size
 
         # Model
         self._model.to(self._accelerator)
@@ -193,16 +189,22 @@ class BufferedNodeModelFilter(StateModelFilter):
         return t_obs, t_unobs
 
     def initiate(self, measurement: torch.Tensor) -> State:
-        self._buffer.push(measurement)
-        return None
+        buffer = ODETorchTensorBuffer(
+            size=self._buffer_size,
+            min_size=self._buffer_min_size,
+            dtype=self._dtype
+        )
+        buffer.push(measurement)
+        return buffer, None, None, None
 
     def multistep_predict(self, state: State, n_steps: int) -> State:
         assert n_steps == 1, 'Multistep prediction is not supported!'
 
-        if not self._buffer.has_input:
+        buffer, _, _, _ = state
+        if not buffer.has_input:
             raise BufferError('Buffer does not have an input!')
 
-        x_obs, ts_obs, ts_unobs = self._buffer.get_input(n_steps)
+        x_obs, ts_obs, ts_unobs = buffer.get_input(n_steps)
         if ts_obs.shape[0] == 1:
             # Only one bbox in history - using baseline (propagate last bbox) instead of NN model
             x_unobs_mean_hat = torch.stack([x_obs[-1].clone() for _ in range(ts_unobs.shape[0])]).to(ts_obs)
@@ -230,19 +232,19 @@ class BufferedNodeModelFilter(StateModelFilter):
         prior_var = self._transform.inverse_var(t_x_prior_var, additional_data=[x_obs, None], shallow=False)
         prior_std = torch.sqrt(prior_var)
 
-        return prior_mean, prior_std, z_prior
+        return buffer, prior_mean, prior_std, z_prior
 
     def predict(self, state: State) -> State:
-        prior_mean, prior_std, z1_prior = self.multistep_predict(state, n_steps=1)
-        return prior_mean[0], prior_std[0], z1_prior
+        buffer, prior_mean, prior_std, z1_prior = self.multistep_predict(state, n_steps=1)
+        return buffer, prior_mean[0], prior_std[0], z1_prior
 
     def singlestep_to_multistep_state(self, state: State) -> State:
-        prior_mean, prior_std, z1_prior = state
-        return prior_mean.unsqueeze(0), prior_std.unsqueeze(0), z1_prior
+        buffer, prior_mean, prior_std, z1_prior = state
+        return buffer, prior_mean.unsqueeze(0), prior_std.unsqueeze(0), z1_prior
 
     def update(self, state: State, measurement: torch.Tensor) -> State:
-        _, _, z_prior = state
-        x_obs, ts_obs, ts_unobs = self._buffer.get_input(1)
+        buffer, _, _, z_prior = state
+        x_obs, ts_obs, ts_unobs = buffer.get_input(1)
         t_obs, t_unobs = ts_obs[0], ts_unobs[0]
 
         _, t_measurement, *_ = self._transform.apply(data=[x_obs, measurement.view(1, 1, -1), t_obs, t_unobs, None], shallow=False)
@@ -259,16 +261,17 @@ class BufferedNodeModelFilter(StateModelFilter):
         posterior_mean = posterior_mean[0, 0, :]
         posterior_std = posterior_std[0, :]
 
-        self._buffer.push(measurement)
+        buffer.push(measurement)
 
-        return posterior_mean, posterior_std, z_posterior
+        return buffer, posterior_mean, posterior_std, z_posterior
 
     def missing(self, state: State) -> State:
-        self._buffer.increment()
-        return state
+        buffer, mean, std, z_state = state
+        buffer.increment()
+        return buffer, mean, std, z_state
 
     def project(self, state: State) -> Tuple[torch.Tensor, torch.Tensor]:
-        mean, std, _ = state
+        _, mean, std, _ = state
         var = torch.square(std)
         return mean, var
 

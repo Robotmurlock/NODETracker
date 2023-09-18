@@ -35,33 +35,36 @@ class NODEKalmanFilter(StateModelFilter):
         self._model.to(self._accelerator)
         self._model.eval()
 
-        self._buffer = ODETorchTensorBuffer(
-            size=buffer_size,
-            min_size=buffer_min_size,
-            dtype=dtype
-        )
+        self._buffer_size = buffer_size
+        self._buffer_min_size = buffer_min_size
         self._dtype = dtype
 
         self._autoregressive = autoregressive
 
     def initiate(self, measurement: torch.Tensor) -> State:
-        self._buffer.push(measurement)
-        return None
+        buffer = ODETorchTensorBuffer(
+            size=self._buffer_size,
+            min_size=self._buffer_min_size,
+            dtype=self._dtype
+        )
+        buffer.push(measurement)
+        return buffer, None, None
 
     def multistep_predict(self, state: State, n_steps: int) -> State:
         assert n_steps == 1, 'Multistep predict not supported!'
 
-        if not self._buffer.has_input:
+        buffer, _, _ = state
+        if not buffer.has_input:
             raise BufferError('Buffer does not have an input!')
 
-        x_obs, ts_obs, ts_unobs = self._buffer.get_input(n_steps)
+        x_obs, ts_obs, ts_unobs = buffer.get_input(n_steps)
         assert ts_obs.shape[1] == 1, 'Batch operations not supported!'
 
         if ts_obs.shape[0] == 1:
             # Only one bbox in history - using baseline (propagate last bbox) instead of NN model
             x_unobs_mean_hat = torch.stack([x_obs[-1].clone() for _ in range(ts_unobs.shape[0])]).to(ts_obs)
             x_unobs_std_hat = 10 * torch.ones_like(x_unobs_mean_hat).to(ts_obs)
-            return x_unobs_mean_hat[:, 0, :], x_unobs_std_hat[:, 0, :]
+            return buffer, x_unobs_mean_hat[:, 0, :], x_unobs_std_hat[:, 0, :]
 
         t_obs_last, t_unobs_lat = ts_obs[-1, 0, 0], ts_unobs[-1, 0, 0]
         n_ar_steps = 1 if not self._autoregressive else int(t_unobs_lat - t_obs_last)
@@ -83,18 +86,18 @@ class NODEKalmanFilter(StateModelFilter):
             prior_std = prior_std[:, 0, :]
 
         # noinspection PyUnboundLocalVariable
-        return prior_mean, prior_std
+        return buffer, prior_mean, prior_std
 
     def predict(self, state: State) -> State:
-        prior_mean, prior_std = self.multistep_predict(state, n_steps=1)
-        return prior_mean[0], prior_std[0]
+        buffer, prior_mean, prior_std = self.multistep_predict(state, n_steps=1)
+        return buffer, prior_mean[0], prior_std[0]
 
     def singlestep_to_multistep_state(self, state: State) -> State:
-        prior_mean, prior_std = state
-        return prior_mean.unsqueeze(0),  prior_std.unsqueeze(0)
+        buffer, prior_mean, prior_std = state
+        return buffer, prior_mean.unsqueeze(0),  prior_std.unsqueeze(0)
 
     def update(self, state: State, measurement: torch.Tensor) -> State:
-        x_unobs_mean_hat, x_unobs_std_hat = state
+        buffer, x_unobs_mean_hat, x_unobs_std_hat = state
         det_std = (x_unobs_mean_hat[2:].repeat(2) * self._det_uncertainty_multiplier)
         det_cov = torch.square(det_std)
         x_unobs_cov_hat = torch.square(x_unobs_std_hat)
@@ -111,16 +114,17 @@ class NODEKalmanFilter(StateModelFilter):
         posterior_cov = (1 - gain) * x_unobs_cov_hat
         posterior_std = torch.sqrt(posterior_cov)
 
-        self._buffer.push(measurement)
+        buffer.push(measurement)
 
         return posterior_mean, posterior_std
 
     def missing(self, state: State) -> State:
-        self._buffer.increment()
-        return state
+        buffer, mean, std = state
+        buffer.increment()
+        return buffer, mean, std
 
     def project(self, state: State) -> Tuple[torch.Tensor, torch.Tensor]:
-        mean, std = state
+        _, mean, std = state
         var = torch.square(std)
         return mean, var
 
