@@ -18,15 +18,19 @@ class TrackerInferenceWriter:
     Writes tracker inference in MOT format. Can be used afterward for evaluation.
     (RAII)
     """
-    def __init__(self, output_path: str, scene_name: str):
+    def __init__(self, output_path: str, scene_name: str, image_height: int, image_width: int):
         """
         Args:
             output_path: Tracker inference output directory path
             scene_name: Scene name
+            image_height: Image height (required for coordinates up-scaling)
+            image_width: Image height (required for coordinates up-scaling)
         """
         self._output_path = output_path
         self._scene_name = scene_name
         self._scene_output_path = os.path.join(output_path, f'{scene_name}.txt')
+        self._image_height = image_height
+        self._image_width = image_width
 
         # State
         self._writer = None
@@ -55,10 +59,15 @@ class TrackerInferenceWriter:
             tracklet: Tracklet
         """
         bbox = tracklet.bbox
+        left = round(bbox.upper_left.y * self._image_width)
+        top = round(bbox.upper_left.x * self._image_height)
+        width = round(bbox.width * self._image_width)
+        height = round(bbox.height * self._image_height)
+
         cells = [
             str(frame_index + 1), str(tracklet.id),
-            str(bbox.upper_left.y), str(bbox.upper_left.x),
-            str(bbox.width), str(bbox.height),
+            str(left), str(top),
+            str(width), str(height),
             str(bbox.conf),
             '-1', '-1', '-1'
         ]
@@ -86,15 +95,19 @@ class TrackerInferenceReader:
     Reads tracker inference in MOT format.
     (RAII)
     """
-    def __init__(self, output_path: str, scene_name: str):
+    def __init__(self, output_path: str, scene_name: str, image_height: int, image_width: int):
         """
         Args:
             output_path: Tracker inference output directory path
             scene_name: Scene name
+            image_height: Image height (required for coordinates up-scaling)
+            image_width: Image height (required for coordinates up-scaling)
         """
         self._output_path = output_path
         self._scene_name = scene_name
         self._scene_output_path = os.path.join(output_path, f'{scene_name}.txt')
+        self._image_height = image_height
+        self._image_width = image_width
 
         # State
         self._reader = None
@@ -148,7 +161,12 @@ class TrackerInferenceReader:
                 # Save object
                 bbox_left, bbox_top, bbox_width, bbox_height, conf = [float(v) for v in [bbox_left, bbox_top, bbox_width, bbox_height, conf]]
                 bbox = PredBBox.create(
-                    bbox=BBox.from_yxwh(bbox_left, bbox_top, bbox_width, bbox_height),
+                    bbox=BBox.from_yxwh(
+                        bbox_left / self._image_width,
+                        bbox_top / self._image_height,
+                        bbox_width / self._image_width,
+                        bbox_height / self._image_height
+                    ),
                     label='Person',  # Note: This is specialized for MOT20 format
                     conf=conf
                 )

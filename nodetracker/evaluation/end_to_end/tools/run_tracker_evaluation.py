@@ -29,7 +29,9 @@ logger = logging.getLogger('TrackerEvaluation')
 def main(cfg: DictConfig):
     cfg, experiment_path = pipeline.preprocess(cfg, name='tracker_evaluation', cls=TrackerGlobalConfig)
     cfg: TrackerGlobalConfig
-    tracker_output = os.path.join(experiment_path, cfg.tracker.output_path)
+    tracker_output = os.path.join(experiment_path, cfg.tracker.output_path, cfg.eval.split, cfg.tracker.algorithm.name)
+    assert not os.path.exists(tracker_output), f'Path "{tracker_output}" is already taken!'
+
     logger.info(f'Saving tracker inference on path "{tracker_output}".')
 
     with open(cfg.tracker.lookup_path, 'r', encoding='utf-8') as f:
@@ -58,9 +60,12 @@ def main(cfg: DictConfig):
 
     scene_names = dataset.scenes
     for scene_name in tqdm(scene_names, desc='Simulating tracker', unit='scene'):
-        scene_length = dataset.get_scene_info(scene_name).seqlength
+        scene_info = dataset.get_scene_info(scene_name)
+        scene_length = scene_info.seqlength
+        imheight = scene_info.imheight
+        imwidth = scene_info.imwidth
 
-        with TrackerInferenceWriter(tracker_output, scene_name) as tracker_inf_writer:
+        with TrackerInferenceWriter(tracker_output, scene_name, image_height=imheight, image_width=imwidth) as tracker_inf_writer:
             tracklets: List[Tracklet] = []
             for index in tqdm(range(scene_length), desc=f'Simulating "{scene_name}"', unit='frame'):
                 # Perform OD inference

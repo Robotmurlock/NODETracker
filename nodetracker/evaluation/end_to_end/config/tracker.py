@@ -24,7 +24,7 @@ class TrackerConfig:
     object_detection: ObjectDetectionInferenceConfig
     lookup_path: str
     algorithm: TrackerAlgorithmConfig
-    output_path: str = 'tracker'
+    output_path: str = 'tracker_inference'
     visualize: TrackerVisualizeConfig = field(default_factory=TrackerVisualizeConfig)
 
 @dataclass

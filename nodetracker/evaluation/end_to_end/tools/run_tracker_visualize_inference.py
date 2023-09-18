@@ -1,5 +1,5 @@
 """
-Tracker inference.
+Tracker inference visualization.
 """
 import logging
 import os
@@ -53,7 +53,8 @@ def draw_tracklet(
 def main(cfg: DictConfig):
     cfg, experiment_path = pipeline.preprocess(cfg, name='tracker_visualization', cls=TrackerGlobalConfig)
     cfg: TrackerGlobalConfig
-    tracker_output = os.path.join(experiment_path, cfg.tracker.output_path)
+    tracker_output = os.path.join(experiment_path, cfg.tracker.output_path, cfg.eval.split, cfg.tracker.algorithm.name)
+    assert os.path.exists(tracker_output), f'Path "{tracker_output}" does not exist!'
     logger.info(f'Visualizing tracker inference on path "{tracker_output}".')
 
     dataset = dataset_factory(
@@ -67,10 +68,13 @@ def main(cfg: DictConfig):
 
     scene_names = dataset.scenes
     for scene_name in tqdm(scene_names, desc='Visualizing tracker', unit='scene'):
-        scene_length = dataset.get_scene_info(scene_name).seqlength
+        scene_info = dataset.get_scene_info(scene_name)
+        scene_length = scene_info.seqlength
+        imheight = scene_info.imheight
+        imwidth = scene_info.imwidth
 
         scene_video_path = os.path.join(tracker_output, f'{scene_name}.mp4')
-        with TrackerInferenceReader(tracker_output, scene_name) as tracker_inf_reader, \
+        with TrackerInferenceReader(tracker_output, scene_name, image_height=imheight, image_width=imwidth) as tracker_inf_reader, \
             MP4Writer(scene_video_path, fps=cfg.tracker.visualize.fps) as mp4_writer:
             last_read = tracker_inf_reader.read()
             for index in tqdm(range(scene_length), desc=f'Visualizing "{scene_name}"', unit='frame'):
