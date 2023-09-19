@@ -1,0 +1,6 @@
+defaults:
+  - object_detection: gt.yaml
+  - algorithm: node_sort.yaml
+
+lookup_path: '/media/home/DanceTrack/.lookup.json'
+output_path: 'tracker_inference'

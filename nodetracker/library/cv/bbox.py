@@ -40,17 +40,18 @@ class Point:
     x: float
     y: float
 
-    def __post_init__(self):
-        """
-        Validation
-        """
-        assert 0 <= self.x <= 1 and 0 <= self.y <= 1, f'Invalid point values: {self}!'
-
     def copy(self) -> 'Point':
         """
         Returns: Copies object
         """
         return Point(x=self.x, y=self.y)
+
+    def clip(self) -> None:
+        """
+        Clips coords to [0, 1] range.
+        """
+        self.x = max(0.0, min(1.0, self.x))
+        self.y = max(0.0, min(1.0, self.y))
 
     def __lt__(self, other: 'Point') -> bool:
         return self.x < other.x and self.y < other.y
@@ -75,6 +76,13 @@ class BBox:
         Validation
         """
         return self.upper_left <= self.bottom_right
+
+    def clip(self) -> None:
+        """
+        Clips coords to [0, 1] range.
+        """
+        self.bottom_right.clip()
+        self.upper_left.clip()
 
     def copy(self) -> 'BBox':
         """
@@ -203,13 +211,15 @@ class BBox:
 
         Returns: Bbox
         """
-        if clip:
-            x1, y1, x2, y2 = BBox.clip_coords(x1, y1, x2, y2)
-
-        return cls(
+        bbox = cls(
             upper_left=Point(x=x1, y=y1),
             bottom_right=Point(x=x2, y=y2),
         )
+
+        if clip:
+            bbox.clip()
+
+        return bbox
 
     @classmethod
     def from_xyhw(cls, x: float, y: float, h: float, w: float, clip: bool = False) -> 'BBox':

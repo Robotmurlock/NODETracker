@@ -4,7 +4,7 @@ Tracker inference.
 import json
 import logging
 import os
-from typing import List
+from typing import List, Dict, Any
 
 import hydra
 import torch
@@ -12,6 +12,7 @@ from omegaconf import DictConfig
 from tqdm import tqdm
 
 from nodetracker.common.project import CONFIGS_PATH
+from nodetracker.datasets import transforms
 from nodetracker.datasets.factory import dataset_factory
 from nodetracker.evaluation.end_to_end.config import TrackerGlobalConfig
 from nodetracker.evaluation.end_to_end.object_detection import object_detection_inference_factory, create_bbox_objects
@@ -19,9 +20,37 @@ from nodetracker.evaluation.end_to_end.tracker_utils import TrackerInferenceWrit
 from nodetracker.tracker import tracker_factory, Tracklet
 from nodetracker.utils import pipeline
 from nodetracker.utils.lookup import LookupTable
+from tools.utils import create_inference_model
 
 logger = logging.getLogger('TrackerEvaluation')
 
+
+def populate_tracker_params(
+    name: str,
+    params: Dict[str, Any],
+    cfg: TrackerGlobalConfig,
+    experiment_path: str
+) -> Dict[str, Any]:
+    """
+    Add additional tracker params (if needed)
+
+    Args:
+        name: Tracker algorithm name
+        params: Tracker params
+        cfg: Tracker inference/evaluation config
+        experiment_path: Experiment path
+
+    Returns:
+        Populated tracker params
+    """
+    if 'filter' in name:
+        assert 'filter_params' in params, 'Expected `filter_params` field for filter based tracker!'
+        model = create_inference_model(cfg, experiment_path)
+        transform_func = transforms.transform_factory(cfg.transform.name, cfg.transform.params)
+        params['filter_params']['model'] = model
+        params['filter_params']['transform'] = transform_func
+
+    return params
 
 
 @torch.no_grad()
@@ -53,9 +82,15 @@ def main(cfg: DictConfig):
         lookup=lookup
     )
 
+    tracker_params = populate_tracker_params(
+        name=cfg.tracker.algorithm.name,
+        params=cfg.tracker.algorithm.params,
+        cfg=cfg,
+        experiment_path=experiment_path
+    )
     tracker = tracker_factory(
         name=cfg.tracker.algorithm.name,
-        params=cfg.tracker.algorithm.params
+        params=tracker_params
     )
 
     scene_names = dataset.scenes

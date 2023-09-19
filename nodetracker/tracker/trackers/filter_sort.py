@@ -63,7 +63,7 @@ class FilterSortTracker(Tracker):
         """
         bbox_raw = raw.numpy().tolist()
         return PredBBox.create(
-            bbox=BBox.from_yxwh(*bbox_raw),
+            bbox=BBox.from_yxwh(*bbox_raw, clip=True),
             label=tracklet.bbox.label,
             conf=tracklet.bbox.conf
         )
@@ -179,7 +179,7 @@ class FilterSortTracker(Tracker):
                 self._delete(tracklet.id)
             else:
                 tracklet_bbox, _, _ = self._missing(tracklet)  # TODO: Use uncertainty
-                tracklets[tracklet_index] = tracklet.update(tracklet_bbox, frame_index)
+                tracklets[tracklet_index] = tracklet.update(tracklet_bbox, tracklet.frame_index)
 
         deleted_tracklets = [t for i, t in enumerate(tracklets) if i in tracklets_indices_to_delete]
         tracklets = [t for i, t in enumerate(tracklets) if i not in tracklets_indices_to_delete]

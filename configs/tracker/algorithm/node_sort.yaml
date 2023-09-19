@@ -1,0 +1,6 @@
+name: 'filter-sort-tracker'
+params:
+  remember_threshold: 5
+  filter_name: 'node_model'
+  filter_params:
+    accelerator: 'cuda:0'
