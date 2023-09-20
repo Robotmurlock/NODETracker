@@ -1,4 +1,4 @@
-experiment: 'NODEFilterModel-dancetrack-exp01-128dim-baseline'
+experiment: 'NODEFilterModel-dancetrack-exp02-32dim-baseline'
 description: 'NODEFilter baseline (128)'
 batch_size: 256
 max_epochs: 30

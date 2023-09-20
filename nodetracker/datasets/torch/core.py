@@ -12,6 +12,7 @@ from scipy.interpolate import CubicSpline
 from torch.utils.data import Dataset
 
 from nodetracker.datasets import augmentations, transforms
+from nodetracker.datasets.common import BasicSceneInfo
 
 
 def interpolate_by_fps(
@@ -286,7 +287,7 @@ class TrajectoryDataset(ABC):
         """
 
     @abstractmethod
-    def get_scene_info(self, scene_name: str) -> Any:
+    def get_scene_info(self, scene_name: str) -> BasicSceneInfo:
         """
         Get scene metadata by name.
 
@@ -298,13 +299,13 @@ class TrajectoryDataset(ABC):
         """
 
     @abstractmethod
-    def get_scene_image_path(self, scene_name: str, frame_id: int) -> str:
+    def get_scene_image_path(self, scene_name: str, frame_index: int) -> str:
         """
         Get image (frame) path for given scene and frame id.
 
         Args:
             scene_name: scene name
-            frame_id: frame id
+            frame_index: frame index
 
         Returns:
             Frame path

@@ -20,6 +20,7 @@ from nodetracker.datasets.torch import TrajectoryDataset
 from nodetracker.datasets.torch import run_dataset_test
 from nodetracker.datasets.utils import split_trajectory_observed_unobserved
 from nodetracker.utils.logging import configure_logging
+from nodetracker.datasets.common.scene_info import BasicSceneInfo
 
 CATEGORY = 'pedestrian'
 N_IMG_DIGITS = 6
@@ -30,29 +31,22 @@ class LabelType(enum.Enum):
 
 
 @dataclass
-class SceneInfo:
+class SceneInfo(BasicSceneInfo):
     """
     MOT Scene metadata (name, frame shape, ...)
     """
-    name: str
-    category: str
     dirpath: str
     gt_path: str
-    seqlength: Union[str, int]
     framerate: Union[str, int]
     imdir: str
     imext: str
-    imheight: Union[str, int]
-    imwidth: Union[str, int]
 
     def __post_init__(self):
         """
         Convert to proper type
         """
-        self.seqlength = int(self.seqlength)
+        super().__post_init__()
         self.framerate = int(self.framerate)
-        self.imheight = int(self.imheight)
-        self.imwidth = int(self.imwidth)
 
 
 SceneInfoIndex = Dict[str, SceneInfo]
@@ -171,7 +165,7 @@ class MOTDataset(TrajectoryDataset):
     ) -> Optional[dict]:
         return self.get_object_data_label(object_id, frame_index, relative_bbox_coords=relative_bbox_coords)
 
-    def get_scene_info(self, scene_name: str) -> SceneInfo:
+    def get_scene_info(self, scene_name: str) -> BasicSceneInfo:
         return self._scene_info_index[scene_name]
 
     def _get_image_path(self, scene_info: SceneInfo, frame_id: int) -> str:
@@ -187,9 +181,9 @@ class MOTDataset(TrajectoryDataset):
         """
         return os.path.join(scene_info.dirpath, scene_info.imdir, f'{frame_id:0{self._n_digits}d}{scene_info.imext}')
 
-    def get_scene_image_path(self, scene_name: str, frame_id: int) -> str:
+    def get_scene_image_path(self, scene_name: str, frame_index: int) -> str:
         scene_info = self._scene_info_index[scene_name]
-        return self._get_image_path(scene_info, frame_id + 1)
+        return self._get_image_path(scene_info, frame_index + 1)
 
     @staticmethod
     def _get_data_cache_path(path: str, data_name: str) -> str:

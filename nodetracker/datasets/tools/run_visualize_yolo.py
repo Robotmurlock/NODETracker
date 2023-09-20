@@ -1,5 +1,5 @@
 """
-YOLO model visualization on LaSOT dataset.
+YOLO model visualization on any dataset dataset.
 """
 import argparse
 import logging
@@ -12,7 +12,7 @@ import ultralytics
 from tqdm import tqdm
 
 from nodetracker.common.project import OUTPUTS_PATH
-from nodetracker.datasets.lasot.core import LaSOTDataset
+from nodetracker.datasets import dataset_factory
 from nodetracker.library.cv.video_writer import MP4Writer
 from nodetracker.utils.logging import configure_logging
 
@@ -27,7 +27,9 @@ def parse_args() -> argparse.Namespace:
         Parsed configuration.
     """
     parser = argparse.ArgumentParser(description='Sequence analysis - visualization')
-    parser.add_argument('--dataset-path', type=str, required=True, help='Path to the dataset directory.')
+    parser.add_argument('--assets-path', type=str, required=True, help='Datasets path.')
+    parser.add_argument('--dataset-name', type=str, required=True, help='Dataset name.')
+    parser.add_argument('--dataset-type', type=str, required=True, help='Dataset type.')
     parser.add_argument('--model-path', type=str, required=True, help='Path where trained model is stored.')
     parser.add_argument('--output-path', type=str, required=False, default=OUTPUTS_PATH,
                         help='Path where yolo data is stored.')
@@ -37,7 +39,18 @@ def parse_args() -> argparse.Namespace:
 
 def main(args: argparse.Namespace) -> None:
     scene_filter: str = args.scene_filter
-    dataset = LaSOTDataset(args.dataset_path, history_len=1, future_len=1)
+
+    dataset_path = os.path.join(args.assets_path, args.dataset_name)
+    dataset = dataset_factory(
+        name=args.dataset_type,
+        path=dataset_path,
+        future_len=1,  # Not relevant
+        history_len=1,  # Not relevant
+        additional_params={
+            'skip_corrupted': True,
+            'allow_missing_annotations': True
+        } if args.dataset_type in ['MOT20', 'DanceTrack'] else None
+    )
     yolo = ultralytics.YOLO(args.model_path)
 
     Path(args.output_path).mkdir(parents=True, exist_ok=True)

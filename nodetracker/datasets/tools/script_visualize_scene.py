@@ -11,7 +11,7 @@ import cv2
 from tqdm import tqdm
 
 from nodetracker.datasets.factory import dataset_factory
-from nodetracker.library.cv.bbox import BBox, PredBBox
+from nodetracker.library.cv.bbox import BBox
 from nodetracker.library.cv.video_writer import MP4Writer
 from nodetracker.utils.logging import configure_logging
 
@@ -50,7 +50,7 @@ def main(args: argparse.Namespace) -> None:
         additional_params={
             'skip_corrupted': True,
             'allow_missing_annotations': True
-        } if args.dataset_type == 'MOT20' else None
+        } if args.dataset_type in ['MOT20', 'DanceTrack'] else None
     )
 
     scene_names = dataset.scenes

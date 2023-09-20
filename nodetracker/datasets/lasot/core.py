@@ -16,15 +16,11 @@ from nodetracker.datasets.torch import run_dataset_test
 from nodetracker.datasets.utils import split_trajectory_observed_unobserved
 from nodetracker.utils import file_system
 from nodetracker.utils.logging import configure_logging
+from nodetracker.datasets.common import BasicSceneInfo
 
 
 @dataclass
-class SequenceInfo:
-    name: str
-    category: str
-    seqlength: int
-    imheight: int
-    imwidth: int
+class SequenceInfo(BasicSceneInfo):
     text_label: str
     image_paths: List[str]
     bboxes: List[List[float]]
@@ -266,7 +262,7 @@ class LaSOTDataset(TrajectoryDataset):
         return [sequence for category_sequences in self._sequence_index.values()
                 for sequence in category_sequences.keys()]
 
-    def get_scene_info(self, scene_name: str) -> Any:
+    def get_scene_info(self, scene_name: str) -> BasicSceneInfo:
         category = self.get_object_category(scene_name)
         return self._sequence_index[category][scene_name]
 
@@ -325,11 +321,11 @@ class LaSOTDataset(TrajectoryDataset):
     ) -> Optional[dict]:
         return self.get_object_data_label(object_id, frame_index, relative_bbox_coords=relative_bbox_coords)
 
-    def get_scene_image_path(self, scene_name: str, frame_id: int) -> str:
+    def get_scene_image_path(self, scene_name: str, frame_index: int) -> str:
         # scene_name == object_id
         category = self.get_object_category(scene_name)
         sequence_info = self._sequence_index[category][scene_name]
-        return sequence_info.image_paths[frame_id]
+        return sequence_info.image_paths[frame_index]
 
     def __len__(self) -> int:
         return len(self._trajectory_index)

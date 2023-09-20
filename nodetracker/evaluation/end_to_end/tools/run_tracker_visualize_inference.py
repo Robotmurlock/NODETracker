@@ -10,6 +10,7 @@ import numpy as np
 import torch
 from omegaconf import DictConfig
 from tqdm import tqdm
+from collections import Counter
 
 from nodetracker.common.project import CONFIGS_PATH
 from nodetracker.datasets.factory import dataset_factory
@@ -77,6 +78,8 @@ def main(cfg: DictConfig):
         with TrackerInferenceReader(tracker_output, scene_name, image_height=imheight, image_width=imwidth) as tracker_inf_reader, \
             MP4Writer(scene_video_path, fps=cfg.tracker.visualize.fps) as mp4_writer:
             last_read = tracker_inf_reader.read()
+            tracklet_presence_counter = Counter()  # Used to visualize new, appearing tracklets
+
             for index in tqdm(range(scene_length), desc=f'Visualizing "{scene_name}"', unit='frame'):
                 image_path = dataset.get_scene_image_path(scene_name, index)
                 frame = cv2.imread(image_path)
@@ -85,7 +88,13 @@ def main(cfg: DictConfig):
 
                 if last_read is not None and index == last_read.frame_index:
                     for tracklet_id, bbox in last_read.objects.items():
-                        draw_tracklet(frame, tracklet_id, bbox)
+                        tracklet_presence_counter[tracklet_id] += 1
+                        draw_tracklet(
+                            frame=frame,
+                            tracklet_id=tracklet_id,
+                            bbox=bbox,
+                            color=color_palette.GREEN if tracklet_presence_counter[tracklet_id] <= 5 else color_palette.RED
+                        )
 
                     last_read = tracker_inf_reader.read()
 
