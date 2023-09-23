@@ -34,7 +34,7 @@ def main(cfg: DictConfig):
             future_len=cfg.dataset.future_len,
             additional_params=cfg.dataset.additional_params
         ),
-        transform=transforms.BBoxRelativeToLastObsTransform(),
+        transform=transforms.BboxFirstOrderDifferenceTransform(),
         # augmentation_before_transform=cfg.augmentations.before_transform,
         # augmentation_after_transform=cfg.augmentations.after_transform
     )

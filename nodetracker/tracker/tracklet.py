@@ -19,10 +19,10 @@ class Tracklet:
     CounterLock: ClassVar[Lock] = Lock()
 
     def __init__(
-        self, 
-        bbox: PredBBox, 
-        frame_index: int, 
-        max_history: int = _TRACKLET_DEFAULT_MAX_HISTORY, 
+        self,
+        bbox: PredBBox,
+        frame_index: int,
+        max_history: int = _TRACKLET_DEFAULT_MAX_HISTORY,
         _id: Optional[int] = None
     ):
         """
@@ -47,8 +47,14 @@ class Tracklet:
         # Update bbox
         bbox.id = self._id
 
-        self._history: TrackletHistoryType = [(frame_index, bbox)]
         self._max_history = max_history
+
+        # State
+        self._history: TrackletHistoryType = [(frame_index, bbox)]
+        self._total_matches = 1
+
+    def __hash__(self) -> int:
+        return self._id
 
     def number_of_unmatched_frames(self, current_frame_index: int) -> int:
         """
@@ -126,6 +132,16 @@ class Tracklet:
         """
         return self.latest[0]
 
+    @property
+    def total_matches(self) -> int:
+        """
+        Total number of tracklet matches with detected object.
+
+        Returns:
+            Total number of tracklet matches
+        """
+        return self._total_matches
+
     def __len__(self) -> int:
         """
         Returns:
@@ -133,7 +149,7 @@ class Tracklet:
         """
         return len(self._history)
 
-    def update(self, bbox: PredBBox, frame_index: int) -> 'Tracklet':
+    def update(self, bbox: PredBBox, frame_index: int, matched: bool = True) -> 'Tracklet':
         """
         Updates tracklet BBox (and history).
         Disclaimer: Updates bbox id!
@@ -141,6 +157,7 @@ class Tracklet:
         Args:
             bbox: New bbox
             frame_index: Current frame index
+            matched: Is tracklet matched or not (updates counter if matched)
         """
         bbox.id = self._id  # Update bbox id
 
@@ -149,5 +166,8 @@ class Tracklet:
             self._history.pop(0)
 
         self._history.append((frame_index, bbox))
+
+        if matched:
+            self._total_matches += 1
 
         return self

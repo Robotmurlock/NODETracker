@@ -1,5 +1,5 @@
 """
-
+Definition of tracker interface.
 """
 from abc import ABC, abstractmethod
 from typing import List, Tuple
@@ -10,7 +10,7 @@ from nodetracker.tracker.tracklet import Tracklet
 
 class Tracker(ABC):
     """
-    Tracker interface
+    Tracker interface.
     """
     @abstractmethod
     def track(
@@ -19,7 +19,7 @@ class Tracker(ABC):
         detections: List[PredBBox],
         frame_index: int,
         inplace: bool = True
-    ) -> Tuple[List[Tracklet], List[Tracklet], List[int]]:
+    ) -> Tuple[List[Tracklet], List[Tracklet]]:
         """
         Performs multi-object-tracking step.
         DISCLAIMER: `inplace=True` is default configuration!
@@ -31,8 +31,7 @@ class Tracker(ABC):
             inplace: Perform inplace transformations on tracklets and bboxes
 
         Returns:
-            - List of new trackelts
-            - List of updated tracklets (existing)
-            - List of deleted tracklets
+            - Active tracklets
+            - All tracklets
         """
         pass

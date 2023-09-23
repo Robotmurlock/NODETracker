@@ -108,7 +108,7 @@ class FilterSortTracker(Tracker):
         Returns:
             Motion model posterior estimation
         """
-        measurement = torch.from_numpy(detection.as_numpy_yxwh(dtype=np.float32))
+        measurement = torch.from_numpy(detection.as_numpy_yxwh())
 
         state = self._filter_states[tracklet.id]
         state = self._filter.update(state, measurement)
@@ -144,7 +144,7 @@ class FilterSortTracker(Tracker):
         self._filter_states.pop(tracklet_id)
 
     def track(self, tracklets: List[Tracklet], detections: List[PredBBox], frame_index: int, inplace: bool = True) \
-            -> Tuple[List[Tracklet], List[Tracklet], List[Tracklet]]:
+            -> Tuple[List[Tracklet], List[Tracklet]]:
         # Estimate priors for all tracklets
         prior_tracklet_estimates = [self._predict(t) for t in tracklets]  # Copy last position
         prior_tracklet_bboxes = [bbox for bbox, _, _ in prior_tracklet_estimates]  # TODO: Use uncertainty
@@ -179,9 +179,9 @@ class FilterSortTracker(Tracker):
                 self._delete(tracklet.id)
             else:
                 tracklet_bbox, _, _ = self._missing(tracklet)  # TODO: Use uncertainty
-                tracklets[tracklet_index] = tracklet.update(tracklet_bbox, tracklet.frame_index)
+                tracklets[tracklet_index] = tracklet.update(tracklet_bbox, tracklet.frame_index, matched=False)
 
-        deleted_tracklets = [t for i, t in enumerate(tracklets) if i in tracklets_indices_to_delete]
-        tracklets = [t for i, t in enumerate(tracklets) if i not in tracklets_indices_to_delete]
+        all_tracklets = [t for i, t in enumerate(tracklets) if i not in tracklets_indices_to_delete] \
+            + new_tracklets
 
-        return tracklets, new_tracklets, deleted_tracklets
+        return all_tracklets, all_tracklets  # TODO: Filter

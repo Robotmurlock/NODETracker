@@ -22,7 +22,11 @@ from nodetracker.library.cv import color_palette
 from nodetracker.library.cv.video_writer import MP4Writer
 from nodetracker.utils import pipeline
 
+
 logger = logging.getLogger('TrackerVizualization')
+
+
+NEW_OBJECT_LEN = 5  # Number of frames for which the object is considered `new`
 
 
 def draw_tracklet(
@@ -36,7 +40,7 @@ def draw_tracklet(
 
     Args:
         frame: Frame
-        tracklet_id: Trackled id
+        tracklet_id: Tracklet id
         bbox: BBox
         color: Bbox color
 
@@ -54,7 +58,8 @@ def draw_tracklet(
 def main(cfg: DictConfig):
     cfg, experiment_path = pipeline.preprocess(cfg, name='tracker_visualization', cls=TrackerGlobalConfig)
     cfg: TrackerGlobalConfig
-    tracker_output = os.path.join(experiment_path, cfg.tracker.output_path, cfg.eval.split, cfg.tracker.algorithm.name)
+    tracker_output = os.path.join(experiment_path, cfg.tracker.output_path, cfg.eval.split,
+                                  cfg.tracker.object_detection.type, cfg.tracker.algorithm.name)
     assert os.path.exists(tracker_output), f'Path "{tracker_output}" does not exist!'
     logger.info(f'Visualizing tracker inference on path "{tracker_output}".')
 
@@ -93,7 +98,7 @@ def main(cfg: DictConfig):
                             frame=frame,
                             tracklet_id=tracklet_id,
                             bbox=bbox,
-                            color=color_palette.GREEN if tracklet_presence_counter[tracklet_id] <= 5 else color_palette.RED
+                            color=color_palette.GREEN if tracklet_presence_counter[tracklet_id] <= NEW_OBJECT_LEN else color_palette.RED
                         )
 
                     last_read = tracker_inf_reader.read()

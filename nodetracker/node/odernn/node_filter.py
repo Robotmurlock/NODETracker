@@ -26,6 +26,7 @@ class NODEFilterModel(nn.Module):
 
         homogeneous: bool = False,  # Observed and unobserved data points are processes the same way
         bounded_variance: bool = False,
+        bounded_value: float = 1e-2,
         rnn_update_layer: bool = False,
 
         n_ode_mlp_layers: int = 2,
@@ -38,6 +39,7 @@ class NODEFilterModel(nn.Module):
     ):
         super().__init__()
         self._bounded_variance = bounded_variance
+        self._bounded_value = bounded_value
         self._rnn_update_layer = rnn_update_layer
 
         self._observable_dim = observable_dim
@@ -187,7 +189,7 @@ class NODEFilterModel(nn.Module):
         if not self._bounded_variance:
             return torch.exp(x)
         else:
-            return 0.1 + 0.9 * torch.nn.functional.softplus(x)
+            return self._bounded_value + (1 - self._bounded_value) * torch.nn.functional.softplus(x)
 
 
 class LightningNODEFilterModel(LightningModuleBase):
@@ -201,6 +203,7 @@ class LightningNODEFilterModel(LightningModuleBase):
         output_dim: Optional[int] = None,
         homogeneous: bool = False,
         bounded_variance: bool = False,
+        bounded_value: float = 1e-2,
         rnn_update_layer: bool = False,
 
         transform_func: Optional[Union[InvertibleTransform, InvertibleTransformWithVariance]] = None,
@@ -232,6 +235,7 @@ class LightningNODEFilterModel(LightningModuleBase):
             output_dim=output_dim,
             homogeneous=homogeneous,
             bounded_variance=bounded_variance,
+            bounded_value=bounded_value,
             rnn_update_layer=rnn_update_layer,
             solver_name=solver_name,
             solver_params=solver_params,

@@ -2,10 +2,10 @@ type: node_filter
 params:
   observable_dim: 12
   output_dim: 4
-  latent_dim: 32
+  latent_dim: 128
 
   homogeneous: False
-  bounded_variance: False
+  bounded_variance: true
   rnn_update_layer: True
   augmentation_remove_points_enable: True
   augmentation_remove_random_points_proba: 0.15

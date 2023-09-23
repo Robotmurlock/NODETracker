@@ -58,7 +58,8 @@ def populate_tracker_params(
 def main(cfg: DictConfig):
     cfg, experiment_path = pipeline.preprocess(cfg, name='tracker_evaluation', cls=TrackerGlobalConfig)
     cfg: TrackerGlobalConfig
-    tracker_output = os.path.join(experiment_path, cfg.tracker.output_path, cfg.eval.split, cfg.tracker.algorithm.name)
+    tracker_output = os.path.join(experiment_path, cfg.tracker.output_path, cfg.eval.split,
+                                  cfg.tracker.object_detection.type, cfg.tracker.algorithm.name)
     assert not os.path.exists(tracker_output), f'Path "{tracker_output}" is already taken!'
 
     logger.info(f'Saving tracker inference on path "{tracker_output}".')
@@ -111,15 +112,14 @@ def main(cfg: DictConfig):
                 detection_bboxes = create_bbox_objects(inf_bboxes, inf_classes, inf_conf)
 
                 # Perform tracking step
-                new_tracklets, updated_tracklets, deleted_tracklets = tracker.track(
+                active_tracklets, tracklets = tracker.track(
                     tracklets=tracklets,
                     detections=detection_bboxes,
                     frame_index=index + 1  # Counts from 1 instead of 0
                 )
-                tracklets = new_tracklets + updated_tracklets
 
                 # Save inference
-                for tracklet in tracklets:
+                for tracklet in active_tracklets:
                     tracker_inf_writer.write(index, tracklet)
 
 

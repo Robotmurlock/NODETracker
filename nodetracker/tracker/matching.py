@@ -1,5 +1,8 @@
 """
 Implementation of tracklets-detections association matching algorithms.
+
+Supports:
+    - HungarianAlgorithmIOU
 """
 from abc import ABC, abstractmethod
 from typing import List, Tuple, Optional, Any, Dict, Union
@@ -42,7 +45,7 @@ class HungarianAlgorithmIOU(AssociationAlgorithm):
     """
     def __init__(
         self,
-        match_threshold: float = 0.01,
+        match_threshold: float = 0.30,
         label_gating: Optional[Union[LabelType, List[Tuple[LabelType, LabelType]]]] = None,
         *args, **kwargs
     ):

@@ -1,8 +1,8 @@
 """
-Tracker factory
+Tracker factory method.
 """
 from nodetracker.tracker.trackers.base import Tracker
-from nodetracker.tracker.trackers.baseline import BaselineSortTracker
+from nodetracker.tracker.trackers.sort import SortTracker
 from nodetracker.tracker.trackers.filter_sort import FilterSortTracker
 
 def tracker_factory(name: str, params: dict) -> Tracker:
@@ -19,7 +19,7 @@ def tracker_factory(name: str, params: dict) -> Tracker:
     name = name.lower()
 
     TRACKER_CATALOG = {
-        'sort-baseline': BaselineSortTracker,
+        'sort': SortTracker,
         'filter-sort-tracker': FilterSortTracker
     }
 

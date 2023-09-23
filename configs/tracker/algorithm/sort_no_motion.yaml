@@ -1,0 +1,8 @@
+name: 'sort'
+params:
+  remember_threshold: 1
+  initialization_threshold: 3
+  no_motion: true
+  matcher_algorithm: hungarian_iou
+  matcher_params:
+    match_threshold: 0.3
