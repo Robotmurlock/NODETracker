@@ -1,0 +1,1 @@
+from nodetracker.object_detection.yolox.core import YOLOXInference
