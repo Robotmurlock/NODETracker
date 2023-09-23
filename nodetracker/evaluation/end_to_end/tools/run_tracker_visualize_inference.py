@@ -32,6 +32,7 @@ NEW_OBJECT_LEN = 5  # Number of frames for which the object is considered `new`
 def draw_tracklet(
     frame: np.ndarray,
     tracklet_id: str,
+    tracklet_age: int,
     bbox: PredBBox,
     color = color_palette.RED
 ) -> np.ndarray:
@@ -41,6 +42,7 @@ def draw_tracklet(
     Args:
         frame: Frame
         tracklet_id: Tracklet id
+        tracklet_age: How long does the tracklet exist
         bbox: BBox
         color: Bbox color
 
@@ -49,7 +51,7 @@ def draw_tracklet(
     """
     frame = BBox.draw(bbox, frame, color=color)
     left, top, _, _ = bbox.scaled_yxyx_from_image(frame)
-    text = f'[{tracklet_id}] {bbox.label} ({100 * bbox.conf:.0f}%)'
+    text = f'[{tracklet_id} ({tracklet_age})] {bbox.label} ({100 * bbox.conf:.0f}%)'
     return draw_text(frame, text, round(left), round(top), color=color)
 
 
@@ -97,6 +99,7 @@ def main(cfg: DictConfig):
                         draw_tracklet(
                             frame=frame,
                             tracklet_id=tracklet_id,
+                            tracklet_age=tracklet_presence_counter[tracklet_id],
                             bbox=bbox,
                             color=color_palette.GREEN if tracklet_presence_counter[tracklet_id] <= NEW_OBJECT_LEN else color_palette.RED
                         )
