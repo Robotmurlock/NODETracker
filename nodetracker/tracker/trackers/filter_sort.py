@@ -23,9 +23,11 @@ class FilterSortTracker(Tracker):
     """
     def __init__(
         self,
-        remember_threshold: int,
         filter_name: str,
         filter_params: dict,
+        remember_threshold: int = 1,
+        initialization_threshold: int = 3,
+        show_only_active: bool = True,
         matcher_algorithm: str = 'hungarian_iou',
         matcher_params: Optional[Dict[str, Any]] = None,
     ):
@@ -39,11 +41,15 @@ class FilterSortTracker(Tracker):
             matcher_algorithm: Choose matching algorithm (e.g. Hungarian IOU)
             matcher_params: Matching algorithm parameters
         """
-        matcher_params = {} if matcher_params is None else matcher_params
 
         # Parameters
         self._remember_threshold = remember_threshold
+        self._initialization_threshold = initialization_threshold
+        self._show_only_active = show_only_active
+
+        matcher_params = {} if matcher_params is None else matcher_params
         self._matcher = association_algorithm_factory(name=matcher_algorithm, params=matcher_params)
+
         self._filter = filter_factory(filter_name, filter_params)
 
         # State
@@ -184,4 +190,9 @@ class FilterSortTracker(Tracker):
         all_tracklets = [t for i, t in enumerate(tracklets) if i not in tracklets_indices_to_delete] \
             + new_tracklets
 
-        return all_tracklets, all_tracklets  # TODO: Filter
+        # Filter active tracklets
+        active_tracklets = [t for t in tracklets if t.total_matches >= self._initialization_threshold]
+        if self._show_only_active:
+            active_tracklets = [t for t in active_tracklets if t.frame_index == frame_index]
+
+        return active_tracklets, all_tracklets
