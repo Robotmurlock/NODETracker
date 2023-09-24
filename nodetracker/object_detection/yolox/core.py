@@ -1,7 +1,7 @@
 """
 Support for YOLOX inference (only pretrained models)
 """
-from typing import Tuple, Dict, Any
+from typing import Tuple, Dict, Any, Optional
 
 import numpy as np
 import torch
@@ -12,12 +12,13 @@ from yolox.utils import postprocess, vis
 from nodetracker.object_detection.yolox.yolox_x import DEFAULT_EXP_PATH, DEFAULT_EXP_NAME
 
 
-class YOLOXInference:
+class YOLOXPredictor:
     def __init__(
         self,
         checkpoint_path: str,
         accelerator: str,
-        legacy: bool = False,
+        legacy: bool = True,
+        conf_threshold: Optional[float] = None,
         exp_path: str = DEFAULT_EXP_PATH,
         exp_name: str = DEFAULT_EXP_NAME
     ):
@@ -33,6 +34,7 @@ class YOLOXInference:
 
         # Load Exp
         self._exp = get_exp(exp_path, exp_name)
+        self._conf_threshold = self._exp.test_conf if conf_threshold is None else conf_threshold
 
         # Load model
         ckpt = torch.load(checkpoint_path)
@@ -47,7 +49,7 @@ class YOLOXInference:
         self._preprocess = ValTransform(legacy=legacy)
 
     @torch.no_grad()
-    def inference(self, img: np.ndarray) -> Tuple[np.ndarray, Dict[str, Any]]:
+    def predict(self, img: np.ndarray) -> Tuple[np.ndarray, Dict[str, Any]]:
         """
         Performs inference on a simple image.
 
@@ -55,7 +57,7 @@ class YOLOXInference:
             img: Raw image
 
         Returns:
-            - Image bboxes in format: (x1, y1, x2, y1, obj_conf, class_conf, class_pred)
+            - Image bboxes in format: (x1, y1, x2, y1, obj_conf * class_conf, class_conf, class_pred)
             - Image info (used for visualization)
         """
         img = img.copy()
@@ -80,7 +82,7 @@ class YOLOXInference:
         outputs = outputs.detach().cpu()
 
         # Postprocess
-        outputs = postprocess(outputs, self._exp.num_classes, self._exp.test_conf, self._exp.nmsthre, class_agnostic=True)
+        outputs = postprocess(outputs, self._exp.num_classes, self._conf_threshold, self._exp.nmsthre, class_agnostic=True)
         output = outputs[0].numpy()
         output[:, 0:4] /= ratio
         output[:, 4] *= output[:, 5]

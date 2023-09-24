@@ -1,1 +1,1 @@
-from nodetracker.object_detection.yolox.core import YOLOXInference
+from nodetracker.object_detection.yolox.core import YOLOXPredictor

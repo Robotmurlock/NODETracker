@@ -1,5 +1,5 @@
 defaults:
-  - object_detection: yolov8.yaml
+  - object_detection: yolox.yaml
   - algorithm: sort_kf.yaml
 
 lookup_path: '/media/home/DanceTrack/.lookup.json'

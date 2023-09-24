@@ -13,9 +13,9 @@ import ultralytics
 
 from nodetracker.datasets import TrajectoryDataset
 from nodetracker.datasets.mot.core import SceneInfoIndex, MOTDataset
+from nodetracker.library.cv.bbox import PredBBox, BBox
 from nodetracker.utils import file_system
 from nodetracker.utils.lookup import LookupTable
-from nodetracker.library.cv.bbox import PredBBox, BBox
 
 
 class ObjectDetectionInference(ABC):
@@ -138,6 +138,67 @@ class YOLOv8Inference(ObjectDetectionInference):
         return bboxes, classes, confidences
 
 
+class YOLOXInference(ObjectDetectionInference):
+    """
+    Object Detection - YOLOX
+    """
+    def __init__(
+        self,
+        dataset: TrajectoryDataset,
+        lookup: LookupTable,
+        model_path: str,
+        accelerator: str,
+        conf: float = 0.01,
+        min_bbox_area: int = 100
+    ):
+        super().__init__(dataset=dataset, lookup=lookup)
+        from nodetracker.object_detection.yolox import YOLOXPredictor
+
+        self._yolox = YOLOXPredictor(
+            checkpoint_path=model_path,
+            accelerator=accelerator,
+            conf_threshold=conf
+        )
+        self._conf = conf
+        self._min_bbox_area = min_bbox_area
+
+    def predict(
+        self,
+        scene_name: str,
+        frame_index: int,
+        object_id: Optional[str] = None
+    ) -> Tuple[torch.Tensor, List[str], torch.Tensor]:
+        image_path = self._dataset.get_scene_image_path(scene_name, frame_index)
+
+        # noinspection PyUnresolvedReferences
+        image = cv2.imread(image_path)
+        assert image is not None, f'Failed to load image "{image_path}".'
+
+        h, w, _ = image.shape
+        output, _ = self._yolox.predict(image)
+        output = torch.from_numpy(output)
+
+        # Filter small bboxes
+        bboxes = output[:, :4]
+        areas = (bboxes[:, 2] - bboxes[:, 0]) * (bboxes[:, 3] - bboxes[:, 1])
+        output = output[areas >= self._min_bbox_area]
+
+        # Process bboxes
+        bboxes = output[:, :4]
+        bboxes[:, [0, 2]] /= w
+        bboxes[:, [1, 3]] /= h
+        bboxes[:, 2:] -= bboxes[:, :2]  # xyxy to xywh
+
+        # Process classes
+        class_indices = output[:, 6]
+        classes = [self._lookup.inverse_lookup(int(cls_index)) for cls_index in class_indices]
+
+        # Process confidences
+        confidences = output[:, 4]
+
+        return bboxes, classes, confidences
+
+
 MOT20Detections = Dict[str, Dict[str, List[List[float]]]]
 
 
@@ -221,6 +282,7 @@ def object_detection_inference_factory(
     catalog = {
         'ground_truth': GroundTruthInference,
         'yolo': YOLOv8Inference,
+        'yolox': YOLOXInference,
         'mot20_offline': MOT20OfflineInference
     }
 

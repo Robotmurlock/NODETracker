@@ -23,6 +23,7 @@ class SortTracker(Tracker):
         self,
         remember_threshold: int = 1,
         initialization_threshold: int = 3,
+        show_only_active: bool = True,
         matcher_algorithm: str = 'hungarian_iou',
         matcher_params: Optional[Dict[str, Any]] = None,
         no_motion: bool = False
@@ -33,15 +34,17 @@ class SortTracker(Tracker):
                 If tracklet isn't matched for more than `remember_threshold` frames then
                 it is deleted.
             initialization_threshold: Number of matched required to make
+            show_only_active: Show only active tracklets (matched in this frame)
             matcher_algorithm: Choose matching algorithm (e.g. Hungarian IOU)
             matcher_params: Matching algorithm parameters
             no_motion: Optionally disable KF motion model
         """
-        matcher_params = {} if matcher_params is None else matcher_params
-
         # Parameters
         self._remember_threshold = remember_threshold
         self._initialization_threshold = initialization_threshold
+        self._show_only_active = show_only_active
+
+        matcher_params = {} if matcher_params is None else matcher_params
         self._matcher = association_algorithm_factory(name=matcher_algorithm, params=matcher_params)
         self._no_motion = no_motion
 
@@ -190,7 +193,11 @@ class SortTracker(Tracker):
 
         all_tracklets = [t for i, t in enumerate(tracklets) if i not in tracklets_indices_to_delete] \
             + new_tracklets
+
+        # Filter active tracklets
         active_tracklets = [t for t in tracklets if t.total_matches >= self._initialization_threshold]
+        if self._show_only_active:
+            active_tracklets = [t for t in active_tracklets if t.frame_index == frame_index]
 
         # Filter active tracklets
         return active_tracklets, all_tracklets
