@@ -7,8 +7,9 @@ params:
   matcher_params:
     match_threshold: 0.3
 
-  filter_name: 'buffered_node_model'
+  filter_name: 'node_kalman'
   filter_params:
     accelerator: 'cuda:0'
     buffer_size: 10
     buffer_min_size: 1
+    det_uncertainty_multiplier: 0.05

@@ -11,4 +11,5 @@ defaults:
   - augmentations: lasot/no_augs.yaml
   - path: lasot.yaml
   - end_to_end: default.yaml
+  - tracker: rnn_sort.yaml
   - _self_

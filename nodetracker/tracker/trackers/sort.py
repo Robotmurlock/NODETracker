@@ -197,6 +197,6 @@ class SortTracker(Tracker):
         # Filter active tracklets
         active_tracklets = [t for t in tracklets if t.total_matches >= self._initialization_threshold]
         if self._show_only_active:
-            active_tracklets = [t for t in active_tracklets if t.frame_index == frame_index]
+            active_tracklets = [t for t in active_tracklets if t.frame_index >= frame_index]
 
         return active_tracklets, all_tracklets

@@ -25,7 +25,7 @@ from nodetracker.evaluation import metrics as eval_metrics
 from nodetracker.evaluation.end_to_end import jitter
 from nodetracker.evaluation.end_to_end.config import FilterGlobalConfig
 from nodetracker.evaluation.end_to_end.inference_writer import InferenceWriter, get_inference_path
-from evaluation.end_to_end.object_detection import object_detection_inference_factory
+from nodetracker.evaluation.end_to_end.object_detection import object_detection_inference_factory
 from nodetracker.filter import filter_factory, StateModelFilter
 from nodetracker.library.cv import drawing, BBox, color_palette, PredBBox
 from nodetracker.library.cv.video_writer import MP4Writer

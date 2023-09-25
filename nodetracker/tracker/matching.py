@@ -179,7 +179,7 @@ class ByteIOU(AssociationAlgorithm):
 
         unmatched_tracklets = [remaining_tracklet_indices[t_i] for t_i in low_unmatched_tracklets]
 
-        high_unmatched_detections = [high_det_indices[d_i] for d_i in high_unmatched_tracklets]
+        high_unmatched_detections = [high_det_indices[d_i] for d_i in high_unmatched_detections]
         low_unmatched_detections = [low_det_indices[d_i] for d_i in low_unmatched_detections]
         unmatched_detections = high_unmatched_detections + low_unmatched_detections
 

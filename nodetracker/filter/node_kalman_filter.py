@@ -116,7 +116,7 @@ class NODEKalmanFilter(StateModelFilter):
 
         buffer.push(measurement)
 
-        return posterior_mean, posterior_std
+        return buffer, posterior_mean, posterior_std
 
     def missing(self, state: State) -> State:
         buffer, mean, std = state

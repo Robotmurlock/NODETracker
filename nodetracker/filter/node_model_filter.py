@@ -216,7 +216,7 @@ class BufferedNodeModelFilter(StateModelFilter):
             _, _, z1_prior = self._model.core.estimate_prior(z0, t_obs, t_unobs)
             z1_prior = z1_prior.detach().cpu()
 
-            return x_unobs_mean_hat[:, 0, :], x_unobs_std_hat[:, 0, :], z1_prior
+            return buffer, x_unobs_mean_hat[:, 0, :], x_unobs_std_hat[:, 0, :], z1_prior
 
         t_x_obs, _, t_ts_obs, t_ts_unobs, *_ = self._transform.apply(data=[x_obs, None, ts_obs, ts_unobs, None], shallow=False)
         t_x_obs, t_ts_obs, t_ts_unobs = t_x_obs.to(self._accelerator), t_ts_obs.to(self._accelerator), t_ts_unobs.to(
