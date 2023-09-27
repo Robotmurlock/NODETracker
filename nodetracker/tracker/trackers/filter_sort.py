@@ -156,7 +156,7 @@ class FilterSortTracker(Tracker):
         prior_tracklet_bboxes = [bbox for bbox, _, _ in prior_tracklet_estimates]  # TODO: Use uncertainty
 
         # Perform matching
-        matches, unmatched_tracklets, unmatched_detections = self._matcher(prior_tracklet_bboxes, detections)
+        matches, unmatched_tracklets, unmatched_detections = self._matcher(prior_tracklet_bboxes, detections, tracklets=tracklets)
 
         # Update matched tracklets
         for tracklet_index, det_index in matches:

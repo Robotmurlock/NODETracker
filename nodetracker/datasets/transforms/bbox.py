@@ -542,19 +542,31 @@ class BBoxLogTransformRelativeToLastObs(InvertibleTransformWithVariance):
 
 
 class BBoxJackOfAllTradesTransform(InvertibleTransformWithVariance):
+    """
+    This transformation uses benefits of both relative and diff coordinates.
+    Also takes into consideration the absolute object coordinates.
+    """
     def __init__(
         self,
         rel_mean: float,
         rel_std: float,
         diff_mean: float,
-        diff_std: float
+        diff_std: float,
+        rel_unobs: bool = True
     ):
+        """
+        Args:
+            rel_mean: Relative coordinates mean
+            rel_std: Relative coordinates std
+            diff_mean: Diff coordinates mean
+            diff_std: Diff coordinate std
+            rel_unobs: If true then Use relative coordinates for prediction
+                else use diff coordinates for prediction
+        """
         super().__init__(name='jack_of_all_trades')
         self._rel_transform = BBoxStandardizedRelativeToLastObsTransform(mean=rel_mean, std=rel_std)
         self._diff_transform = BBoxStandardizedFirstOrderDifferenceTransform(mean=diff_mean, std=diff_std)
-
-    def inverse(self, data: TensorCollection, shallow: bool = True) -> TensorCollection:
-        return self._rel_transform.inverse(data, shallow=shallow)
+        self._rel_unobs = rel_unobs
 
     def apply(self, data: TensorCollection, shallow: bool = True) -> TensorCollection:
         bbox_obs, bbox_unobs, ts_obs, ts_unobs, *other = data
@@ -564,13 +576,23 @@ class BBoxJackOfAllTradesTransform(InvertibleTransformWithVariance):
         bbox_obs = bbox_obs[1:]
         bbox_features = torch.cat([rel_bbox_obs, diff_bbox_obs, bbox_obs], dim=-1)
 
-        return bbox_features, rel_bbox_unobs, rel_ts_obs, rel_ts_unobs, *other
+        bbox_unobs = rel_bbox_unobs if self._rel_unobs else diff_bbox_unobs
+        return bbox_features, bbox_unobs, rel_ts_obs, rel_ts_unobs, *other
+
+    def inverse(self, data: TensorCollection, shallow: bool = True) -> TensorCollection:
+        if self._rel_unobs:
+            return self._rel_transform.inverse(data, shallow=shallow)
+        return self._diff_transform.inverse(data, shallow=shallow)
 
     def inverse_std(self, t_std: torch.Tensor, additional_data: Optional[TensorCollection] = None, shallow: bool = True) -> TensorCollection:
-        return self._rel_transform.inverse_std(t_std, additional_data=additional_data, shallow=shallow)
+        if self._rel_unobs:
+            return self._rel_transform.inverse_std(t_std, additional_data=additional_data, shallow=shallow)
+        return self._diff_transform.inverse_std(t_std, additional_data=additional_data, shallow=shallow)
 
     def inverse_var(self, t_var: torch.Tensor, additional_data: Optional[TensorCollection] = None, shallow: bool = True) -> TensorCollection:
-        return self._rel_transform.inverse_var(t_var, additional_data=additional_data, shallow=shallow)
+        if self._rel_unobs:
+            return self._rel_transform.inverse_var(t_var, additional_data=additional_data, shallow=shallow)
+        return self._diff_transform.inverse_var(t_var, additional_data=additional_data, shallow=shallow)
 
 
 # noinspection DuplicatedCode

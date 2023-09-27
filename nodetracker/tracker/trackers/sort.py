@@ -160,7 +160,7 @@ class SortTracker(Tracker):
         predicted_tracklet_bboxes = [self._predict(t) for t in tracklets]  # Copy last position
 
         # Matching tracklets with detections
-        matches, unmatched_tracklets, unmatched_detections = self._matcher(predicted_tracklet_bboxes, detections)
+        matches, unmatched_tracklets, unmatched_detections = self._matcher(predicted_tracklet_bboxes, detections, tracklets=tracklets)
 
         # Update matched tracklets history
         for tracklet_index, det_index in matches:

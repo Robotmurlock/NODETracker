@@ -2,7 +2,7 @@ type: node_filter
 params:
   observable_dim: 12
   output_dim: 4
-  latent_dim: 128
+  latent_dim: 256
 
   homogeneous: False
   bounded_variance: true

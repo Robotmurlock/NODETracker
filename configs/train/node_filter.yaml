@@ -1,5 +1,5 @@
-experiment: 'NODEFilterModel-dancetrack-exp05-128dim-bounded-variance-10f'
-description: 'NODEFilter baseline (128), bounded variance, 10 future steps'
+experiment: 'NODEFilterModel-dancetrack-exp08-128dim-bounded-variance-30f-256dim'
+description: 'NODEFilter baseline (258), bounded variance, 30 future steps'
 batch_size: 256
 max_epochs: 30
 

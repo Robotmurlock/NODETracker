@@ -52,9 +52,20 @@ class Tracklet:
         # State
         self._history: TrackletHistoryType = [(frame_index, bbox)]
         self._total_matches = 1
+        self._matched = True
 
     def __hash__(self) -> int:
         return self._id
+
+    @property
+    def matched(self) -> bool:
+        """
+        Checks if tracklet is matched in the update.
+
+        Returns:
+            True if tracklet is matched in last update else False.
+        """
+        return self._matched
 
     def number_of_unmatched_frames(self, current_frame_index: int) -> int:
         """
@@ -169,5 +180,8 @@ class Tracklet:
 
         if matched:
             self._total_matches += 1
+            self._matched = True
+        else:
+            self._matched = False
 
         return self
