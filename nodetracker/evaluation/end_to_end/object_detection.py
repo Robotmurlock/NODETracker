@@ -7,8 +7,10 @@ from abc import ABC, abstractmethod
 from typing import List, Tuple, Dict, Optional
 
 import cv2
+import numpy as np
 import pandas as pd
 import torch
+from pathlib import Path
 import ultralytics
 
 from nodetracker.datasets import TrajectoryDataset
@@ -149,7 +151,8 @@ class YOLOXInference(ObjectDetectionInference):
         model_path: str,
         accelerator: str,
         conf: float = 0.01,
-        min_bbox_area: int = 100
+        min_bbox_area: int = 0,
+        cache_path: Optional[str] = None
     ):
         super().__init__(dataset=dataset, lookup=lookup)
         from nodetracker.object_detection.yolox import YOLOXPredictor
@@ -161,6 +164,46 @@ class YOLOXInference(ObjectDetectionInference):
         )
         self._conf = conf
         self._min_bbox_area = min_bbox_area
+        self._cache_path = cache_path
+
+        if self._cache_path is not None:
+            Path(self._cache_path).mkdir(parents=True, exist_ok=True)
+
+    def _get_cache_path(self, scene_name: str, frame_index: int) -> str:
+        frame_name = f'{scene_name}_{frame_index:06d}'
+        return os.path.join(self._cache_path, f'{frame_name}.npy')
+
+    def _predict(self, scene_name: str, frame_index: int) -> np.ndarray:
+        """
+        Performs model image loading + inference with cache support (faster inference in second run).
+        In cache the output can be found in cache then image loading and inference is skipped
+
+        Args:
+            scene_name: Scene name
+            frame_index: frame index
+
+        Returns:
+            Model output
+        """
+        if self._cache_path is not None:
+            frame_cache_path = self._get_cache_path(scene_name, frame_index)
+            if os.path.exists(frame_cache_path):
+                with open(frame_cache_path, 'rb') as f:
+                    return np.load(f)
+
+        image_path = self._dataset.get_scene_image_path(scene_name, frame_index)
+
+        # noinspection PyUnresolvedReferences
+        image = cv2.imread(image_path)
+        assert image is not None, f'Failed to load image "{image_path}".'
+        output, _ = self._yolox.predict(image)
+
+        if self._cache_path is not None:
+            frame_cache_path = self._get_cache_path(scene_name, frame_index)
+            with open(frame_cache_path, 'wb') as f:
+                np.save(f, output)
+
+        return output
 
     def predict(
         self,
@@ -168,14 +211,10 @@ class YOLOXInference(ObjectDetectionInference):
         frame_index: int,
         object_id: Optional[str] = None
     ) -> Tuple[torch.Tensor, List[str], torch.Tensor]:
-        image_path = self._dataset.get_scene_image_path(scene_name, frame_index)
+        scene_info = self._dataset.get_scene_info(scene_name)
 
-        # noinspection PyUnresolvedReferences
-        image = cv2.imread(image_path)
-        assert image is not None, f'Failed to load image "{image_path}".'
-
-        h, w, _ = image.shape
-        output, _ = self._yolox.predict(image)
+        h, w = scene_info.imheight, scene_info.imwidth
+        output = self._predict(scene_name, frame_index)
         output = torch.from_numpy(output)
 
         # Filter small bboxes
