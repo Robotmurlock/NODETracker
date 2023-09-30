@@ -61,6 +61,8 @@ def main(cfg: DictConfig):
     tracker_output = os.path.join(experiment_path, cfg.tracker.output_path, cfg.eval.split,
                                   cfg.tracker.object_detection.type, cfg.tracker.algorithm.name)
     assert not os.path.exists(tracker_output), f'Path "{tracker_output}" is already taken!'
+    tracker_active_output = os.path.join(tracker_output, 'active')
+    tracker_all_output = os.path.join(tracker_output, 'all')
 
     logger.info(f'Saving tracker inference on path "{tracker_output}".')
 
@@ -101,7 +103,8 @@ def main(cfg: DictConfig):
         imheight = scene_info.imheight
         imwidth = scene_info.imwidth
 
-        with TrackerInferenceWriter(tracker_output, scene_name, image_height=imheight, image_width=imwidth) as tracker_inf_writer:
+        with TrackerInferenceWriter(tracker_active_output, scene_name, image_height=imheight, image_width=imwidth) as tracker_active_inf_writer, \
+            TrackerInferenceWriter(tracker_all_output, scene_name, image_height=imheight, image_width=imwidth) as tracker_all_inf_writer:
             tracklets: List[Tracklet] = []
             for index in tqdm(range(scene_length), desc=f'Simulating "{scene_name}"', unit='frame'):
                 # Perform OD inference
@@ -120,7 +123,10 @@ def main(cfg: DictConfig):
 
                 # Save inference
                 for tracklet in active_tracklets:
-                    tracker_inf_writer.write(index, tracklet)
+                    tracker_active_inf_writer.write(index, tracklet)
+
+                for tracklet in tracklets:
+                    tracker_all_inf_writer.write(index, tracklet)
 
 
 if __name__ == '__main__':

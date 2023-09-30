@@ -250,7 +250,6 @@ class HungarianIOUAndMotion(HungarianAlgorithmIOU):
         match_threshold: float = 0.30,
         motion_lambda: float = 10,
         only_matched: bool = False,
-        first_bbox_correction: bool = False,
         label_gating: Optional[Union[LabelType, List[Tuple[LabelType, LabelType]]]] = None,
         *args, **kwargs
     ):
@@ -259,7 +258,6 @@ class HungarianIOUAndMotion(HungarianAlgorithmIOU):
             match_threshold: IOU match gating
             motion_lambda: Motion difference multiplier
             only_matched: Only use motion cost matrix for tracklets that are matched in last frame
-            first_bbox_correction: Don't use motion cost matrix for new tracklets (age 1)
             label_gating: Gating between different types of objects
         """
         super().__init__(
@@ -269,7 +267,6 @@ class HungarianIOUAndMotion(HungarianAlgorithmIOU):
         )
         self._motion_lambda = motion_lambda
         self._only_matched = only_matched
-        self._first_bbox_correction = first_bbox_correction
 
     def _form_motion_distance_cost_matrix(
         self,
@@ -303,12 +300,11 @@ class HungarianIOUAndMotion(HungarianAlgorithmIOU):
 
             tracklet_last_bbox = tracklet_info.bbox.as_numpy_xyxy()
             tracklet_motion = tracklet_estimated_bbox.as_numpy_xyxy() - tracklet_last_bbox
-            initial_motion_correction = 1.0 if tracklet_info.total_matches and self._first_bbox_correction > 1 else 0.0
 
             for d_i in range(n_detections):
                 det_bbox = detections[d_i]
                 det_motion = det_bbox.as_numpy_xyxy() - tracklet_last_bbox
-                cost_matrix[t_i][d_i] = np.sqrt(np.square(det_motion - tracklet_motion).mean()) * initial_motion_correction
+                cost_matrix[t_i][d_i] = np.sqrt(np.square(det_motion - tracklet_motion).mean())
 
         return cost_matrix
 
