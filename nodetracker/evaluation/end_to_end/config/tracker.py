@@ -17,6 +17,15 @@ class TrackerAlgorithmConfig:
 @dataclass
 class TrackerVisualizeConfig:
     fps: int = 20
+    new_object_length: int = 5
+    option: str = 'active'
+
+    def __post_init__(self) -> None:
+        """
+        Validation.
+        """
+        options = ['active', 'all', 'postprocess']
+        assert self.option in options, f'Invalid option "{self.option}". Available: {options}.'
 
 
 @dataclass
@@ -26,6 +35,7 @@ class TrackerConfig:
     algorithm: TrackerAlgorithmConfig
     output_path: str = 'tracker_inference'
     visualize: TrackerVisualizeConfig = field(default_factory=TrackerVisualizeConfig)
+
 
 @dataclass
 class TrackerGlobalConfig(GlobalConfig):

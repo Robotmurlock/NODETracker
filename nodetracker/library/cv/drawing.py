@@ -13,7 +13,11 @@ def draw_text(
     left: int,
     top: int,
     color: color_palette.ColorType,
-    border_color: color_palette.ColorType = color_palette.BLACK
+    font_face: int = 1,
+    font_scale: int = 1,
+    thickness: int = 1,
+    border_color: color_palette.ColorType = color_palette.BLACK,
+    border_thickness: int = 2
 ) -> np.ndarray:
     """
     Draws text with border. With this heuristic it is easier to see image anywhere.
@@ -24,12 +28,16 @@ def draw_text(
         left: Text left position
         top: Text top position
         color: Text color
+        font_face: Font face
+        font_scale: Font scale
+        thickness: Text thickness
         border_color: Text border color
+        border_thickness: Text border thickness
 
     Returns:
         Image with text
     """
     # noinspection PyUnresolvedReferences
-    image = cv2.putText(image, text, (left, top), 1, 1, border_color, 2)
+    image = cv2.putText(image, text, (left, top), font_face, font_scale, border_color, border_thickness)
     # noinspection PyUnresolvedReferences
-    return cv2.putText(image, text, (left, top), 1, 1, color, 1)
+    return cv2.putText(image, text, (left, top), font_face, font_scale, color, thickness)
