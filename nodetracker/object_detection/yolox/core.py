@@ -83,7 +83,12 @@ class YOLOXPredictor:
 
         # Postprocess
         outputs = postprocess(outputs, self._exp.num_classes, self._conf_threshold, self._exp.nmsthre, class_agnostic=True)
-        output = outputs[0].numpy()
+        output = outputs[0]
+        if output is None:
+            # Nothing detected
+            return np.empty(shape=(0, 7), dtype=np.float32), img_info
+
+        output = output.numpy()
         output[:, 0:4] /= ratio
         output[:, 4] *= output[:, 5]
 

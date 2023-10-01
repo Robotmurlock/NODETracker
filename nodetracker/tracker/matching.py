@@ -241,15 +241,28 @@ class ByteIOU(AssociationAlgorithm):
         return matches, unmatched_tracklets, unmatched_detections
 
 
-class HungarianIOUAndMotion(HungarianAlgorithmIOU):
+def distance(name: str, x: np.ndarray, y: np.ndarray) -> float:
+    if name == 'l1':
+        return np.abs(x - y).sum()
+    if name == 'l2':
+        return np.sqrt(np.square(x - y).sum())
+
+    raise AssertionError('Invalid Program State!')
+
+
+
+class HungarianAlgorithmIOUAndMotion(HungarianAlgorithmIOU):
+    DISTANCE_OPTIONS = ['l1', 'l2']
+
     """
     Combines Hungarian IOU and motion estimation for tracklet and detection matchings.
     """
     def __init__(
         self,
         match_threshold: float = 0.30,
-        motion_lambda: float = 10,
+        motion_lambda: float = 5,
         only_matched: bool = False,
+        distance_name: str = 'l1',
         label_gating: Optional[Union[LabelType, List[Tuple[LabelType, LabelType]]]] = None,
         *args, **kwargs
     ):
@@ -267,6 +280,9 @@ class HungarianIOUAndMotion(HungarianAlgorithmIOU):
         )
         self._motion_lambda = motion_lambda
         self._only_matched = only_matched
+
+        assert distance_name in self.DISTANCE_OPTIONS, f'Invalid distance option "{distance_name}". Available: {self.DISTANCE_OPTIONS}.'
+        self._distance_name = distance_name
 
     def _form_motion_distance_cost_matrix(
         self,
@@ -304,7 +320,7 @@ class HungarianIOUAndMotion(HungarianAlgorithmIOU):
             for d_i in range(n_detections):
                 det_bbox = detections[d_i]
                 det_motion = det_bbox.as_numpy_xyxy() - tracklet_last_bbox
-                cost_matrix[t_i][d_i] = np.sqrt(np.square(det_motion - tracklet_motion).mean())
+                cost_matrix[t_i][d_i] = distance(self._distance_name, tracklet_motion, det_motion)
 
         return cost_matrix
 
@@ -319,6 +335,74 @@ class HungarianIOUAndMotion(HungarianAlgorithmIOU):
         cost_matrix = neg_iou_cost_matrix + self._motion_lambda * motion_diff_cost_matrix
         return hungarian(cost_matrix)
 
+
+class HungarianDistanceAndMotion(AssociationAlgorithm):
+    DISTANCE_OPTIONS = ['l1', 'l2']
+
+    def __init__(
+        self,
+        motion_lambda: float = 1,
+        offset_gating_lambda: float = 1,
+        distance_name: str = 'l1',
+        *args,
+        **kwargs
+    ):
+        super().__init__(*args, **kwargs)
+        self._motion_lambda = motion_lambda
+        self._offset_gating_lambda = offset_gating_lambda
+
+        assert distance_name in self.DISTANCE_OPTIONS, f'Invalid distance option "{distance_name}". Available: {self.DISTANCE_OPTIONS}.'
+        self._distance_name = distance_name
+
+    def _form_cost_matrix(
+        self,
+        tracklet_estimations: List[PredBBox],
+        detections: List[PredBBox],
+        tracklets: Optional[List[Tracklet]] = None
+    ) -> np.ndarray:
+        n_tracklets, n_detections = len(tracklet_estimations), len(detections)
+        cost_matrix = np.zeros(shape=(n_tracklets, n_detections), dtype=np.float32)
+        for t_i in range(n_tracklets):
+            tracklet_estimated_bbox = tracklet_estimations[t_i]
+            tracklet_info = tracklets[t_i]
+
+            tracklet_last_bbox = tracklet_info.bbox.as_numpy_xyxy()
+            tracklet_estimated_bbox_position = tracklet_estimated_bbox.as_numpy_xyxy()
+            tracklet_motion = tracklet_estimated_bbox_position - tracklet_last_bbox
+
+            for d_i in range(n_detections):
+                det_bbox = detections[d_i]
+                det_position = det_bbox.as_numpy_xyxy()
+                det_motion = det_position - tracklet_last_bbox
+
+                # Position cost matrix
+                cost_matrix[t_i][d_i] += distance(self._distance_name, tracklet_estimated_bbox_position, det_position)
+
+                # Motion cost matrix
+                cost_matrix[t_i][d_i] += distance(self._distance_name, tracklet_motion, det_motion) * self._motion_lambda
+
+                # Gating
+                offset = np.abs(tracklet_estimated_bbox_position - det_position)
+                h = tracklet_estimated_bbox_position[2] - tracklet_estimated_bbox_position[0]
+                w = tracklet_estimated_bbox_position[3] - tracklet_estimated_bbox_position[1]
+                if any([
+                    offset[0] > h * self._offset_gating_lambda,
+                    offset[1] > w * self._offset_gating_lambda,
+                    offset[2] > h * self._offset_gating_lambda,
+                    offset[3] > w * self._offset_gating_lambda
+                ]):
+                    cost_matrix[t_i][d_i] = np.inf
+
+        return cost_matrix
+
+    def match(
+        self,
+        tracklet_estimations: List[PredBBox],
+        detections: List[PredBBox],
+        tracklets: Optional[List[Tracklet]] = None
+    ) -> Tuple[List[Tuple[int, int]], List[int], List[int]]:
+        cost_matrix = self._form_cost_matrix(tracklet_estimations, detections, tracklets)
+        return hungarian(cost_matrix)
 
 def association_algorithm_factory(name: str, params: Dict[str, Any]) -> AssociationAlgorithm:
     """
@@ -336,7 +420,8 @@ def association_algorithm_factory(name: str, params: Dict[str, Any]) -> Associat
     catalog = {
         'hungarian_iou': HungarianAlgorithmIOU,
         'byte': ByteIOU,
-        'hungarian_iou_motion': HungarianIOUAndMotion
+        'hungarian_iou_motion': HungarianAlgorithmIOUAndMotion,
+        'hungarian_distance_motion': HungarianDistanceAndMotion
     }
 
     if name not in catalog:

@@ -69,13 +69,17 @@ def main(cfg: DictConfig):
     with open(cfg.tracker.lookup_path, 'r', encoding='utf-8') as f:
         lookup = LookupTable.deserialize(json.load(f))
 
+    additional_params = cfg.dataset.additional_params
+    if cfg.dataset.name in ['DanceTrack', 'MOT20'] and cfg.eval.split == 'test':
+        additional_params['test'] = True  # Skip labels parsing
+
     dataset = dataset_factory(
         name=cfg.dataset.name,
         path=cfg.dataset.fullpath,
         history_len=1,  # Not relevant
         future_len=1,  # not relevant
         sequence_list=cfg.dataset.split_index[cfg.eval.split],
-        additional_params=cfg.dataset.additional_params
+        additional_params=additional_params
     )
 
     od_inference = object_detection_inference_factory(

@@ -64,13 +64,17 @@ def main(cfg: DictConfig):
     assert os.path.exists(tracker_output_option), f'Path "{tracker_output}" does not exist!'
     logger.info(f'Visualizing tracker inference on path "{tracker_output_option}".')
 
+    additional_params = cfg.dataset.additional_params
+    if cfg.dataset.name in ['DanceTrack', 'MOT20'] and cfg.eval.split == 'test':
+        additional_params['test'] = True  # Skip labels parsing
+
     dataset = dataset_factory(
         name=cfg.dataset.name,
         path=cfg.dataset.fullpath,
         history_len=1,  # Not relevant
         future_len=1,  # not relevant
         sequence_list=cfg.dataset.split_index[cfg.eval.split],
-        additional_params=cfg.dataset.additional_params
+        additional_params=additional_params
     )
 
     scene_names = dataset.scenes
