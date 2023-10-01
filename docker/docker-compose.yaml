@@ -1,0 +1,32 @@
+# Check docker/env.example
+version: "3.9"
+services:
+  nodetracker-env:
+    container_name: '${NAME:-nodetracker-env}'
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: nodetracker-env
+    stdin_open: true
+    tty: true
+    command: bash
+
+    # Resources
+    ports:
+      - "${PORT_PREFIX}06:6006"  # first three digits
+      - "${PORT_PREFIX}07:6007"
+      - "${PORT_PREFIX}08:6008"
+    shm_size: 16gb
+    cpuset: '${CPUSET}'
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: [ '${GPU}' ]
+              capabilities: [ gpu ]
+
+    volumes:
+      - '/tmp:/tmp'
+      - '${DATA}:/media/home'
+      - '${CODE:-$PWD}:/node'
