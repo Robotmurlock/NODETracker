@@ -1,5 +1,5 @@
-experiment: 'BaselineAttnCNP-lasot-exp14-with-augs-128dim-warmup-lower-lr-residuals-3layers-x160-bounded-variance'
-description: 'Baseline AttnCNP, x160, warmup 3 epochs, lr 1e-4, 6 scheduler steps'
+experiment: 'BaselineAttnCNP-dancetrack-exp01-160dim'
+description: 'Baseline AttnCNP, x160 (LaSOT optimal)'
 batch_size: 256
 max_epochs: 30
 

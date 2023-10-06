@@ -57,8 +57,10 @@ class RNNODE(nn.Module):
             n_mlp_layers=n_decoder_mlp_layers
         )
 
-    def forward(self, x: torch.Tensor, t_obs: torch.Tensor, t_unobs: Optional[torch.Tensor] = None) \
+    def forward(self, x: torch.Tensor, t_obs: torch.Tensor, t_unobs: Optional[torch.Tensor] = None, metadata: Optional[dict] = None) \
             -> Tuple[torch.Tensor, torch.Tensor]:
+        _ = metadata  # (ignored)
+
         z0 = self._encoder(x, t_obs)
         z0 = z0[-1]  # Removing temporal dim
         t_last = t_obs[-1, :, :]

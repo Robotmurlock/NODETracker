@@ -129,8 +129,10 @@ class ODERNNVAE(nn.Module):
         x: torch.Tensor,
         t_obs: torch.Tensor,
         t_unobs: Optional[torch.Tensor] = None,
+        metadata: Optional[dict] = None,
         n_samples: int = 1
     ) -> Tuple[torch.Tensor, ...]:
+        _ = metadata  # ignored
         xt = torch.cat([x, t_obs], dim=-1)
         z0_mean, z0_log_var = self._encoder(xt)
 
@@ -211,14 +213,14 @@ class LightningODERNNVAE(LightningModuleBase):
         assert train_config.loss_name.lower() == 'elbo', 'ODERNNVAE only supports ELBO loss!'
         self._loss_func = ELBO(noise_std)
 
-    def forward(self, x: torch.Tensor, t_obs: torch.Tensor, t_unobs: Optional[torch.Tensor] = None) \
+    def forward(self, x: torch.Tensor, t_obs: torch.Tensor, t_unobs: Optional[torch.Tensor] = None, metadata: Optional[dict] = None) \
             -> Tuple[torch.Tensor, ...]:
         return self._model(x, t_obs, t_unobs)
 
     def training_step(self, batch: Dict[str, Union[dict, torch.Tensor]], *args, **kwargs) -> torch.Tensor:
         bboxes_obs, bboxes_aug_unobs, ts_obs, ts_unobs, orig_bboxes_obs, orig_bboxes_unobs, bboxes_unobs, metadata = batch.values()
 
-        bboxes_obs_hat, _, z0_mean, z0_log_var = self.forward(bboxes_obs, ts_obs, ts_obs)
+        bboxes_obs_hat, _, z0_mean, z0_log_var = self.forward(bboxes_obs, ts_obs, ts_obs, metadata)
         loss, kl_div_loss, likelihood_loss = self._loss_func(bboxes_obs_hat, bboxes_obs, z0_mean, z0_log_var)
 
         self._meter.push('training/loss', loss)
@@ -230,7 +232,7 @@ class LightningODERNNVAE(LightningModuleBase):
     def validation_step(self, batch: Dict[str, Union[dict, torch.Tensor]], *args, **kwargs) -> torch.Tensor:
         bboxes_obs, bboxes_aug_unobs, ts_obs, ts_unobs, orig_bboxes_obs, orig_bboxes_unobs, bboxes_unobs, metadata = batch.values()
 
-        bboxes_obs_hat, _, z0_mean, z0_log_var = self.forward(bboxes_obs, ts_obs, ts_obs)
+        bboxes_obs_hat, _, z0_mean, z0_log_var = self.forward(bboxes_obs, ts_obs, ts_obs, metadata)
         loss, kl_div_loss, likelihood_loss = self._loss_func(bboxes_obs_hat, bboxes_obs, z0_mean, z0_log_var)
 
         self._meter.push('val/loss', loss)

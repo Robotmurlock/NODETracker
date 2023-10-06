@@ -135,8 +135,10 @@ class ODERNN(nn.Module):
             global_state=decoder_global_state
         )
 
-    def forward(self, x: torch.Tensor, t_obs: torch.Tensor, t_unobs: Optional[torch.Tensor] = None) \
+    def forward(self, x: torch.Tensor, t_obs: torch.Tensor, t_unobs: Optional[torch.Tensor] = None, metadata: Optional[dict] = None) \
             -> Tuple[torch.Tensor, torch.Tensor]:
+        _ = metadata  # ignored
+
         xt = torch.cat([x, t_obs], dim=-1)
         z0 = self._encoder(xt)
 

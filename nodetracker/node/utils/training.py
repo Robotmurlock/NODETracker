@@ -387,7 +387,7 @@ class LightningModuleForecaster(LightningModuleBase):
         bboxes_unobs_hat = output[0] if isinstance(output, tuple) else output
 
         # noinspection PyTypeChecker
-        loss, metrics = self._calc_loss_and_metrics(orig_bboxes_obs, bboxes_unobs, bboxes_unobs_hat, metadata)
+        loss, metrics = self._calc_loss_and_metrics(orig_bboxes_obs, orig_bboxes_unobs, bboxes_unobs_hat, metadata)
         self._log_loss(loss, prefix='training', log_step=True)
         self._log_metrics(metrics, prefix='training')
         self._log_lr()
@@ -401,7 +401,7 @@ class LightningModuleForecaster(LightningModuleBase):
         bboxes_unobs_hat = output[0] if isinstance(output, tuple) else output
 
         # noinspection PyTypeChecker
-        loss, metrics = self._calc_loss_and_metrics(orig_bboxes_obs, bboxes_unobs, bboxes_unobs_hat, metadata)
+        loss, metrics = self._calc_loss_and_metrics(orig_bboxes_obs, orig_bboxes_unobs, bboxes_unobs_hat, metadata)
         self._log_loss(loss, prefix='val', log_step=False)
         self._log_metrics(metrics, prefix='val')
 
