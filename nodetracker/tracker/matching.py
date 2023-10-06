@@ -255,7 +255,7 @@ class HungarianAlgorithmIOUAndMotion(HungarianAlgorithmIOU):
     DISTANCE_OPTIONS = ['l1', 'l2']
 
     """
-    Combines Hungarian IOU and motion estimation for tracklet and detection matchings.
+    Combines Hungarian IOU and motion estimation for tracklet and detection matching.
     """
     def __init__(
         self,
@@ -309,11 +309,6 @@ class HungarianAlgorithmIOUAndMotion(HungarianAlgorithmIOU):
             tracklet_info = tracklets[t_i]
             is_matched = tracklet_info.matched
 
-            if self._only_matched and not is_matched:
-                # Motion estimation is not that accurate in this case
-                cost_matrix[t_i, :] = 0
-                continue
-
             tracklet_last_bbox = tracklet_info.bbox.as_numpy_xyxy()
             tracklet_motion = tracklet_estimated_bbox.as_numpy_xyxy() - tracklet_last_bbox
 
@@ -321,6 +316,11 @@ class HungarianAlgorithmIOUAndMotion(HungarianAlgorithmIOU):
                 det_bbox = detections[d_i]
                 det_motion = det_bbox.as_numpy_xyxy() - tracklet_last_bbox
                 cost_matrix[t_i][d_i] = distance(self._distance_name, tracklet_motion, det_motion)
+
+            if self._only_matched and not is_matched:
+                # Assumption: Motion estimation is not that accurate in this case
+                cost_matrix[t_i, :] = 0
+                continue
 
         return cost_matrix
 

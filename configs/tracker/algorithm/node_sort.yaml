@@ -1,14 +1,15 @@
 name: 'filter-sort-tracker'
 params:
-  initialization_threshold: 3
-  remember_threshold: 10
-
-  matcher_algorithm: hungarian_iou
-  matcher_params:
-    match_threshold: 0.3
-
-  filter_name: 'buffered_node_model'
+  filter_name: buffered_node_model
   filter_params:
     accelerator: 'cuda:0'
     buffer_size: 10
     buffer_min_size: 1
+  remember_threshold: 30
+  initialization_threshold: 3
+  matcher_algorithm: hungarian_iou_motion
+  matcher_params:
+    match_threshold: 0.2
+    motion_lambda: 5
+    distance_name: 'l1'
+    only_matched: false

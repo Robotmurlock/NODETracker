@@ -1,5 +1,7 @@
 type: yolox
 params:
-  conf: 0.3
+  conf: 0.6
   accelerator: cuda:0
   model_path: /media/home/DanceTrack-orig/.other/bytetrack_models/bytetrack_model.pth.tar
+  cache_path: /tmp/yolox_cache
+  min_bbox_area: 100
