@@ -108,7 +108,7 @@ def interpolate_bbox(start_index: int, start_bbox: PredBBox, end_index: int, end
 @torch.no_grad()
 @hydra.main(config_path=CONFIGS_PATH, config_name='default', version_base='1.1')
 def main(cfg: DictConfig):
-    cfg, experiment_path = pipeline.preprocess(cfg, name='tracker_visualization', cls=TrackerGlobalConfig)
+    cfg, experiment_path = pipeline.preprocess(cfg, name='tracker_postprocess', cls=TrackerGlobalConfig)
     cfg: TrackerGlobalConfig
     tracker_output = os.path.join(experiment_path, cfg.tracker.output_path, cfg.eval.split,
                                   cfg.tracker.object_detection.type, cfg.tracker.algorithm.name, )

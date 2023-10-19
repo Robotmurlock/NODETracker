@@ -153,7 +153,7 @@ class FilterSortTracker(Tracker):
             -> Tuple[List[Tracklet], List[Tracklet]]:
         # Estimate priors for all tracklets
         prior_tracklet_estimates = [self._predict(t) for t in tracklets]  # Copy last position
-        prior_tracklet_bboxes = [bbox for bbox, _, _ in prior_tracklet_estimates]  # TODO: Use uncertainty
+        prior_tracklet_bboxes = [bbox for bbox, _, _ in prior_tracklet_estimates]
 
         # Perform matching
         matches, unmatched_tracklets, unmatched_detections = self._matcher(prior_tracklet_bboxes, detections, tracklets=tracklets)
@@ -162,7 +162,7 @@ class FilterSortTracker(Tracker):
         for tracklet_index, det_index in matches:
             tracklet = tracklets[tracklet_index] if inplace else copy.deepcopy(tracklets[tracklet_index])
             det_bbox = detections[det_index] if inplace else copy.deepcopy(detections[det_index])
-            tracklet_bbox, _, _ = self._update(tracklets[tracklet_index], det_bbox)  # TODO: Use uncertainty
+            tracklet_bbox, _, _ = self._update(tracklets[tracklet_index], det_bbox)
             tracklets[tracklet_index] = tracklet.update(tracklet_bbox, frame_index)
 
         # Create new tracklets from unmatched detections and initiate filter states
@@ -184,7 +184,7 @@ class FilterSortTracker(Tracker):
                 tracklets_indices_to_delete.append(tracklet_index)
                 self._delete(tracklet.id)
             else:
-                tracklet_bbox, _, _ = self._missing(tracklet)  # TODO: Use uncertainty
+                tracklet_bbox, _, _ = self._missing(tracklet)
                 tracklets[tracklet_index] = tracklet.update(tracklet_bbox, tracklet.frame_index, matched=False)
 
         all_tracklets = [t for i, t in enumerate(tracklets) if i not in tracklets_indices_to_delete] \
