@@ -28,6 +28,9 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+SPLIT_DIRS = {'train', 'val', 'test'}
+
+
 def main(args: argparse.Namespace) -> None:
     input_path: str = args.input
     output_path: str = args.output
@@ -35,13 +38,13 @@ def main(args: argparse.Namespace) -> None:
 
     # Check that input contains all splits
     input_dirnames = set(file_system.listdir(input_path))
-    assert {'train', 'val', 'test'}.issubset(input_dirnames)
+    assert SPLIT_DIRS.issubset(input_dirnames)
 
     # Create "new" dataset
     Path(output_path).mkdir(parents=True, exist_ok=True)
 
     split_index: Dict[str, List[str]] = {}
-    for dirname in input_dirnames:
+    for dirname in SPLIT_DIRS:
         input_split_path = os.path.join(input_path, dirname)
         scene_names = file_system.listdir(input_split_path)
         split_index[dirname] = scene_names

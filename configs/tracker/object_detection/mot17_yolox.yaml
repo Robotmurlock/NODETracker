@@ -1,0 +1,7 @@
+type: yolox
+params:
+  accelerator: cuda:0
+  conf: 0.6
+  model_path: /media/home/MOT20/.other/bytetrack_x_mot20.tar
+  min_bbox_area: 0
+  cache_path: /tmp/yolox_cache
