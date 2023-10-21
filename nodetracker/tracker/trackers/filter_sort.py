@@ -27,6 +27,7 @@ class FilterSortTracker(Tracker):
         filter_params: dict,
         remember_threshold: int = 1,
         initialization_threshold: int = 3,
+        new_tracklet_detection_threshold: Optional[float] = None,
         show_only_active: bool = True,
         matcher_algorithm: str = 'hungarian_iou',
         matcher_params: Optional[Dict[str, Any]] = None,
@@ -46,6 +47,7 @@ class FilterSortTracker(Tracker):
         self._remember_threshold = remember_threshold
         self._initialization_threshold = initialization_threshold
         self._show_only_active = show_only_active
+        self._new_tracklet_detection_threshold = new_tracklet_detection_threshold
 
         matcher_params = {} if matcher_params is None else matcher_params
         self._matcher = association_algorithm_factory(name=matcher_algorithm, params=matcher_params)
@@ -169,6 +171,9 @@ class FilterSortTracker(Tracker):
         new_tracklets: List[Tracklet] = []
         for det_index in unmatched_detections:
             detection = detections[det_index]
+            if self._new_tracklet_detection_threshold is not None and detection.conf < self._new_tracklet_detection_threshold:
+                continue
+
             new_tracklet = Tracklet(
                 bbox=detection if inplace else copy.deepcopy(detection),
                 frame_index=frame_index

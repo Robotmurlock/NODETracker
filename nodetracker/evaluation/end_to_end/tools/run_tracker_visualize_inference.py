@@ -58,8 +58,9 @@ def draw_tracklet(
 def main(cfg: DictConfig):
     cfg, experiment_path = pipeline.preprocess(cfg, name='tracker_postprocess', cls=TrackerGlobalConfig)
     cfg: TrackerGlobalConfig
+    tracker_name = cfg.tracker.algorithm.name + (f'_{cfg.tracker.suffix}' if cfg.tracker.suffix is not None else '')
     tracker_output = os.path.join(experiment_path, cfg.tracker.output_path, cfg.eval.split,
-                                  cfg.tracker.object_detection.type, cfg.tracker.algorithm.name)
+                                  cfg.tracker.object_detection.type, tracker_name)
     tracker_output_option = os.path.join(tracker_output, cfg.tracker.visualize.option)
     assert os.path.exists(tracker_output_option), f'Path "{tracker_output}" does not exist!'
     logger.info(f'Visualizing tracker inference on path "{tracker_output_option}".')

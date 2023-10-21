@@ -110,8 +110,9 @@ def interpolate_bbox(start_index: int, start_bbox: PredBBox, end_index: int, end
 def main(cfg: DictConfig):
     cfg, experiment_path = pipeline.preprocess(cfg, name='tracker_postprocess', cls=TrackerGlobalConfig)
     cfg: TrackerGlobalConfig
+    tracker_name = cfg.tracker.algorithm.name + (f'_{cfg.tracker.suffix}' if cfg.tracker.suffix is not None else '')
     tracker_output = os.path.join(experiment_path, cfg.tracker.output_path, cfg.eval.split,
-                                  cfg.tracker.object_detection.type, cfg.tracker.algorithm.name, )
+                                  cfg.tracker.object_detection.type, tracker_name)
     assert os.path.exists(tracker_output), f'Path "{tracker_output}" does not exist!'
     logger.info(f'Visualizing tracker inference on path "{tracker_output}".')
 

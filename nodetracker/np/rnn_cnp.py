@@ -70,6 +70,8 @@ class LightningBaselineRNNCNP(LightningGaussianModel):
         n_head_layers: int = 2,
         n_agg_layers: int = 1,
 
+        t_scale: float = 5.0,
+
         transform_func: Optional[Union[InvertibleTransform, InvertibleTransformWithVariance]] = None,
 
         train_config: Optional[LightningTrainConfig] = None,
@@ -88,7 +90,8 @@ class LightningBaselineRNNCNP(LightningGaussianModel):
             n_target2hidden_layers=n_target2hidden_layers,
             n_enc_layers=n_enc_layers,
             n_head_layers=n_head_layers,
-            n_agg_layers=n_agg_layers
+            n_agg_layers=n_agg_layers,
+            t_scale=t_scale
         )
         super().__init__(
             train_config=train_config,

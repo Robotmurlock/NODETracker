@@ -177,11 +177,84 @@ class HungarianAlgorithmIOU(AssociationAlgorithm):
         return hungarian(cost_matrix)
 
 
-class ByteIOU(AssociationAlgorithm):
+class Byte(AssociationAlgorithm, ABC):
     """
     ByteTrack matching algorithm.
 
     Reference: https://arxiv.org/abs/2110.06864
+    """
+    def __init__(
+        self,
+        detection_threshold: float = 0.60,
+        *args, **kwargs
+    ):
+        """
+        Args:
+            detection_threshold: Detection threshold between "high priority" detections and "low priority" detections.
+                - Matching is first performed between all tracklets and detections with high detection scores.
+                - Mathing is then performed between unmatched tracklets and detections with low detection scores
+        """
+        super().__init__(*args, **kwargs)
+
+        self._detection_threshold = detection_threshold
+
+    @abstractmethod
+    def _match(
+        self,
+        tracklet_estimations: List[PredBBox],
+        detections: List[PredBBox],
+        tracklets: Optional[List[Tracklet]] = None
+    ) -> Tuple[List[Tuple[int, int]], List[int], List[int]]:
+        """
+        Custom matcher function that can be integrated in the Byte algorithm.
+
+        Args:
+            tracklet_estimations: Tracked object from previous frames
+            detections: Currently detected objects
+            tracklets: Full tracklet info (optional)
+
+        Returns:
+            - List of matches (pairs)
+            - list of unmatched tracklets
+            - list of unmatched detections
+        """
+        pass
+
+    def match(
+        self,
+        tracklet_estimations: List[PredBBox],
+        detections: List[PredBBox],
+        tracklets: Optional[List[Tracklet]] = None
+    ) -> Tuple[List[Tuple[int, int]], List[int], List[int]]:
+        high_detections = [d for d in detections if d.conf >= self._detection_threshold]
+        high_det_indices = [i for i, d in enumerate(detections) if d.conf >= self._detection_threshold]
+        low_detections = [d for d in detections if d.conf < self._detection_threshold]
+        low_det_indices = [i for i, d in enumerate(detections) if d.conf < self._detection_threshold]
+
+        # Perform high detection matching
+        high_matches, high_unmatched_tracklets, high_unmatched_detections = self._match(tracklet_estimations, high_detections, tracklets)
+        remaining_tracklets = [tracklet_estimations[t_i] for t_i in high_unmatched_tracklets]
+        remaining_tracklet_indices = [t_i for t_i in high_unmatched_tracklets]
+
+        # Perform low detection matching
+        low_matches, low_unmatched_tracklets, low_unmatched_detections = self._match(remaining_tracklets, low_detections, tracklets)
+
+        # Map relative indices to the original ones
+        high_matches = [(t_i, high_det_indices[d_i]) for t_i, d_i in high_matches]
+        low_matches = [(remaining_tracklet_indices[t_i], low_det_indices[d_i]) for t_i, d_i in low_matches]
+        matches = high_matches + low_matches
+
+        unmatched_tracklets = [remaining_tracklet_indices[t_i] for t_i in low_unmatched_tracklets]
+
+        high_unmatched_detections = [high_det_indices[d_i] for d_i in high_unmatched_detections]
+        unmatched_detections = high_unmatched_detections  # Does not include low unmatched detections
+
+        return matches, unmatched_tracklets, unmatched_detections
+
+
+class ByteIOU(Byte):
+    """
+    Standard ByteTrack matching algorithm.
     """
     def __init__(
         self,
@@ -200,45 +273,20 @@ class ByteIOU(AssociationAlgorithm):
             label_gating: Define which object labels can be matched
                 - If not defined, matching is label agnostic
         """
-        super().__init__(*args, **kwargs)
+        super().__init__(detection_threshold=detection_threshold, *args, **kwargs)
 
-        self._detection_threshold = detection_threshold
         self._hungarian = HungarianAlgorithmIOU(
             match_threshold=match_threshold,
             label_gating=label_gating
         )
 
-    def match(
+    def _match(
         self,
         tracklet_estimations: List[PredBBox],
         detections: List[PredBBox],
         tracklets: Optional[List[Tracklet]] = None
     ) -> Tuple[List[Tuple[int, int]], List[int], List[int]]:
-        high_detections = [d for d in detections if d.conf >= self._detection_threshold]
-        high_det_indices = [i for i, d in enumerate(detections) if d.conf >= self._detection_threshold]
-        low_detections = [d for d in detections if d.conf < self._detection_threshold]
-        low_det_indices = [i for i, d in enumerate(detections) if d.conf < self._detection_threshold]
-
-        # Perform high detection matching
-        high_matches, high_unmatched_tracklets, high_unmatched_detections = self._hungarian(tracklet_estimations, high_detections)
-        remaining_tracklets = [tracklet_estimations[t_i] for t_i in high_unmatched_tracklets]
-        remaining_tracklet_indices = [t_i for t_i in high_unmatched_tracklets]
-
-        # Perform low detection matching
-        low_matches, low_unmatched_tracklets, low_unmatched_detections = self._hungarian(remaining_tracklets, low_detections)
-
-        # Map relative indices to the original ones
-        high_matches = [(t_i, high_det_indices[d_i]) for t_i, d_i in high_matches]
-        low_matches = [(remaining_tracklet_indices[t_i], low_det_indices[d_i]) for t_i, d_i in low_matches]
-        matches = high_matches + low_matches
-
-        unmatched_tracklets = [remaining_tracklet_indices[t_i] for t_i in low_unmatched_tracklets]
-
-        high_unmatched_detections = [high_det_indices[d_i] for d_i in high_unmatched_detections]
-        low_unmatched_detections = [low_det_indices[d_i] for d_i in low_unmatched_detections]
-        unmatched_detections = high_unmatched_detections + low_unmatched_detections
-
-        return matches, unmatched_tracklets, unmatched_detections
+        return self._hungarian(tracklet_estimations, detections, tracklets)
 
 
 def distance(name: str, x: np.ndarray, y: np.ndarray) -> float:
@@ -251,7 +299,7 @@ def distance(name: str, x: np.ndarray, y: np.ndarray) -> float:
 
 
 
-class HungarianAlgorithmIOUAndMotion(HungarianAlgorithmIOU):
+class MotionAssoc(HungarianAlgorithmIOU):
     DISTANCE_OPTIONS = ['l1', 'l2']
 
     """
@@ -336,6 +384,32 @@ class HungarianAlgorithmIOUAndMotion(HungarianAlgorithmIOU):
         return hungarian(cost_matrix)
 
 
+class ByteMotionAssoc(Byte):
+    def __init__(
+        self,
+        detection_threshold: float = 0.60,
+        match_threshold: float = 0.30,
+        motion_lambda: float = 5,
+        only_matched: bool = False,
+        distance_name: str = 'l1',
+        label_gating: Optional[Union[LabelType, List[Tuple[LabelType, LabelType]]]] = None,
+        *args, **kwargs
+    ):
+        super().__init__(detection_threshold=detection_threshold, *args, **kwargs)
+
+        self._motion_assoc = MotionAssoc(
+            match_threshold=match_threshold,
+            motion_lambda=motion_lambda,
+            only_matched=only_matched,
+            distance_name=distance_name,
+            label_gating=label_gating
+        )
+
+    def _match(self, tracklet_estimations: List[PredBBox], detections: List[PredBBox], tracklets: Optional[List[Tracklet]] = None) \
+            -> Tuple[List[Tuple[int, int]], List[int], List[int]]:
+        return self._motion_assoc(tracklet_estimations, detections, tracklets)
+
+
 class HungarianDistanceAndMotion(AssociationAlgorithm):
     DISTANCE_OPTIONS = ['l1', 'l2']
 
@@ -404,6 +478,7 @@ class HungarianDistanceAndMotion(AssociationAlgorithm):
         cost_matrix = self._form_cost_matrix(tracklet_estimations, detections, tracklets)
         return hungarian(cost_matrix)
 
+
 def association_algorithm_factory(name: str, params: Dict[str, Any]) -> AssociationAlgorithm:
     """
     Association algorithm factory. Not case-sensitive.
@@ -420,8 +495,10 @@ def association_algorithm_factory(name: str, params: Dict[str, Any]) -> Associat
     catalog = {
         'hungarian_iou': HungarianAlgorithmIOU,
         'byte': ByteIOU,
-        'hungarian_iou_motion': HungarianAlgorithmIOUAndMotion,
-        'hungarian_distance_motion': HungarianDistanceAndMotion
+        'hungarian_iou_motion': MotionAssoc,
+        'motion_assoc': MotionAssoc,  # alias
+        'hungarian_distance_motion': HungarianDistanceAndMotion,
+        'byte_motion_assoc': ByteMotionAssoc
     }
 
     if name not in catalog:

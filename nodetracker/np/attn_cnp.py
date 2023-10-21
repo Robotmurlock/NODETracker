@@ -72,6 +72,8 @@ class LightningBaselineAttnCNP(LightningGaussianModel):
         bounded_variance: bool = False,
         bounded_value: float = 0.01,
 
+        t_scale: float = 5.0,
+
         transform_func: Optional[Union[InvertibleTransform, InvertibleTransformWithVariance]] = None,
 
         train_config: Optional[LightningTrainConfig] = None,
@@ -90,7 +92,8 @@ class LightningBaselineAttnCNP(LightningGaussianModel):
             n_input2hidden_layers=n_input2hidden_layers,
             n_target2hidden_layers=n_target2hidden_layers,
             n_enc_layers=n_enc_layers,
-            n_head_layers=n_head_layers
+            n_head_layers=n_head_layers,
+            t_scale=t_scale
         )
         super().__init__(
             train_config=train_config,

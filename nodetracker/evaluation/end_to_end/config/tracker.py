@@ -34,6 +34,7 @@ class TrackerConfig:
     lookup_path: str
     algorithm: TrackerAlgorithmConfig
     output_path: str = 'tracker_inference'
+    suffix: Optional[str] = None
     visualize: TrackerVisualizeConfig = field(default_factory=TrackerVisualizeConfig)
 
 
