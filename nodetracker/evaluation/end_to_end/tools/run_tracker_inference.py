@@ -46,13 +46,16 @@ def populate_tracker_params(
     Returns:
         Populated tracker params
     """
-    if 'filter' in name:
-        assert 'filter_params' in params, 'Expected `filter_params` field for filter based tracker!'
-        model = create_inference_model(cfg, experiment_path)
-        transform_func = transforms.transform_factory(cfg.transform.name, cfg.transform.params)
-        params = copy.deepcopy(params)
-        params['filter_params']['model'] = model
-        params['filter_params']['transform'] = transform_func
+    if name == 'filter-sort-tracker':
+        for key in ['filter_name', 'filter_params']:
+            assert key in params, f'Expected `{key}` field for filter based tracker!'
+
+        if not params['filter_name'] == 'akf':
+            model = create_inference_model(cfg, experiment_path)
+            transform_func = transforms.transform_factory(cfg.transform.name, cfg.transform.params)
+            params = copy.deepcopy(params)
+            params['filter_params']['model'] = model
+            params['filter_params']['transform'] = transform_func
 
     return params
 

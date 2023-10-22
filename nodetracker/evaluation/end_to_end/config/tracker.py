@@ -29,12 +29,21 @@ class TrackerVisualizeConfig:
 
 
 @dataclass
+class TrackerPostprocessConfig:
+    init_threshold: int = 2  # Activate `init_threshold` starting bboxes
+    linear_interpolation_threshold: int = 3  # Maximum distance to perform linear interpolation
+    min_tracklet_length: int = 20  # Remove all tracklets that are shorter than this
+
+
+
+@dataclass
 class TrackerConfig:
     object_detection: ObjectDetectionInferenceConfig
     lookup_path: str
     algorithm: TrackerAlgorithmConfig
     output_path: str = 'tracker_inference'
     suffix: Optional[str] = None
+    postprocess: TrackerPostprocessConfig = field(default_factory=TrackerPostprocessConfig)
     visualize: TrackerVisualizeConfig = field(default_factory=TrackerVisualizeConfig)
 
 

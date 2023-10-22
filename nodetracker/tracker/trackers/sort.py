@@ -23,10 +23,12 @@ class SortTracker(Tracker):
         self,
         remember_threshold: int = 1,
         initialization_threshold: int = 3,
+        new_tracklet_detection_threshold: Optional[float] = None,
         show_only_active: bool = True,
         matcher_algorithm: str = 'hungarian_iou',
         matcher_params: Optional[Dict[str, Any]] = None,
-        no_motion: bool = False
+        no_motion: bool = False,
+        kf_args: Optional[dict] = None
     ):
         """
         Args:
@@ -38,17 +40,21 @@ class SortTracker(Tracker):
             matcher_algorithm: Choose matching algorithm (e.g. Hungarian IOU)
             matcher_params: Matching algorithm parameters
             no_motion: Optionally disable KF motion model
+            kf_args: Custom configuration for the KF
         """
         # Parameters
         self._remember_threshold = remember_threshold
         self._initialization_threshold = initialization_threshold
         self._show_only_active = show_only_active
+        self._new_tracklet_detection_threshold = new_tracklet_detection_threshold
 
         matcher_params = {} if matcher_params is None else matcher_params
         self._matcher = association_algorithm_factory(name=matcher_algorithm, params=matcher_params)
         self._no_motion = no_motion
 
-        self._kf = BotSortKalmanFilter()
+        if kf_args is None:
+            kf_args = {}
+        self._kf = BotSortKalmanFilter(**kf_args)
 
         # State - KF
         self._kf_states: Dict[int, Tuple[np.ndarray, np.ndarray]] = {}
@@ -167,12 +173,15 @@ class SortTracker(Tracker):
             tracklet = tracklets[tracklet_index] if inplace else copy.deepcopy(tracklets[tracklet_index])
             det_bbox = detections[det_index] if inplace else copy.deepcopy(detections[det_index])
             tracklet_bbox = self._update(tracklets[tracklet_index], det_bbox)
-            tracklets[tracklet_index] = tracklet.update(tracklet_bbox, frame_index)
+            tracklets[tracklet_index] = tracklet.update(tracklet_bbox, frame_index, matched=True)
 
         # Create new tracklets from unmatched detections
         new_tracklets: List[Tracklet] = []
         for det_index in unmatched_detections:
             detection = detections[det_index]
+            if self._new_tracklet_detection_threshold is not None and detection.conf < self._new_tracklet_detection_threshold:
+                continue
+
             new_tracklet = Tracklet(
                 bbox=detection if inplace else copy.deepcopy(detection),
                 frame_index=frame_index

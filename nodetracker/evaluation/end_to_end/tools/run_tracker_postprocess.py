@@ -114,7 +114,7 @@ def main(cfg: DictConfig):
     tracker_output = os.path.join(experiment_path, cfg.tracker.output_path, cfg.eval.split,
                                   cfg.tracker.object_detection.type, tracker_name)
     assert os.path.exists(tracker_output), f'Path "{tracker_output}" does not exist!'
-    logger.info(f'Visualizing tracker inference on path "{tracker_output}".')
+    logger.info(f'Postprocessing tracker inference on path "{tracker_output}".')
 
     tracker_all_output = os.path.join(tracker_output, 'all')
     tracker_active_output = os.path.join(tracker_output, 'active')
@@ -154,7 +154,7 @@ def main(cfg: DictConfig):
                     last_read = tracker_inf_reader.read()
 
         # (1) Filter short tracklets (they have less than X active frames)
-        tracklets_to_keep = {k for k, v in tracklet_presence_counter.items() if v >= 20}
+        tracklets_to_keep = {k for k, v in tracklet_presence_counter.items() if v >= cfg.tracker.postprocess.min_tracklet_length}
         tracklet_frame_bboxes = dict(tracklet_frame_bboxes)
 
         with TrackerInferenceReader(tracker_all_output, scene_name, image_height=imheight, image_width=imwidth) as tracker_all_inf_reader, \
@@ -179,7 +179,7 @@ def main(cfg: DictConfig):
                         if index not in tracklet_indices and min(tracklet_indices) <= index <= max(tracklet_indices):
                             prev_index = find_closest_prev_element(index, tracklet_indices)
                             next_index = find_closest_next_element(index, tracklet_indices)
-                            if next_index - prev_index > 3:
+                            if next_index - prev_index > cfg.tracker.postprocess.linear_interpolation_threshold:
                                 continue
 
                             bbox = interpolate_bbox(
@@ -193,7 +193,7 @@ def main(cfg: DictConfig):
 
                         # (3) Add trajectory initialization
                         start_index = min(tracklet_indices)
-                        if index < start_index and start_index - index <= 2:
+                        if index < start_index and start_index - index <= cfg.tracker.postprocess.init_threshold:
                             keep = True
 
                         if keep:

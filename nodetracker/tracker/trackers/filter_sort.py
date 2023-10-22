@@ -165,7 +165,7 @@ class FilterSortTracker(Tracker):
             tracklet = tracklets[tracklet_index] if inplace else copy.deepcopy(tracklets[tracklet_index])
             det_bbox = detections[det_index] if inplace else copy.deepcopy(detections[det_index])
             tracklet_bbox, _, _ = self._update(tracklets[tracklet_index], det_bbox)
-            tracklets[tracklet_index] = tracklet.update(tracklet_bbox, frame_index)
+            tracklets[tracklet_index] = tracklet.update(tracklet_bbox, frame_index, matched=True)
 
         # Create new tracklets from unmatched detections and initiate filter states
         new_tracklets: List[Tracklet] = []

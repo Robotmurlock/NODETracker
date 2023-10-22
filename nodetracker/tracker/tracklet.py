@@ -178,10 +178,8 @@ class Tracklet:
 
         self._history.append((frame_index, bbox))
 
+        self._matched = matched
         if matched:
             self._total_matches += 1
-            self._matched = True
-        else:
-            self._matched = False
 
         return self

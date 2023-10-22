@@ -174,6 +174,7 @@ class HungarianAlgorithmIOU(AssociationAlgorithm):
         tracklets: Optional[List[Tracklet]] = None
     ) -> Tuple[List[Tuple[int, int]], List[int], List[int]]:
         cost_matrix = self._form_negative_iou_cost_matrix(tracklet_estimations, detections)
+        print('COST:', cost_matrix)
         return hungarian(cost_matrix)
 
 
@@ -203,7 +204,8 @@ class Byte(AssociationAlgorithm, ABC):
         self,
         tracklet_estimations: List[PredBBox],
         detections: List[PredBBox],
-        tracklets: Optional[List[Tracklet]] = None
+        tracklets: Optional[List[Tracklet]] = None,
+        high: bool = True
     ) -> Tuple[List[Tuple[int, int]], List[int], List[int]]:
         """
         Custom matcher function that can be integrated in the Byte algorithm.
@@ -212,6 +214,7 @@ class Byte(AssociationAlgorithm, ABC):
             tracklet_estimations: Tracked object from previous frames
             detections: Currently detected objects
             tracklets: Full tracklet info (optional)
+            high: Perform high or low matching
 
         Returns:
             - List of matches (pairs)
@@ -232,12 +235,15 @@ class Byte(AssociationAlgorithm, ABC):
         low_det_indices = [i for i, d in enumerate(detections) if d.conf < self._detection_threshold]
 
         # Perform high detection matching
-        high_matches, high_unmatched_tracklets, high_unmatched_detections = self._match(tracklet_estimations, high_detections, tracklets)
-        remaining_tracklets = [tracklet_estimations[t_i] for t_i in high_unmatched_tracklets]
-        remaining_tracklet_indices = [t_i for t_i in high_unmatched_tracklets]
+        high_matches, remaining_tracklet_indices, high_unmatched_detections = \
+            self._match(tracklet_estimations, high_detections, tracklets, high=True)
+        remaining_tracklet_estimations = [tracklet_estimations[t_i] for t_i in remaining_tracklet_indices
+                                          if tracklets[t_i].matched]
+        remaining_tracklets = [tracklets[t_i] for t_i in remaining_tracklet_indices if tracklets[t_i].matched]
 
         # Perform low detection matching
-        low_matches, low_unmatched_tracklets, low_unmatched_detections = self._match(remaining_tracklets, low_detections, tracklets)
+        low_matches, low_unmatched_tracklets, _ = \
+            self._match(remaining_tracklet_estimations, low_detections, remaining_tracklets, high=False)
 
         # Map relative indices to the original ones
         high_matches = [(t_i, high_det_indices[d_i]) for t_i, d_i in high_matches]
@@ -259,7 +265,8 @@ class ByteIOU(Byte):
     def __init__(
         self,
         detection_threshold: float = 0.60,
-        match_threshold: float = 0.30,
+        match_threshold: float = 0.30,  # high_match_threshold
+        low_match_threshold: float = 0.50,
         label_gating: Optional[Union[LabelType, List[Tuple[LabelType, LabelType]]]] = None,
         *args, **kwargs
     ):
@@ -275,8 +282,13 @@ class ByteIOU(Byte):
         """
         super().__init__(detection_threshold=detection_threshold, *args, **kwargs)
 
-        self._hungarian = HungarianAlgorithmIOU(
+        self._high_hungarian = HungarianAlgorithmIOU(
             match_threshold=match_threshold,
+            label_gating=label_gating
+        )
+
+        self._low_hungarian = HungarianAlgorithmIOU(
+            match_threshold=low_match_threshold,
             label_gating=label_gating
         )
 
@@ -284,9 +296,12 @@ class ByteIOU(Byte):
         self,
         tracklet_estimations: List[PredBBox],
         detections: List[PredBBox],
-        tracklets: Optional[List[Tracklet]] = None
+        tracklets: Optional[List[Tracklet]] = None,
+        high: bool = True
     ) -> Tuple[List[Tuple[int, int]], List[int], List[int]]:
-        return self._hungarian(tracklet_estimations, detections, tracklets)
+        if high:
+            return self._high_hungarian(tracklet_estimations, detections, tracklets)
+        return self._low_hungarian(tracklet_estimations, detections, tracklets)
 
 
 def distance(name: str, x: np.ndarray, y: np.ndarray) -> float:
