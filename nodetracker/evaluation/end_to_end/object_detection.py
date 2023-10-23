@@ -152,7 +152,8 @@ class YOLOXInference(ObjectDetectionInference):
         accelerator: str,
         conf: float = 0.01,
         min_bbox_area: int = 0,
-        cache_path: Optional[str] = None
+        cache_path: Optional[str] = None,
+        legacy: bool = True
     ):
         super().__init__(dataset=dataset, lookup=lookup)
         from nodetracker.object_detection.yolox import YOLOXPredictor
@@ -160,7 +161,8 @@ class YOLOXInference(ObjectDetectionInference):
         self._yolox = YOLOXPredictor(
             checkpoint_path=model_path,
             accelerator=accelerator,
-            conf_threshold=conf
+            conf_threshold=conf,
+            legacy=legacy
         )
         self._conf = conf
         self._min_bbox_area = min_bbox_area
@@ -333,7 +335,12 @@ def object_detection_inference_factory(
 
 
 @torch.no_grad()
-def create_bbox_objects(inf_bboxes: torch.Tensor, inf_classes: List[str], inf_conf: torch.Tensor) -> List[PredBBox]:
+def create_bbox_objects(
+    inf_bboxes: torch.Tensor,
+    inf_classes: List[str],
+    inf_conf: torch.Tensor,
+    clip: bool = False
+) -> List[PredBBox]:
     """
     Creates bboxes from raw outputs.
 
@@ -341,6 +348,7 @@ def create_bbox_objects(inf_bboxes: torch.Tensor, inf_classes: List[str], inf_co
         inf_bboxes: Inference bboxes
         inf_classes: Inference bbox classes
         inf_conf: Inference bbox confidences
+        clip: Clip bboxes
 
     Returns:
         List of PredBBox objects
@@ -355,7 +363,7 @@ def create_bbox_objects(inf_bboxes: torch.Tensor, inf_classes: List[str], inf_co
     for i in range(n_bboxes):
         bbox_coords = [float(v) for v in inf_bboxes[i]]
         bbox = PredBBox.create(
-            bbox=BBox.from_yxwh(*bbox_coords, clip=True),
+            bbox=BBox.from_yxwh(*bbox_coords, clip=clip),
             label=inf_classes[i],
             conf=float(inf_conf[i])
         )

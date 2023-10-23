@@ -412,6 +412,10 @@ class PredBBox(BBox):
     conf: Optional[float] = field(default=None)
 
     @property
+    def aspect_ratio(self) -> float:
+        return self.width / self.height
+
+    @property
     def conf_annot(self) -> str:
         """
         Returns:

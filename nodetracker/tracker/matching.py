@@ -12,7 +12,7 @@ import numpy as np
 import scipy
 
 from nodetracker.library.cv.bbox import PredBBox
-from nodetracker.tracker.tracklet import Tracklet
+from nodetracker.tracker.tracklet import Tracklet, TrackletState
 
 LabelType = Union[int, str]
 INF = 999_999
@@ -97,6 +97,7 @@ class HungarianAlgorithmIOU(AssociationAlgorithm):
     def __init__(
         self,
         match_threshold: float = 0.30,
+        fuse_score: bool = False,
         label_gating: Optional[Union[LabelType, List[Tuple[LabelType, LabelType]]]] = None,
         *args, **kwargs
     ):
@@ -104,12 +105,15 @@ class HungarianAlgorithmIOU(AssociationAlgorithm):
         Args:
             match_threshold: Min threshold do match tracklet with object.
                 If threshold is not met then cost is equal to infinity.
+            fuse_score: Fuse score with iou
             label_gating: Define which object labels can be matched
                 - If not defined, matching is label agnostic
         """
         super().__init__(*args, **kwargs)
 
         self._match_threshold = match_threshold
+        self._fuse_score = fuse_score
+
         self._label_gating = set([tuple(e) for e in label_gating]) if label_gating is not None else None
 
     def _can_match(self, tracklet_label: LabelType, det_label: LabelType) -> bool:
@@ -134,7 +138,7 @@ class HungarianAlgorithmIOU(AssociationAlgorithm):
         return (tracklet_label, det_label) in self._label_gating \
             or (det_label, tracklet_label) in self._label_gating
 
-    def _form_negative_iou_cost_matrix(self, tracklet_estimations: List[PredBBox], detections: List[PredBBox]) -> np.ndarray:
+    def _form_iou_cost_matrix(self, tracklet_estimations: List[PredBBox], detections: List[PredBBox]) -> np.ndarray:
         """
         Creates negative IOU cost matrix as an input into Hungarian algorithm.
 
@@ -162,7 +166,8 @@ class HungarianAlgorithmIOU(AssociationAlgorithm):
                 iou_score = tracklet_bbox.iou(det_bbox)
                 # Higher the IOU score the better is the match (using negative values because of min optim function)
                 # If score has very high value then
-                score = -iou_score if iou_score > self._match_threshold else np.inf
+                score = iou_score * det_bbox.conf if self._fuse_score else iou_score
+                score = - score if score > self._match_threshold else np.inf
                 cost_matrix[t_i][d_i] = score
 
         return cost_matrix
@@ -173,8 +178,7 @@ class HungarianAlgorithmIOU(AssociationAlgorithm):
         detections: List[PredBBox],
         tracklets: Optional[List[Tracklet]] = None
     ) -> Tuple[List[Tuple[int, int]], List[int], List[int]]:
-        cost_matrix = self._form_negative_iou_cost_matrix(tracklet_estimations, detections)
-        print('COST:', cost_matrix)
+        cost_matrix = self._form_iou_cost_matrix(tracklet_estimations, detections)
         return hungarian(cost_matrix)
 
 
@@ -238,8 +242,8 @@ class Byte(AssociationAlgorithm, ABC):
         high_matches, remaining_tracklet_indices, high_unmatched_detections = \
             self._match(tracklet_estimations, high_detections, tracklets, high=True)
         remaining_tracklet_estimations = [tracklet_estimations[t_i] for t_i in remaining_tracklet_indices
-                                          if tracklets[t_i].matched]
-        remaining_tracklets = [tracklets[t_i] for t_i in remaining_tracklet_indices if tracklets[t_i].matched]
+                                          if tracklets[t_i].state == TrackletState.ACTIVE]
+        remaining_tracklets = [tracklets[t_i] for t_i in remaining_tracklet_indices if tracklets[t_i].state == TrackletState.ACTIVE]
 
         # Perform low detection matching
         low_matches, low_unmatched_tracklets, _ = \
@@ -370,7 +374,7 @@ class MotionAssoc(HungarianAlgorithmIOU):
         for t_i in range(n_tracklets):
             tracklet_estimated_bbox = tracklet_estimations[t_i]
             tracklet_info = tracklets[t_i]
-            is_matched = tracklet_info.matched
+            is_matched = tracklet_info.state == TrackletState.ACTIVE
 
             tracklet_last_bbox = tracklet_info.bbox.as_numpy_xyxy()
             tracklet_motion = tracklet_estimated_bbox.as_numpy_xyxy() - tracklet_last_bbox
@@ -393,36 +397,10 @@ class MotionAssoc(HungarianAlgorithmIOU):
         detections: List[PredBBox],
         tracklets: Optional[List[Tracklet]] = None
     ) -> Tuple[List[Tuple[int, int]], List[int], List[int]]:
-        neg_iou_cost_matrix = self._form_negative_iou_cost_matrix(tracklet_estimations, detections)
+        neg_iou_cost_matrix = self._form_iou_cost_matrix(tracklet_estimations, detections)
         motion_diff_cost_matrix = self._form_motion_distance_cost_matrix(tracklet_estimations, detections, tracklets)
         cost_matrix = neg_iou_cost_matrix + self._motion_lambda * motion_diff_cost_matrix
         return hungarian(cost_matrix)
-
-
-class ByteMotionAssoc(Byte):
-    def __init__(
-        self,
-        detection_threshold: float = 0.60,
-        match_threshold: float = 0.30,
-        motion_lambda: float = 5,
-        only_matched: bool = False,
-        distance_name: str = 'l1',
-        label_gating: Optional[Union[LabelType, List[Tuple[LabelType, LabelType]]]] = None,
-        *args, **kwargs
-    ):
-        super().__init__(detection_threshold=detection_threshold, *args, **kwargs)
-
-        self._motion_assoc = MotionAssoc(
-            match_threshold=match_threshold,
-            motion_lambda=motion_lambda,
-            only_matched=only_matched,
-            distance_name=distance_name,
-            label_gating=label_gating
-        )
-
-    def _match(self, tracklet_estimations: List[PredBBox], detections: List[PredBBox], tracklets: Optional[List[Tracklet]] = None) \
-            -> Tuple[List[Tuple[int, int]], List[int], List[int]]:
-        return self._motion_assoc(tracklet_estimations, detections, tracklets)
 
 
 class HungarianDistanceAndMotion(AssociationAlgorithm):
@@ -512,8 +490,7 @@ def association_algorithm_factory(name: str, params: Dict[str, Any]) -> Associat
         'byte': ByteIOU,
         'hungarian_iou_motion': MotionAssoc,
         'motion_assoc': MotionAssoc,  # alias
-        'hungarian_distance_motion': HungarianDistanceAndMotion,
-        'byte_motion_assoc': ByteMotionAssoc
+        'hungarian_distance_motion': HungarianDistanceAndMotion
     }
 
     if name not in catalog:
