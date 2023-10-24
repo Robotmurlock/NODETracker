@@ -66,30 +66,36 @@ def zbudz_mot(
     scene_name: str,
     dataset_name: str
 ) -> dict:
-    if dataset_name not in ['MOT17', 'MOT20'] or tracker_name != 'byte':
+    if dataset_name not in ['MOT17', 'MOT20']:
         return tracker_params
 
     scene_tracker_params = copy.deepcopy(tracker_params)
-    if 'MOT17-05' in scene_name or 'MOT17-06' in scene_name:
-        scene_tracker_params['remember_threshold'] = 14
-    elif 'MOT17-13' in scene_name or 'MOT17-14' in scene_name:
-        scene_tracker_params['remember_threshold'] = 25
 
-    if 'MOT17-04' in scene_name:
-        scene_tracker_params['detection_threshold'] = 0.4
-    elif 'MOT17-01' in scene_name or 'MOT17-06' in scene_name:
-        scene_tracker_params['detection_threshold'] = 0.65
-    elif 'MOT17-12' in scene_name:
-        scene_tracker_params['detection_threshold'] = 0.7
-    elif 'MOT17-14' in scene_name:
-        scene_tracker_params['detection_threshold'] = 0.67
-    elif 'MOT20-06' in scene_name or 'MOT20-08' in scene_name:
-        scene_tracker_params['detection_threshold'] = 0.3
+    if tracker_name in ['byte', 'sort']:
+        if 'MOT17-05' in scene_name or 'MOT17-06' in scene_name:
+            scene_tracker_params['remember_threshold'] = 14
+        elif 'MOT17-13' in scene_name or 'MOT17-14' in scene_name:
+            scene_tracker_params['remember_threshold'] = 25
 
-    scene_tracker_params['new_tracklet_detection_threshold'] = scene_tracker_params.get('detection_threshold', 0.6) + 0.1
+    if tracker_name in ['byte']:
+        if 'MOT17-04' in scene_name:
+            scene_tracker_params['detection_threshold'] = 0.4
+        elif 'MOT17-01' in scene_name or 'MOT17-06' in scene_name:
+            scene_tracker_params['detection_threshold'] = 0.65
+        elif 'MOT17-12' in scene_name:
+            scene_tracker_params['detection_threshold'] = 0.7
+        elif 'MOT17-14' in scene_name:
+            scene_tracker_params['detection_threshold'] = 0.67
+        elif 'MOT20-06' in scene_name or 'MOT20-08' in scene_name:
+            scene_tracker_params['detection_threshold'] = 0.3
+
+    if tracker_name in ['byte', 'sort']:
+        scene_tracker_params['new_tracklet_detection_threshold'] = scene_tracker_params.get('detection_threshold', 0.6) + 0.1
 
     if scene_tracker_params != tracker_params:
-        logger.warning(f'Updated parameters for scene {scene_name}:\n{json.dumps(scene_tracker_params, indent=2)}')
+        show_scene_tracker_params = copy.deepcopy(scene_tracker_params)
+        show_scene_tracker_params.pop('filter_params')  # Can't serialize model
+        logger.warning(f'Updated parameters for scene {scene_name}:\n{json.dumps(show_scene_tracker_params, indent=2)}')
     return scene_tracker_params
 
 

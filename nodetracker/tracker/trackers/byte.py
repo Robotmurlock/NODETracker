@@ -180,7 +180,11 @@ class ByteTracker(MotionBasedTracker):
         for tracklet_index, det_index in all_matches:
             tracklet = tracklets[tracklet_index] if inplace else copy.deepcopy(tracklets[tracklet_index])
             det_bbox = detections[det_index] if inplace else copy.deepcopy(detections[det_index])
-            tracklet_bbox, _, _ = self._update(tracklets[tracklet_index], det_bbox)
+
+            if tracklet.is_tracked:
+                tracklet_bbox, _, _ = self._update(tracklets[tracklet_index], det_bbox)
+            else:
+                tracklet_bbox = tracklet.bbox
             tracklets[tracklet_index] = tracklet.update(tracklet_bbox, frame_index, state=TrackletState.ACTIVE)
 
         # (8) Delete new unmatched and long lost tracklets

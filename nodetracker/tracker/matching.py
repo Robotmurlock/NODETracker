@@ -331,6 +331,7 @@ class MotionAssoc(HungarianAlgorithmIOU):
         only_matched: bool = False,
         distance_name: str = 'l1',
         label_gating: Optional[Union[LabelType, List[Tuple[LabelType, LabelType]]]] = None,
+        fuse_score: bool = False,
         *args, **kwargs
     ):
         """
@@ -339,10 +340,12 @@ class MotionAssoc(HungarianAlgorithmIOU):
             motion_lambda: Motion difference multiplier
             only_matched: Only use motion cost matrix for tracklets that are matched in last frame
             label_gating: Gating between different types of objects
+            fuse_score: Fuse Hungarian IoU score
         """
         super().__init__(
             match_threshold=match_threshold,
             label_gating=label_gating,
+            fuse_score=fuse_score,
             *args, **kwargs
         )
         self._motion_lambda = motion_lambda
