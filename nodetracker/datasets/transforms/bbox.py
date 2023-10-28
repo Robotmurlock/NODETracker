@@ -595,6 +595,159 @@ class BBoxJackOfAllTradesTransform(InvertibleTransformWithVariance):
         return self._diff_transform.inverse_var(t_var, additional_data=additional_data, shallow=shallow)
 
 
+class BBoxNormalizeToLastObsTransform(InvertibleTransformWithVariance):
+    """
+    * For all observed coordinates:
+    Y[i] = (X[-1] - X[i]) / shape
+    Y[-1] is removed
+
+    * For all unobserved coordinates:
+    Y[i] = (X[i] - X[-1]) / shape
+    """
+
+    def __init__(self):
+        super().__init__(name='normalize_to_last_obs')
+
+    def apply(self, data: TensorCollection, shallow: bool = True) -> TensorCollection:
+        bbox_obs, bbox_unobs, ts_obs, ts_unobs, *other = data
+        last_obs = bbox_obs[-1:]
+        shape_obs = bbox_obs[-1:, 2:]
+
+        if not shallow:
+            bbox_obs = bbox_obs.clone()
+            bbox_unobs = bbox_unobs.clone() if bbox_unobs is not None else None
+
+        bbox_obs, ts_obs = bbox_obs[:-1], ts_obs[:-1]  # Last element becomes redundant
+        ts_unobs = ts_unobs - 1  # Shifting back since the last time point is deleted
+        bbox_obs[:, 2:] = bbox_obs[:, 2:] / shape_obs - 1
+        bbox_obs = last_obs.expand_as(bbox_obs) - bbox_obs
+        if bbox_unobs is not None:
+            bbox_unobs[:, 2:] = bbox_unobs[:, 2:] / shape_obs - 1
+            bbox_unobs = bbox_unobs - last_obs.expand_as(bbox_unobs)
+
+        return bbox_obs, bbox_unobs, ts_obs, ts_unobs, *other
+
+    def inverse(self, data: TensorCollection, shallow: bool = True) -> TensorCollection:
+        orig_bbox_obs, bbox_hat, *other = data
+        last_obs = orig_bbox_obs[-1:]
+        shape_obs = orig_bbox_obs[-1:, 2:]
+
+        if not shallow:
+            bbox_hat = bbox_hat.clone()
+
+        bbox_hat = last_obs.expand_as(bbox_hat) + bbox_hat
+        bbox_hat[:, 2:] = (1 + bbox_hat[:, 2:]) * shape_obs
+
+        return orig_bbox_obs, bbox_hat, *other
+
+    def inverse_std(
+            self,
+            t_std: torch.Tensor,
+            additional_data: Optional[TensorCollection] = None,
+            shallow: bool = True
+    ) -> TensorCollection:
+        t_var = torch.square(t_std)
+        var = self.inverse_var(t_var, additional_data=additional_data, shallow=shallow)
+        std = torch.sqrt(var)
+        return std
+
+    def inverse_var(
+            self,
+            t_var: torch.Tensor,
+            additional_data: Optional[TensorCollection] = None,
+            shallow: bool = True
+    ) -> TensorCollection:
+        bbox_obs, *_ = additional_data
+        shape_obs = bbox_obs[-1:, 2:]
+        var = t_var.clone() if not shallow else t_var
+        var[:, 2:] *= torch.square(shape_obs.expand_as(var[:, 2:]))
+        return var
+
+
+class BBoxStandardizedNormalizeToLastObsTransform(BBoxCompositeTransform):
+    def __init__(self, mean: float, std: float):
+        transforms = [
+            BBoxNormalizeToLastObsTransform(),
+            BBoxStandardizationTransform(mean=mean, std=std)
+        ]
+
+        super().__init__(transforms=transforms)
+
+
+class BBoxNormalizedDifferencesTransform(InvertibleTransformWithVariance):
+    def __init__(self):
+        super().__init__(name='normalized_differences')
+
+    def apply(self, data: TensorCollection, shallow: bool = True) -> TensorCollection:
+        bbox_obs, bbox_unobs, ts_obs, ts_unobs, *other = data
+        shape_obs = bbox_obs[..., 2:][-1:]
+
+        if not shallow:
+            bbox_obs = bbox_obs.clone()
+            bbox_unobs = bbox_unobs.clone() if bbox_unobs is not None else None
+
+        if bbox_unobs is not None:
+            # During live inference, bbox_unobs are not known (this is for training only)
+            bbox_unobs[..., 2:] = bbox_unobs[..., 2:] / shape_obs.expand_as(bbox_unobs[..., 2:]) - 1
+            bbox_unobs[1:, ...] = bbox_unobs[1:, ...] - bbox_unobs[:-1, ...]
+            bbox_unobs[0, ...] = bbox_unobs[0, ...] - bbox_obs[-1, ...]
+
+        bbox_obs[..., 2:] = bbox_obs[..., 2:] / shape_obs.expand_as(bbox_obs[..., 2:]) - 1
+        bbox_obs[1:, ...] = bbox_obs[1:, ...] - bbox_obs[:-1, ...]
+
+        bbox_obs, ts_obs = bbox_obs[1:, ...], ts_obs[1:, ...]  # Dump first
+        ts_unobs = ts_unobs - 1
+
+        return bbox_obs, bbox_unobs, ts_obs, ts_unobs, *other
+
+    def inverse(self, data: TensorCollection, shallow: bool = True) -> TensorCollection:
+        orig_bbox_obs, bbox_hat, *other = data
+        shape_obs = orig_bbox_obs[..., 2:][-1:]
+
+        if not shallow:
+            bbox_hat = bbox_hat.clone()
+
+        bbox_hat[0, ...] = bbox_hat[0, ...] + orig_bbox_obs[-1, ...]
+        bbox_hat = torch.cumsum(bbox_hat, dim=0)
+        bbox_hat[..., 2:] = (1 + bbox_hat[..., 2:]) * shape_obs
+
+        return orig_bbox_obs, bbox_hat, *other
+
+    def inverse_std(
+            self,
+            t_std: torch.Tensor,
+            additional_data: Optional[TensorCollection] = None,
+            shallow: bool = True
+    ) -> TensorCollection:
+        t_var = torch.square(t_std)
+        var = self.inverse_var(t_var, additional_data=additional_data, shallow=shallow)
+        std = torch.sqrt(var)
+        return std
+
+    def inverse_var(
+            self,
+            t_var: torch.Tensor,
+            additional_data: Optional[TensorCollection] = None,
+            shallow: bool = True
+    ) -> TensorCollection:
+        bbox_obs, *_ = additional_data
+        shape_obs = bbox_obs[..., 2:][-1:]
+        var = t_var.clone() if not shallow else t_var
+        var = torch.cumsum(var, dim=0)
+        var[..., 2:] *= torch.square(shape_obs.expand_as(var[..., 2:]))
+        return var
+
+
+class BBoxStandardizedNormalizedDifferencesTransform(BBoxCompositeTransform):
+    def __init__(self, mean: float, std: float):
+        transforms = [
+            BBoxNormalizedDifferencesTransform(),
+            BBoxStandardizationTransform(mean=mean, std=std)
+        ]
+
+        super().__init__(transforms=transforms)
+
+
 # noinspection DuplicatedCode
 def run_test_first_difference() -> None:
     bbox_obs = torch.randn(2, 2, 4)
@@ -720,27 +873,62 @@ def run_add_category_label_index() -> None:
 
 
 def run_test_jack_of_all_trades() -> None:
+    for use_rel_unobs in [True, False]:
+        bbox_obs = torch.randn(2, 2, 4)
+        bbox_unobs = torch.randn(3, 2, 4)
+        ts_obs = torch.randn(2, 2, 1)
+        ts_unobs = torch.randn(3, 2, 1)
+        jack_of_all_trades = BBoxJackOfAllTradesTransform(1.0, 2.0, 1.0, 2.0, rel_unobs=use_rel_unobs)
+
+        transformed_bbox_obs, transformed_bbox_unobs, *_ = \
+            jack_of_all_trades.apply([bbox_obs, bbox_unobs, ts_obs, ts_unobs, None], shallow=False)
+        assert transformed_bbox_obs.shape == (1, 2, 12)
+        assert transformed_bbox_unobs.shape == (3, 2, 4)
+
+        _, inv_transformed_bbox_unobs, *_ = jack_of_all_trades.inverse([bbox_obs, transformed_bbox_unobs, None])
+        assert torch.abs(inv_transformed_bbox_unobs - bbox_unobs).sum().item() < 1e-3
+
+
+def run_test_normalize_to_last_obs() -> None:
     bbox_obs = torch.randn(2, 2, 4)
     bbox_unobs = torch.randn(3, 2, 4)
     ts_obs = torch.randn(2, 2, 1)
     ts_unobs = torch.randn(3, 2, 1)
-    jack_of_all_trades = BBoxJackOfAllTradesTransform(1.0, 2.0, 1.0, 2.0)
+    normalize = BBoxNormalizeToLastObsTransform()
 
     transformed_bbox_obs, transformed_bbox_unobs, *_ = \
-        jack_of_all_trades.apply([bbox_obs, bbox_unobs, ts_obs, ts_unobs, None], shallow=False)
-    assert transformed_bbox_obs.shape == (1, 2, 12)
+        normalize.apply([bbox_obs, bbox_unobs, ts_obs, ts_unobs, None], shallow=False)
+    assert transformed_bbox_obs.shape == (1, 2, 4)
     assert transformed_bbox_unobs.shape == (3, 2, 4)
 
-    _, inv_transformed_bbox_unobs, *_ = jack_of_all_trades.inverse([bbox_obs, transformed_bbox_unobs, None])
+    _, inv_transformed_bbox_unobs, *_ = normalize.inverse([bbox_obs, transformed_bbox_unobs, None])
+    assert torch.abs(inv_transformed_bbox_unobs - bbox_unobs).sum().item() < 1e-3
+
+
+def run_test_normalized_differences() -> None:
+    bbox_obs = torch.randn(2, 2, 4)
+    bbox_unobs = torch.randn(3, 2, 4)
+    ts_obs = torch.randn(2, 2, 1)
+    ts_unobs = torch.randn(3, 2, 1)
+    normalize = BBoxNormalizedDifferencesTransform()
+
+    transformed_bbox_obs, transformed_bbox_unobs, *_ = \
+        normalize.apply([bbox_obs, bbox_unobs, ts_obs, ts_unobs, None], shallow=False)
+    assert transformed_bbox_obs.shape == (1, 2, 4)
+    assert transformed_bbox_unobs.shape == (3, 2, 4)
+
+    _, inv_transformed_bbox_unobs, *_ = normalize.inverse([bbox_obs, transformed_bbox_unobs, None])
     assert torch.abs(inv_transformed_bbox_unobs - bbox_unobs).sum().item() < 1e-3
 
 
 if __name__ == '__main__':
     run_test_first_difference()
-    run_standardization()
-    run_test_standardized_first_difference()
-    run_test_relative_to_last_obs()
-    run_test_standardized_relative_to_last_obs()
-    run_add_category_label_index()
-    run_test_log_relative_to_last_obs()
-    run_test_jack_of_all_trades()
+    # run_standardization()
+    # run_test_standardized_first_difference()
+    # run_test_relative_to_last_obs()
+    # run_test_standardized_relative_to_last_obs()
+    # run_add_category_label_index()
+    # run_test_log_relative_to_last_obs()
+    # run_test_jack_of_all_trades()
+    # run_test_normalize_to_last_obs()
+    # run_test_normalized_differences()
