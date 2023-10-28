@@ -8,6 +8,7 @@ params:
     buffer_min_size: 1
   remember_threshold: 30
   initialization_threshold: 3
+  new_tracklet_detection_threshold: 0.7  # MOT17
   matcher_algorithm: hungarian_iou_motion
   matcher_params:
     match_threshold: 0.2

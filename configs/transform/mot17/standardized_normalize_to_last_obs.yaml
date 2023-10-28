@@ -1,2 +1,4 @@
-name: 'normalize_to_last_obs'
-params: {}
+name: 'standardized_normalize_to_last_obs'
+params:
+  mean: [ 0.0, 0.0, 0.0, 0.0 ]
+  std: [ 0.02982495166361332, 0.018165091052651405, 0.12263063341379166, 0.22876405715942383 ]

@@ -10,6 +10,9 @@ before_transform_config:
     - _target_: nodetracker.datasets.augmentations.trajectory.DetectorNoiseAugmentation
       sigma: 0.25
       proba: 0.01
+    - _target_: nodetracker.datasets.augmentations.trajectory.CameraMovementAugmentation
+      max_magnitude: 0.5
+      proba: 0.2
 after_transform_config: null
 after_batch_collate_config:
   _target_: nodetracker.datasets.augmentations.trajectory.CompositionAugmentation

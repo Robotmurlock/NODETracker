@@ -1,2 +1,2 @@
-name: 'relative_to_last_obs'
+name: 'normalize_to_last_obs'
 params: {}

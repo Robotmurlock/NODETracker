@@ -1,15 +1,13 @@
 defaults:
   - resources: cuda.yaml
-  # - dataset: lasot10_1.yaml
-  # - dataset: mot.yaml
-  - dataset: dancetrack/dancetrack10_1.yaml
-  - transform: lasot/jack_of_all_trades.yaml
+  - dataset: mot20/single_step.yaml
+  - transform: mot20/jack_of_all_trades.yaml
   - model: single_step_rnn.yaml
   - train: single_step_rnn.yaml
   - eval: autoregressive.yaml
   - visualize: default.yaml
-  - augmentations: lasot/no_augs.yaml
-  - path: lasot.yaml
+  - augmentations: obs_only.yaml
+  - path: default.yaml
   - end_to_end: default.yaml
   - tracker: rnn_sort.yaml
   - _self_

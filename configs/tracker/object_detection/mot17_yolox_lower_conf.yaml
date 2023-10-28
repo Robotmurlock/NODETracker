@@ -1,7 +1,7 @@
 type: yolox
 params:
   accelerator: cuda:0
-  conf: 0.6
+  conf: 0.1
   model_path: /media/home/MOT17-orig/.other/bytetrack_x_mot17.pth.tar
   min_bbox_area: 0
-  cache_path: /tmp/yolox_cache
+  cache_path: /tmp/yolox_cache_0.2

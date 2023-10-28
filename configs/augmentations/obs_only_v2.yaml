@@ -17,3 +17,6 @@ after_batch_collate_config:
     - _target_: nodetracker.datasets.augmentations.trajectory.RemoveRandomPointsTrajectoryAugmentation
       min_length: 2
       proba: 0.20
+    - _target_: nodetracker.datasets.augmentations.trajectory.ShortenTrajectoryAugmentation
+      min_length: 2
+      proba: 0.05

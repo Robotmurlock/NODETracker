@@ -1,13 +1,13 @@
 defaults:
   - resources: cuda.yaml
-  - dataset: dancetrack/default.yaml
-  - transform: dancetrack/standardized_first_difference.yaml
+  - dataset: mot20/default.yaml
+  - transform: mot20/standardized_relative_to_last_obs.yaml
   - model: attn_cnp.yaml
   - train: attn_cnp.yaml
   - eval: default.yaml
   - visualize: default.yaml
-  - augmentations: lasot/obs_only.yaml
-  - path: lasot.yaml
+  - augmentations: obs_only.yaml
+  - path: default.yaml
   - end_to_end: default.yaml
   - tracker: rnnode_sort.yaml
   - _self_

@@ -1,15 +1,13 @@
 defaults:
   - resources: cuda.yaml
-  # - dataset: lasot.yaml
-  # - dataset: mot.yaml
-  - dataset: dancetrack/default.yaml
-  - transform: dancetrack/jack_of_all_trades.yaml
+  - dataset: mot20/default.yaml
+  - transform: mot20/jack_of_all_trades.yaml
   - model: node_filter.yaml
   - train: node_filter.yaml
   - eval: default.yaml
   - visualize: default.yaml
-  - augmentations: lasot/node_filter_default.yaml
-  - path: lasot.yaml
+  - augmentations: node_filter_default.yaml
+  - path: default.yaml
   - end_to_end: default.yaml
   - tracker: node_sort.yaml
   - _self_

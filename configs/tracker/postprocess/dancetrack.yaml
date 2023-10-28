@@ -1,0 +1,3 @@
+init_threshold: 2  # Activate `init_threshold` starting bboxes
+linear_interpolation_threshold: 3  # Maximum distance to perform linear interpolation
+min_tracklet_length: 20  # Remove all tracklets that are shorter than this

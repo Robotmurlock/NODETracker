@@ -1,8 +1,8 @@
-experiment: 'RNNODE-dancetrack-exp01-128dim'
-description: 'RNNODE DanceTrack baseline (optimal LaSOT), x128'
+experiment: 'RNNODE-MOT17-exp02-256dim-DiffUnobs'
+description: 'RNNODE MOT20 baseline (optimal LaSOT), x256'
 batch_size: 256
 learning_rate: 1e-3
-max_epochs: 30
+max_epochs: 12
 
 inverse_transform_before_loss: True
 gradient_clip_val: 100
