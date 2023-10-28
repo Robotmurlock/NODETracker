@@ -5,16 +5,11 @@ import copy
 from typing import Optional, Dict, Any, List, Tuple
 
 from nodetracker.library.cv.bbox import PredBBox
+from nodetracker.tracker.matching import association_algorithm_factory
 from nodetracker.tracker.trackers.motion import MotionBasedTracker
 from nodetracker.tracker.tracklet import Tracklet, TrackletState
-from nodetracker.tracker.matching import association_algorithm_factory
-
-
-def unpack_n(items: list, n: int) -> List[list]:
-    if len(items) == 0:
-        return n * [[]]
-
-    return [list(x) for x in zip(*items)]
+from nodetracker.utils.collections import unpack_n
+from nodetracker.tracker.trackers.utils import remove_duplicates
 
 
 class ByteTracker(MotionBasedTracker):
@@ -92,24 +87,6 @@ class ByteTracker(MotionBasedTracker):
 
         # State
         self._next_id = 0
-
-    def _remove_duplicates(self, tracklets_lhs: List[Tracklet], tracklets_rhs: List[Tracklet]) -> Tuple[List[Tracklet], List[Tracklet]]:
-        lhs_exclude: List[int] = []
-        rhs_exclude: List[int] = []
-
-        for i_lhs, t_lhs in enumerate(tracklets_lhs):
-            for i_rhs, t_rhs in enumerate(tracklets_rhs):
-                iou_score = t_lhs.bbox.iou(t_rhs.bbox)
-                if iou_score >= self._duplicate_iou_threshold:
-                    if t_lhs.age >= t_rhs.age:
-                        rhs_exclude.append(i_rhs)
-                    else:
-                        lhs_exclude.append(i_lhs)
-
-        tracklets_lhs = [t_lhs for i_lhs, t_lhs in enumerate(tracklets_lhs) if i_lhs not in lhs_exclude]
-        tracklets_rhs = [t_rhs for i_rhs, t_rhs in enumerate(tracklets_rhs) if i_rhs not in rhs_exclude]
-
-        return tracklets_lhs, tracklets_rhs
 
 
     def track(self, tracklets: List[Tracklet], detections: List[PredBBox], frame_index: int, inplace: bool = True) \
@@ -208,7 +185,7 @@ class ByteTracker(MotionBasedTracker):
         filtered_tracklets = [t for i, t in enumerate(tracklets) if i not in tracklets_indices_to_delete]
         active_tracklets = [t for t in filtered_tracklets if t.state == TrackletState.ACTIVE]
         lost_tracklets = [t for t in filtered_tracklets if t.state == TrackletState.LOST]
-        active_tracklets, lost_tracklets = self._remove_duplicates(active_tracklets, lost_tracklets)
+        active_tracklets, lost_tracklets = remove_duplicates(self._duplicate_iou_threshold, active_tracklets, lost_tracklets)
         all_tracklets = active_tracklets + lost_tracklets + new_tracklets
 
         active_tracklets = [t for t in all_tracklets if t.state == TrackletState.ACTIVE]

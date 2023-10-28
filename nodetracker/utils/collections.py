@@ -51,3 +51,22 @@ def group_by(items: List[Any], func: Callable) -> Dict[Any, List[Any]]:
         buckets[item_hash].append(item)
 
     return dict(buckets)
+
+
+def unpack_n(items: list, n: int) -> List[list]:
+    """
+    Unpacks list of tuples with n items into n lists.
+    Handles empty list edge case.
+
+    Args:
+        items: List of tuples
+        n: Number of items per tuples
+
+    Returns:
+        List of unpacked lists.
+    """
+    if len(items) == 0:
+        return n * [[]]
+
+    return [list(x) for x in zip(*items)]
+

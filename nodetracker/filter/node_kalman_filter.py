@@ -24,8 +24,10 @@ class NODEKalmanFilter(StateModelFilter):
 
         buffer_size: int,
         buffer_min_size: int = 1,
+        buffer_min_history: int = 1,
         dtype: torch.dtype = torch.float32,
-        autoregressive: bool = False
+        autoregressive: bool = False,
+        recursive_inverse: bool = False
     ):
         self._model = model
         self._transform = transform
@@ -37,14 +39,18 @@ class NODEKalmanFilter(StateModelFilter):
 
         self._buffer_size = buffer_size
         self._buffer_min_size = buffer_min_size
+        self._buffer_min_history = buffer_min_history
         self._dtype = dtype
 
+        assert not autoregressive or not recursive_inverse
         self._autoregressive = autoregressive
+        self._recursive_inverse = recursive_inverse
 
     def initiate(self, measurement: torch.Tensor) -> State:
         buffer = ODETorchTensorBuffer(
             size=self._buffer_size,
             min_size=self._buffer_min_size,
+            min_history=self._buffer_min_history,
             dtype=self._dtype
         )
         buffer.push(measurement)
@@ -66,11 +72,12 @@ class NODEKalmanFilter(StateModelFilter):
             x_unobs_std_hat = 10 * torch.ones_like(x_unobs_mean_hat).to(ts_obs)
             return buffer, x_unobs_mean_hat[:, 0, :], x_unobs_std_hat[:, 0, :]
 
-        t_obs_last, t_unobs_lat = ts_obs[-1, 0, 0], ts_unobs[-1, 0, 0]
-        n_ar_steps = 1 if not self._autoregressive else int(t_unobs_lat - t_obs_last)
+        t_obs_last, t_unobs_last = ts_obs[-1, 0, 0], ts_unobs[-1, 0, 0]
+        n_ar_steps = 1 if not self._autoregressive else int(t_unobs_last - t_obs_last)
+        if self._recursive_inverse:
+            ts_unobs = torch.tensor(list(range(int(t_obs_last) + 1, int(t_unobs_last) + 1)), dtype=torch.float32).view(-1, 1, 1)
 
         for i in range(n_ar_steps):
-            t_curr = int(t_obs_last) + i + 1
             t_x_obs, _, t_ts_obs, t_ts_unobs, *_ = self._transform.apply(data=[x_obs, None, ts_obs, ts_unobs, None], shallow=False)
             t_x_obs, t_ts_obs, t_ts_unobs = t_x_obs.to(self._accelerator), t_ts_obs.to(self._accelerator), t_ts_unobs.to(
                 self._accelerator)
@@ -80,10 +87,11 @@ class NODEKalmanFilter(StateModelFilter):
             prior_std = self._transform.inverse_std(t_x_unobs_std_hat, additional_data=[x_obs, None], shallow=False)
 
             x_obs = torch.cat([x_obs, prior_mean], dim=0)
+            t_curr = int(t_obs_last) + i + 1
             ts_obs = torch.cat([ts_obs, torch.tensor([t_curr], dtype=self._dtype).view(1, 1, 1)])
 
-            prior_mean = prior_mean[:, 0, :]
-            prior_std = prior_std[:, 0, :]
+            prior_mean = prior_mean[-1:, 0, :]
+            prior_std = prior_std[-1:, 0, :]
 
         # noinspection PyUnboundLocalVariable
         return buffer, prior_mean, prior_std

@@ -493,6 +493,7 @@ def association_algorithm_factory(name: str, params: Dict[str, Any]) -> Associat
         'byte': ByteIOU,
         'hungarian_iou_motion': MotionAssoc,
         'motion_assoc': MotionAssoc,  # alias
+        'move': MotionAssoc,  # alias
         'hungarian_distance_motion': HungarianDistanceAndMotion
     }
 

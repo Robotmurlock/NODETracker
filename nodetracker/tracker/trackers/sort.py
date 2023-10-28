@@ -1,5 +1,5 @@
 """
-Implementation of Filter Sort tracker
+Implementation of Sort tracker with a custom filter.
 """
 import copy
 from typing import Optional, Dict, Any, List, Tuple
@@ -91,7 +91,8 @@ class SortTracker(MotionBasedTracker):
         tracklets_indices_to_delete: List[int] = []
         for tracklet_index in unmatched_tracklets:
             tracklet = tracklets[tracklet_index]
-            if tracklet.number_of_unmatched_frames(frame_index) > self._remember_threshold:
+            if tracklet.number_of_unmatched_frames(frame_index) > self._remember_threshold \
+                    or tracklet.state == TrackletState.NEW:
                 tracklets_indices_to_delete.append(tracklet_index)
                 self._delete(tracklet.id)
             else:

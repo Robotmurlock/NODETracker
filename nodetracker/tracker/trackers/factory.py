@@ -2,8 +2,9 @@
 Tracker factory method.
 """
 from nodetracker.tracker.trackers.base import Tracker
-from nodetracker.tracker.trackers.sort import SortTracker
 from nodetracker.tracker.trackers.byte import ByteTracker
+from nodetracker.tracker.trackers.sort import SortTracker
+
 
 def tracker_factory(name: str, params: dict) -> Tracker:
     """
@@ -20,7 +21,7 @@ def tracker_factory(name: str, params: dict) -> Tracker:
 
     TRACKER_CATALOG = {
         'sort': SortTracker,
-        'filter-sort-tracker': SortTracker,
+        'filter-sort-tracker': SortTracker,  # alias
         'byte': ByteTracker
     }
 

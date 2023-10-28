@@ -30,7 +30,8 @@ def draw_tracklet(
     tracklet_id: str,
     tracklet_age: int,
     bbox: PredBBox,
-    new: bool = False
+    new: bool = False,
+    active: bool = True
 ) -> np.ndarray:
     """
     Draw tracklet on the frame.
@@ -42,12 +43,15 @@ def draw_tracklet(
         bbox: BBox
         new: Is the tracking object new (new id)
             - New object has thick bbox
+        active: Is tracklet active or not
 
     Returns:
         Frame with drawn tracklet info
     """
-    color = color_palette.ALL_COLORS[int(tracklet_id) % len(color_palette.ALL_COLORS)]
-    frame = BBox.draw(bbox, frame, color=color, thickness=5 if new else 2)
+    color = color_palette.ALL_COLORS_EXPECT_BLACK[int(tracklet_id) % len(color_palette.ALL_COLORS_EXPECT_BLACK)] \
+        if active else color_palette.BLACK
+    thickness = 5 if new else 2
+    frame = BBox.draw(bbox, frame, color=color, thickness=thickness)
     left, top, _, _ = bbox.scaled_yxyx_from_image(frame)
     text = f'id={tracklet_id}, age={tracklet_age}, conf={100 * bbox.conf:.0f}%'
     return draw_text(frame, text, round(left), round(top), color=color)
@@ -62,7 +66,9 @@ def main(cfg: DictConfig):
     tracker_output = os.path.join(experiment_path, cfg.tracker.output_path, cfg.eval.split,
                                   cfg.tracker.object_detection.type, tracker_name)
     tracker_output_option = os.path.join(tracker_output, cfg.tracker.visualize.option)
-    assert os.path.exists(tracker_output_option), f'Path "{tracker_output}" does not exist!'
+    tracker_output_active = os.path.join(tracker_output, 'active')
+    assert os.path.exists(tracker_output_option), f'Path "{tracker_output_option}" does not exist!'
+    assert os.path.exists(tracker_output_active), f'Path "{tracker_output_active}" does not exist!'
     logger.info(f'Visualizing tracker inference on path "{tracker_output_option}".')
 
     additional_params = cfg.dataset.additional_params
@@ -85,6 +91,16 @@ def main(cfg: DictConfig):
         imheight = scene_info.imheight
         imwidth = scene_info.imwidth
 
+        active_bboxes = set()
+        with TrackerInferenceReader(tracker_output_active, scene_name, image_height=imheight, image_width=imwidth) as tracker_inf_reader:
+            for _ in tqdm(range(scene_length), desc=f'Preprocessing "{scene_name}"', unit='frame'):
+                read = tracker_inf_reader.read()
+                if read is None:
+                    continue
+
+                for tracklet_id in read.objects.keys():
+                    active_bboxes.add((tracklet_id, read.frame_index))
+
         scene_video_path = os.path.join(tracker_output_option, f'{scene_name}.mp4')
         with TrackerInferenceReader(tracker_output_option, scene_name, image_height=imheight, image_width=imwidth) as tracker_inf_reader, \
             MP4Writer(scene_video_path, fps=cfg.tracker.visualize.fps) as mp4_writer:
@@ -105,7 +121,8 @@ def main(cfg: DictConfig):
                             tracklet_id=tracklet_id,
                             tracklet_age=tracklet_presence_counter[tracklet_id],
                             bbox=bbox,
-                            new=tracklet_presence_counter[tracklet_id] <= cfg.tracker.visualize.new_object_length
+                            new=tracklet_presence_counter[tracklet_id] <= cfg.tracker.visualize.new_object_length,
+                            active=(tracklet_id, index) in active_bboxes
                         )
 
                     last_read = tracker_inf_reader.read()

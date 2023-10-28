@@ -150,12 +150,13 @@ def main(cfg: DictConfig):
         imheight = scene_info.imheight
         imwidth = scene_info.imwidth
 
-        scene_tracker_params = zbudz_mot(
-            tracker_name=cfg.tracker.algorithm.name,
-            tracker_params=tracker_params,
-            dataset_name=cfg.dataset.name,
-            scene_name=scene_name
-        )
+        # scene_tracker_params = zbudz_mot(
+        #     tracker_name=cfg.tracker.algorithm.name,
+        #     tracker_params=tracker_params,
+        #     dataset_name=cfg.dataset.name,
+        #     scene_name=scene_name
+        # )
+        scene_tracker_params = tracker_params
 
         tracker = tracker_factory(
             name=cfg.tracker.algorithm.name,
