@@ -4,3 +4,4 @@ params:
   # Acquired from analysis_tools/run_dataset_diff_stats.py
   mean: [0, 0, 0, 0]
   std: [0.001025039586238563, 0.0012134865391999483, 0.0005178151186555624, 0.0007754131802357733]
+  scale_by_time_diff: true

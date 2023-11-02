@@ -62,6 +62,18 @@ class Point:
     def __eq__(self, other: 'Point') -> bool:
         return all([np.isclose(self.x, other.x), np.isclose(self.y, other.y)])
 
+    def as_numpy_xy(self, dtype: np.dtype = np.float32) -> np.ndarray:
+        """
+        Converts point to numpy array.
+
+        Args:
+            dtype: Numpy dtype
+
+        Returns:
+            Numpy point
+        """
+        return np.array([self.x, self.y], dtype=dtype)
+
 
 @dataclass
 class BBox:

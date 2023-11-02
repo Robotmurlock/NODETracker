@@ -72,6 +72,9 @@ class LightningBaselineRNNCNP(LightningGaussianModel):
 
         t_scale: float = 5.0,
 
+        bounded_variance: bool = False,
+        bounded_value: float = 0.01,
+
         transform_func: Optional[Union[InvertibleTransform, InvertibleTransformWithVariance]] = None,
 
         train_config: Optional[LightningTrainConfig] = None,
@@ -98,7 +101,9 @@ class LightningBaselineRNNCNP(LightningGaussianModel):
             model=model,
             model_gaussian=True,
             transform_func=transform_func,
-            log_epoch_metrics=log_epoch_metrics
+            log_epoch_metrics=log_epoch_metrics,
+            bounded_variance=bounded_variance,
+            bounded_value=bounded_value
         )
 
 class LightningRNNCNPFilter(LightningModuleBase):

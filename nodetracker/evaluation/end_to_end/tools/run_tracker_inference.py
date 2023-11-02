@@ -5,9 +5,9 @@ import copy
 import json
 import logging
 import os
+import re
 from dataclasses import asdict
 from typing import List, Dict, Any
-import json
 
 import hydra
 import torch
@@ -60,45 +60,6 @@ def populate_tracker_params(
     return params
 
 
-def zbudz_mot(
-    tracker_name: str,
-    tracker_params: dict,
-    scene_name: str,
-    dataset_name: str
-) -> dict:
-    if dataset_name not in ['MOT17', 'MOT20']:
-        return tracker_params
-
-    scene_tracker_params = copy.deepcopy(tracker_params)
-
-    if tracker_name in ['byte', 'sort']:
-        if 'MOT17-05' in scene_name or 'MOT17-06' in scene_name:
-            scene_tracker_params['remember_threshold'] = 14
-        elif 'MOT17-13' in scene_name or 'MOT17-14' in scene_name:
-            scene_tracker_params['remember_threshold'] = 25
-
-    if tracker_name in ['byte']:
-        if 'MOT17-04' in scene_name:
-            scene_tracker_params['detection_threshold'] = 0.4
-        elif 'MOT17-01' in scene_name or 'MOT17-06' in scene_name:
-            scene_tracker_params['detection_threshold'] = 0.65
-        elif 'MOT17-12' in scene_name:
-            scene_tracker_params['detection_threshold'] = 0.7
-        elif 'MOT17-14' in scene_name:
-            scene_tracker_params['detection_threshold'] = 0.67
-        elif 'MOT20-06' in scene_name or 'MOT20-08' in scene_name:
-            scene_tracker_params['detection_threshold'] = 0.3
-
-    if tracker_name in ['byte', 'sort']:
-        scene_tracker_params['new_tracklet_detection_threshold'] = scene_tracker_params.get('detection_threshold', 0.6) + 0.1
-
-    if scene_tracker_params != tracker_params:
-        show_scene_tracker_params = copy.deepcopy(scene_tracker_params)
-        show_scene_tracker_params.pop('filter_params')  # Can't serialize model
-        logger.warning(f'Updated parameters for scene {scene_name}:\n{json.dumps(show_scene_tracker_params, indent=2)}')
-    return scene_tracker_params
-
-
 @torch.no_grad()
 @hydra.main(config_path=CONFIGS_PATH, config_name='default', version_base='1.1')
 def main(cfg: DictConfig):
@@ -144,27 +105,21 @@ def main(cfg: DictConfig):
     )
 
     scene_names = dataset.scenes
+    scene_names = [scene_name for scene_name in scene_names if re.match(cfg.tracker.scene_pattern, scene_name)]
     for scene_name in tqdm(scene_names, desc='Simulating tracker', unit='scene'):
         scene_info = dataset.get_scene_info(scene_name)
         scene_length = scene_info.seqlength
         imheight = scene_info.imheight
         imwidth = scene_info.imwidth
 
-        # scene_tracker_params = zbudz_mot(
-        #     tracker_name=cfg.tracker.algorithm.name,
-        #     tracker_params=tracker_params,
-        #     dataset_name=cfg.dataset.name,
-        #     scene_name=scene_name
-        # )
-        scene_tracker_params = tracker_params
-
         tracker = tracker_factory(
             name=cfg.tracker.algorithm.name,
-            params=scene_tracker_params
+            params=tracker_params
         )
 
-        with TrackerInferenceWriter(tracker_active_output, scene_name, image_height=imheight, image_width=imwidth) as tracker_active_inf_writer, \
-            TrackerInferenceWriter(tracker_all_output, scene_name, image_height=imheight, image_width=imwidth) as tracker_all_inf_writer:
+        clip = cfg.dataset.name != 'MOT17'
+        with TrackerInferenceWriter(tracker_active_output, scene_name, image_height=imheight, image_width=imwidth, clip=clip) as tracker_active_inf_writer, \
+            TrackerInferenceWriter(tracker_all_output, scene_name, image_height=imheight, image_width=imwidth, clip=clip) as tracker_all_inf_writer:
             tracklets: List[Tracklet] = []
             for index in tqdm(range(scene_length), desc=f'Simulating "{scene_name}"', unit='frame'):
                 # Perform OD inference

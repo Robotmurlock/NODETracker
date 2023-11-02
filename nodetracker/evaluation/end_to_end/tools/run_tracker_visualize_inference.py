@@ -3,6 +3,7 @@ Tracker inference visualization.
 """
 import logging
 import os
+import re
 from collections import Counter
 
 import cv2
@@ -16,10 +17,10 @@ from nodetracker.common.project import CONFIGS_PATH
 from nodetracker.datasets.factory import dataset_factory
 from nodetracker.evaluation.end_to_end.config import TrackerGlobalConfig
 from nodetracker.evaluation.end_to_end.tracker_utils import TrackerInferenceReader
+from nodetracker.library.cv import color_palette
 from nodetracker.library.cv.bbox import PredBBox, BBox
 from nodetracker.library.cv.drawing import draw_text
 from nodetracker.library.cv.video_writer import MP4Writer
-from nodetracker.library.cv import color_palette
 from nodetracker.utils import pipeline
 
 logger = logging.getLogger('TrackerVizualization')
@@ -85,6 +86,7 @@ def main(cfg: DictConfig):
     )
 
     scene_names = dataset.scenes
+    scene_names = [scene_name for scene_name in scene_names if re.match(cfg.tracker.scene_pattern, scene_name)]
     for scene_name in tqdm(scene_names, desc='Visualizing tracker', unit='scene'):
         scene_info = dataset.get_scene_info(scene_name)
         scene_length = scene_info.seqlength

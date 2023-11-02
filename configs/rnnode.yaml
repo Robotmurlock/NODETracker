@@ -1,7 +1,7 @@
 defaults:
   - resources: cuda.yaml
-  - dataset: mot17/default.yaml
-  - transform: mot17/jack_of_all_trades_v2.yaml
+  - dataset: mot20/default.yaml
+  - transform: mot20/jack_of_all_trades_scaled.yaml
   - model: rnnode.yaml
   - train: rnnode.yaml
   - eval: default.yaml

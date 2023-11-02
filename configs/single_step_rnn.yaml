@@ -1,12 +1,12 @@
 defaults:
   - resources: cuda.yaml
-  - dataset: mot20/single_step.yaml
-  - transform: mot20/jack_of_all_trades.yaml
+  - dataset: mot20/h30f1.yaml
+  - transform: mot20/jack_of_all_trades_scaled.yaml
   - model: single_step_rnn.yaml
   - train: single_step_rnn.yaml
   - eval: autoregressive.yaml
   - visualize: default.yaml
-  - augmentations: obs_only.yaml
+  - augmentations: camera_movement.yaml
   - path: default.yaml
   - end_to_end: default.yaml
   - tracker: rnn_sort.yaml

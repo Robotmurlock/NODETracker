@@ -1,4 +1,4 @@
-experiment: 'BaselineAttnCNP-MOT20-exp01-256-scale-10'
+experiment: 'BaselineAttnCNP-MOT20-exp04-256-h30120f-scale60-ScaleDiffByTs'
 description: 'Baseline AttnCNP, x160 (LaSOT optimal)'
 batch_size: 256
 max_epochs: 15

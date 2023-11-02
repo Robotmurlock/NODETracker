@@ -41,6 +41,7 @@ class TrackerConfig:
     object_detection: ObjectDetectionInferenceConfig
     lookup_path: str
     algorithm: TrackerAlgorithmConfig
+    scene_pattern: str = '(.*?)'  # All
     output_path: str = 'tracker_inference'
     suffix: Optional[str] = None
     postprocess: TrackerPostprocessConfig = field(default_factory=TrackerPostprocessConfig)

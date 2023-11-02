@@ -41,6 +41,7 @@ class ByteTracker(MotionBasedTracker):
         new_matcher_params: Optional[Dict[str, Any]] = None,
         detection_threshold: float = 0.6,
         remember_threshold: int = 1,
+        initialization_threshold: int = 3,
         new_tracklet_detection_threshold: Optional[float] = None,
         duplicate_iou_threshold: float = 0.85
     ):
@@ -79,6 +80,7 @@ class ByteTracker(MotionBasedTracker):
         self._new_match = association_algorithm_factory(new_matcher_algorithm, new_matcher_params)
 
         # Parameters
+        self._initialization_threshold = initialization_threshold
         self._remember_threshold = remember_threshold
         self._detection_threshold = detection_threshold
         self._new_tracklet_detection_threshold = new_tracklet_detection_threshold \
@@ -188,5 +190,8 @@ class ByteTracker(MotionBasedTracker):
         active_tracklets, lost_tracklets = remove_duplicates(self._duplicate_iou_threshold, active_tracklets, lost_tracklets)
         all_tracklets = active_tracklets + lost_tracklets + new_tracklets
 
-        active_tracklets = [t for t in all_tracklets if t.state == TrackletState.ACTIVE]
+        # Filter active tracklets
+        active_tracklets = [t for t in tracklets if t.total_matches >= self._initialization_threshold]
+        active_tracklets = [t for t in active_tracklets if t.state == TrackletState.ACTIVE]
+
         return active_tracklets, all_tracklets

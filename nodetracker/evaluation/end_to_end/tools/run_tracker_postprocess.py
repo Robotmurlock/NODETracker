@@ -3,6 +3,7 @@ Tracker inference postprocess.
 """
 import logging
 import os
+import re
 from collections import Counter, defaultdict
 from typing import List, Dict
 
@@ -134,6 +135,7 @@ def main(cfg: DictConfig):
     )
 
     scene_names = dataset.scenes
+    scene_names = [scene_name for scene_name in scene_names if re.match(cfg.tracker.scene_pattern, scene_name)]
     for scene_name in tqdm(scene_names, desc='Postprocessing tracker', unit='scene'):
         scene_info = dataset.get_scene_info(scene_name)
         scene_length = scene_info.seqlength
@@ -157,8 +159,9 @@ def main(cfg: DictConfig):
         tracklets_to_keep = {k for k, v in tracklet_presence_counter.items() if v >= cfg.tracker.postprocess.min_tracklet_length}
         tracklet_frame_bboxes = dict(tracklet_frame_bboxes)
 
+        clip = cfg.dataset.name != 'MOT17'
         with TrackerInferenceReader(tracker_all_output, scene_name, image_height=imheight, image_width=imwidth) as tracker_all_inf_reader, \
-            TrackerInferenceWriter(tracker_postprocess_output, scene_name, image_height=imheight, image_width=imwidth) as tracker_inf_writer:
+            TrackerInferenceWriter(tracker_postprocess_output, scene_name, image_height=imheight, image_width=imwidth, clip=clip) as tracker_inf_writer:
 
             last_all_read = tracker_all_inf_reader.read()
 

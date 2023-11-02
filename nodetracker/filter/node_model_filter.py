@@ -169,7 +169,10 @@ class BufferedNodeModelFilter(StateModelFilter):
 
         buffer_size: int,
         buffer_min_size: int = 1,
-        dtype: torch.dtype = torch.float32
+        buffer_min_history: int = 5,
+        dtype: torch.dtype = torch.float32,
+
+        recursive_inverse: bool = False
     ):
         self._model = model
         self._transform = transform
@@ -178,10 +181,13 @@ class BufferedNodeModelFilter(StateModelFilter):
 
         self._buffer_size = buffer_size
         self._buffer_min_size = buffer_min_size
+        self._buffer_min_history = buffer_min_history
 
         # Model
         self._model.to(self._accelerator)
         self._model.eval()
+
+        self._recursive_inverse = recursive_inverse
 
     def _get_ts(self) -> Tuple[torch.Tensor, torch.Tensor]:
         t_obs = torch.tensor([0], dtype=self._dtype).view(1, 1)
@@ -192,6 +198,7 @@ class BufferedNodeModelFilter(StateModelFilter):
         buffer = ODETorchTensorBuffer(
             size=self._buffer_size,
             min_size=self._buffer_min_size,
+            min_history=self._buffer_min_history,
             dtype=self._dtype
         )
         buffer.push(measurement)

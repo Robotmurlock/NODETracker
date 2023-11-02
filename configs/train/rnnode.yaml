@@ -1,4 +1,4 @@
-experiment: 'RNNODE-MOT17-exp02-256dim-DiffUnobs'
+experiment: 'RNNODE-MOT20-exp01-256dim-h10f30-JackDiffUnobs'
 description: 'RNNODE MOT20 baseline (optimal LaSOT), x256'
 batch_size: 256
 learning_rate: 1e-3

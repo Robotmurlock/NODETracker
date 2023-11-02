@@ -1,4 +1,4 @@
-experiment: 'NODEFilterModel-MOT20-exp01-256dim'
+experiment: 'NODEFilterModel-MOT17-exp03-256dim'
 description: 'NODEFilter baseline (256)'
 batch_size: 256
 max_epochs: 30

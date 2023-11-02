@@ -1,4 +1,4 @@
-experiment: 'BaselineRNNCNP-MOT17-exp16-256-scale-10_CameraMovementAug'
+experiment: 'BaselineRNNCNP-MOT20-exp06-256-MOT17Config-h30120f-scale60-ScaleDiffByTs'
 description: 'Baseline RNN-CNP, warmup'
 batch_size: 256
 learning_rate: 1e-3

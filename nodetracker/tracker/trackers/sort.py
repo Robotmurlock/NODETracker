@@ -3,6 +3,8 @@ Implementation of Sort tracker with a custom filter.
 """
 import copy
 from typing import Optional, Dict, Any, List, Tuple
+import numpy as np
+import torch
 
 from nodetracker.library.cv.bbox import PredBBox
 from nodetracker.tracker.matching import association_algorithm_factory
@@ -26,7 +28,7 @@ class SortTracker(MotionBasedTracker):
         remember_threshold: int = 1,
         initialization_threshold: int = 3,
         new_tracklet_detection_threshold: Optional[float] = None,
-        show_only_active: bool = True,
+        use_observation_if_lost: bool = False
     ):
         """
         Args:
@@ -41,7 +43,7 @@ class SortTracker(MotionBasedTracker):
                 it is deleted.
             initialization_threshold: Number of frames until tracklet becomes active
             new_tracklet_detection_threshold: Threshold to accept new tracklet
-            show_only_active: Return only active tracklets
+            use_observation_if_lost: When re-finding tracklet, use observation instead of estimation
         """
         super().__init__(
             filter_name=filter_name,
@@ -54,13 +56,13 @@ class SortTracker(MotionBasedTracker):
         # Parameters
         self._remember_threshold = remember_threshold
         self._initialization_threshold = initialization_threshold
-        self._show_only_active = show_only_active
         self._new_tracklet_detection_threshold = new_tracklet_detection_threshold
+        self._use_observation_if_lost = use_observation_if_lost
 
     def track(self, tracklets: List[Tracklet], detections: List[PredBBox], frame_index: int, inplace: bool = True) \
             -> Tuple[List[Tracklet], List[Tracklet]]:
         # Estimate priors for all tracklets
-        prior_tracklet_estimates = [self._predict(t) for t in tracklets]  # Copy last position
+        prior_tracklet_estimates = [self._predict(t) for t in tracklets]
         prior_tracklet_bboxes = [bbox for bbox, _, _ in prior_tracklet_estimates]
 
         # Perform matching
@@ -71,7 +73,9 @@ class SortTracker(MotionBasedTracker):
             tracklet = tracklets[tracklet_index] if inplace else copy.deepcopy(tracklets[tracklet_index])
             det_bbox = detections[det_index] if inplace else copy.deepcopy(detections[det_index])
             tracklet_bbox, _, _ = self._update(tracklets[tracklet_index], det_bbox)
-            tracklets[tracklet_index] = tracklet.update(tracklet_bbox, frame_index, state=TrackletState.ACTIVE)
+            new_bbox = det_bbox if self._use_observation_if_lost and tracklet.state != TrackletState.ACTIVE \
+                else tracklet_bbox
+            tracklets[tracklet_index] = tracklet.update(new_bbox, frame_index, state=TrackletState.ACTIVE)
 
         # Create new tracklets from unmatched detections and initiate filter states
         new_tracklets: List[Tracklet] = []
@@ -104,7 +108,6 @@ class SortTracker(MotionBasedTracker):
 
         # Filter active tracklets
         active_tracklets = [t for t in tracklets if t.total_matches >= self._initialization_threshold]
-        if self._show_only_active:
-            active_tracklets = [t for t in active_tracklets if t.frame_index >= frame_index]
+        active_tracklets = [t for t in active_tracklets if t.state == TrackletState.ACTIVE]
 
         return active_tracklets, all_tracklets

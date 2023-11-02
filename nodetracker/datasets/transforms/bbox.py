@@ -24,11 +24,12 @@ class BboxFirstOrderDifferenceTransform(InvertibleTransformWithVariance):
     Y[i] = X[i] - X[i-1]
     Y[0] is removed
     """
-    def __init__(self):
+    def __init__(self, scale_by_time_diff: bool = False):
         super().__init__(name='first_difference')
+        self._scale_by_time_diff = scale_by_time_diff
 
     def apply(self, data: TensorCollection, shallow: bool = True) -> TensorCollection:
-        bbox_obs, bbox_unobs, ts_obs, *other = data
+        bbox_obs, bbox_unobs, ts_obs, ts_unobs, *other = data
         assert bbox_obs.shape[0] >= 0, f'{self.__name__} requires at least 2 observable points. ' \
                                        f'Found {bbox_obs.shape[0]}'
 
@@ -44,9 +45,12 @@ class BboxFirstOrderDifferenceTransform(InvertibleTransformWithVariance):
             bbox_unobs[0, ...] = bbox_unobs[0, ...] - bbox_obs[-1, ...]
 
         bbox_obs[1:, ...] = bbox_obs[1:, ...] - bbox_obs[:-1, ...]
+        if self._scale_by_time_diff:
+            bbox_obs[1:, ...] = bbox_obs[1:, ...] / (ts_obs[1:, ...] - ts_obs[:-1, ...])
+
         bbox_obs, ts_obs = bbox_obs[1:, ...], ts_obs[1:, ...]  # Dump first
 
-        return bbox_obs, bbox_unobs, ts_obs, *other
+        return bbox_obs, bbox_unobs, ts_obs, ts_unobs, *other
 
     def inverse(self, data: TensorCollection, shallow: bool = True) -> TensorCollection:
         orig_bbox_obs, bbox_hat, *other = data
@@ -210,9 +214,9 @@ class BBoxStandardizedFirstOrderDifferenceTransform(BBoxCompositeTransform):
     Step 2: Applies standardization transformation:
     Z[i] = (Y[i] - mean(Y)) / std(Y)
     """
-    def __init__(self, mean: Union[float, List[float]], std: Union[float, List[float]]):
+    def __init__(self, mean: Union[float, List[float]], std: Union[float, List[float]], scale_by_time_diff: bool = False):
         transforms = [
-            BboxFirstOrderDifferenceTransform(),
+            BboxFirstOrderDifferenceTransform(scale_by_time_diff=scale_by_time_diff),
             BBoxStandardizationTransform(mean=mean, std=std)
         ]
         super().__init__(transforms=transforms)
@@ -552,7 +556,8 @@ class BBoxJackOfAllTradesTransform(InvertibleTransformWithVariance):
         rel_std: float,
         diff_mean: float,
         diff_std: float,
-        rel_unobs: bool = True
+        rel_unobs: bool = True,
+        diff_scale_by_ts_diff: bool = False
     ):
         """
         Args:
@@ -565,7 +570,7 @@ class BBoxJackOfAllTradesTransform(InvertibleTransformWithVariance):
         """
         super().__init__(name='jack_of_all_trades')
         self._rel_transform = BBoxStandardizedRelativeToLastObsTransform(mean=rel_mean, std=rel_std)
-        self._diff_transform = BBoxStandardizedFirstOrderDifferenceTransform(mean=diff_mean, std=diff_std)
+        self._diff_transform = BBoxStandardizedFirstOrderDifferenceTransform(mean=diff_mean, std=diff_std, scale_by_time_diff=diff_scale_by_ts_diff)
         self._rel_unobs = rel_unobs
 
     def apply(self, data: TensorCollection, shallow: bool = True) -> TensorCollection:
@@ -752,17 +757,20 @@ class BBoxStandardizedNormalizedDifferencesTransform(BBoxCompositeTransform):
 def run_test_first_difference() -> None:
     bbox_obs = torch.randn(2, 2, 4)
     bbox_unobs = torch.randn(3, 2, 4)
-    ts_obs = torch.randn(2, 2, 1)
-    ts_unobs = torch.randn(3, 2, 1)
-    first_diff = BboxFirstOrderDifferenceTransform()
+    ts_obs = torch.tensor([1, 3], dtype=torch.float32).view(-1, 1, 1).repeat(1, 2, 1)
+    ts_unobs = torch.tensor([4, 5, 6], dtype=torch.float32).view(-1, 1, 1).repeat(1, 2, 1)
 
-    transformed_bbox_obs, transformed_bbox_unobs, *_ = \
-        first_diff.apply([bbox_obs, bbox_unobs, ts_obs, ts_unobs, None], shallow=False)
-    assert transformed_bbox_obs.shape == (1, 2, 4)
-    assert transformed_bbox_unobs.shape == (3, 2, 4)
+    for scale_by_time_diff in [False, True]:
+        first_diff = BboxFirstOrderDifferenceTransform(scale_by_time_diff=scale_by_time_diff)
 
-    _, inv_transformed_bbox_unobs, *_ = first_diff.inverse([bbox_obs, transformed_bbox_unobs, None])
-    assert torch.abs(inv_transformed_bbox_unobs - bbox_unobs).sum().item() < 1e-3
+        transformed_bbox_obs, transformed_bbox_unobs, *_ = \
+            first_diff.apply([bbox_obs, bbox_unobs, ts_obs, ts_unobs, None], shallow=False)
+        print(transformed_bbox_obs)
+        assert transformed_bbox_obs.shape == (1, 2, 4)
+        assert transformed_bbox_unobs.shape == (3, 2, 4)
+
+        _, inv_transformed_bbox_unobs, *_ = first_diff.inverse([bbox_obs, transformed_bbox_unobs, None])
+        assert torch.abs(inv_transformed_bbox_unobs - bbox_unobs).sum().item() < 1e-3
 
 
 def run_standardization() -> None:
