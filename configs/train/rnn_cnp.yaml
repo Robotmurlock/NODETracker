@@ -1,4 +1,4 @@
-experiment: 'BaselineRNNCNP-MOT20-exp06-256-MOT17Config-h30120f-scale60-ScaleDiffByTs'
+experiment: 'BaselineRNNCNP-MOT20-exp11-256-MOT17Config-h30f60-scale60-ScaledDiff-LessNoise-Bounded'
 description: 'Baseline RNN-CNP, warmup'
 batch_size: 256
 learning_rate: 1e-3
@@ -14,7 +14,7 @@ train_params:
   n_warmup_epochs: 3
   sched_lr_gamma: 0.1
   sched_lr_step: 5
-  weight_decay: 1e-4
+  weight_decay: 0.0
 
   loss_name: 'gaussian_nllloss'
   loss_params: {}

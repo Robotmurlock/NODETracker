@@ -773,7 +773,7 @@ def run_test_first_difference() -> None:
         assert torch.abs(inv_transformed_bbox_unobs - bbox_unobs).sum().item() < 1e-3
 
 
-def run_standardization() -> None:
+def run_test_standardization() -> None:
     bbox_obs = torch.randn(2, 2, 4)
     bbox_unobs = torch.randn(3, 2, 4)
     ts_obs = torch.randn(2, 2, 1)
@@ -931,12 +931,12 @@ def run_test_normalized_differences() -> None:
 
 if __name__ == '__main__':
     run_test_first_difference()
-    # run_standardization()
-    # run_test_standardized_first_difference()
-    # run_test_relative_to_last_obs()
-    # run_test_standardized_relative_to_last_obs()
-    # run_add_category_label_index()
-    # run_test_log_relative_to_last_obs()
-    # run_test_jack_of_all_trades()
-    # run_test_normalize_to_last_obs()
-    # run_test_normalized_differences()
+    run_test_standardization()
+    run_test_standardized_first_difference()
+    run_test_relative_to_last_obs()
+    run_test_standardized_relative_to_last_obs()
+    run_add_category_label_index()
+    run_test_log_relative_to_last_obs()
+    run_test_jack_of_all_trades()
+    run_test_normalize_to_last_obs()
+    run_test_normalized_differences()

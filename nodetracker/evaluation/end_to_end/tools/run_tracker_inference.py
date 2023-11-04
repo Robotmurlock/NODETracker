@@ -30,7 +30,6 @@ logger = logging.getLogger('TrackerEvaluation')
 
 
 def populate_tracker_params(
-    name: str,
     params: Dict[str, Any],
     cfg: TrackerGlobalConfig,
     experiment_path: str
@@ -39,7 +38,6 @@ def populate_tracker_params(
     Add additional tracker params (if needed)
 
     Args:
-        name: Tracker algorithm name
         params: Tracker params
         cfg: Tracker inference/evaluation config
         experiment_path: Experiment path
@@ -98,7 +96,6 @@ def main(cfg: DictConfig):
     )
 
     tracker_params = populate_tracker_params(
-        name=cfg.tracker.algorithm.name,
         params=cfg.tracker.algorithm.params,
         cfg=cfg,
         experiment_path=experiment_path

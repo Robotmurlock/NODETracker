@@ -1,12 +1,12 @@
 defaults:
   - resources: cuda.yaml
-  - dataset: mot20/h30f120.yaml
+  - dataset: mot20/h30f60.yaml
   - transform: mot20/standardized_first_difference_scaled.yaml
   - model: attn_cnp.yaml
   - train: attn_cnp.yaml
   - eval: default.yaml
   - visualize: default.yaml
-  - augmentations: camera_movement.yaml
+  - augmentations: less_noise.yaml
   - path: default.yaml
   - end_to_end: default.yaml
   - tracker: rnnode_sort.yaml

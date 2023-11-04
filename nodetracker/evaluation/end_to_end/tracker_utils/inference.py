@@ -102,6 +102,8 @@ class TrackerInferenceReader:
     Reads tracker inference in MOT format.
     (RAII)
     """
+    BBOX_LABEL = 'Person'
+
     def __init__(self, output_path: str, scene_name: str, image_height: int, image_width: int):
         """
         Args:
@@ -174,7 +176,7 @@ class TrackerInferenceReader:
                         bbox_width / self._image_width,
                         bbox_height / self._image_height
                     ),
-                    label='Person',  # Note: This is specialized for MOT20 format
+                    label=self.BBOX_LABEL,  # Note: This is specialized for MOT20 format
                     conf=conf
                 )
                 data.objects[tracklet_id] = bbox
