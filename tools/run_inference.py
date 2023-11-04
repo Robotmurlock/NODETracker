@@ -32,7 +32,8 @@ logger = logging.getLogger('InferenceScript')
 
 
 _CONFIG_SAVE_FILENAME = 'config-eval.yaml'
-_METRIC_NAMES = ['MSE', 'Accuracy']
+_METRIC_NAMES = ['MSE', 'Accuracy', 'MatchRatio']
+MR_THRESHOLD = 0.35
 
 
 @torch.no_grad()
@@ -101,6 +102,7 @@ def run_inference(
             sample_id = [scene_name, object_id, frame_range]
 
             iou_scores = []
+            last_iou_score = None
             # Save sample predictions (inference) with gt values
             # format: ymin, xmin, w, h
             for frame_relative_index in range(curr_unobs_time_len):
@@ -126,18 +128,21 @@ def run_inference(
                 bbox_pred = BBox.from_xyhw(*[bboxes_unobs_pred_list[ind] for ind in xyhw_indices], clip=True)
                 iou_score = bbox_gt.iou(bbox_pred)
                 iou_scores.append(iou_score)
+                last_iou_score = iou_score
                 dataset_metrics[f'Accuracy-{frame_relative_index+1}'].append(iou_score)
 
             # Save sample eval metrics
             # format: mse
             mse_val = mse_func(bboxes_unobs, bboxes_unobs_hat).detach().item()
             avg_iou_score = sum(iou_scores) / len(iou_scores)
-            s_metrics = sample_id + [mse_val, avg_iou_score]
+            match_ratio = (1.0 if last_iou_score >= MR_THRESHOLD else 0.0)
+            s_metrics = sample_id + [mse_val, avg_iou_score, match_ratio]
             sample_metrics.append(s_metrics)
 
             # Save sample eval metrics for aggregation
             dataset_metrics['MSE'].append(mse_val)
             dataset_metrics['Accuracy'].append(avg_iou_score)
+            dataset_metrics['MatchRatio'].append(match_ratio)
 
         batch_cnt += 1
         if batch_cnt >= n_batch_steps:
