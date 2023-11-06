@@ -92,6 +92,9 @@ class LightningRNNODE(LightningGaussianModel):
         decoder_solver_name: Optional[str] = None,
         decoder_solver_params: Optional[dict] = None,
 
+        bounded_variance: bool = False,
+        bounded_value: float = 0.01,
+
         train_config: Optional[LightningTrainConfig] = None,
         log_epoch_metrics: bool = True
     ):
@@ -116,7 +119,9 @@ class LightningRNNODE(LightningGaussianModel):
             model=model,
             model_gaussian=model_gaussian,
             transform_func=transform_func,
-            log_epoch_metrics=log_epoch_metrics
+            log_epoch_metrics=log_epoch_metrics,
+            bounded_variance=bounded_variance,
+            bounded_value=bounded_value
         )
 
 

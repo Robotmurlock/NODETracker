@@ -1,7 +1,7 @@
 defaults:
   - resources: cuda.yaml
-  - dataset: mot20/h30f60.yaml
-  - transform: mot20/standardized_first_difference_scaled.yaml
+  - dataset: mot17/h10f20.yaml
+  - transform: mot17/standardized_first_difference_scaled.yaml
   - model: rnn_cnp.yaml
   - train: rnn_cnp.yaml
   - eval: default.yaml

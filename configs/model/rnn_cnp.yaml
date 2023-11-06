@@ -2,7 +2,7 @@ type: 'baseline-rnn-cnp'
 params:
   observable_dim: 4
   hidden_dim: 256
-  t_scale: 60.0
+  t_scale: 20.0
 
   bounded_variance: true
   bounded_value: 0.01

@@ -1,4 +1,4 @@
-experiment: 'SSRNN-MOT20-exp01-128-h30f1-ScaleDiffByTs'
+experiment: 'SSRNN-MOT17-exp21-128-h20f1-ScaleDiffByTs-LessNoise'
 description: 'SSRNN - Simplicity'
 batch_size: 256
 learning_rate: 1e-3

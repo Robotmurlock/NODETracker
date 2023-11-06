@@ -1,5 +1,5 @@
-experiment: 'RNNODE-MOT20-exp02-256dim-h30f60-JackDiffUnobs-from-h10f30'
-description: 'RNNODE MOT20 baseline (optimal LaSOT), x256'
+experiment: 'RNNODE-MOT17-exp22-128-h20f20-RelObs-LessNoise'
+description: 'RNNODE MOT17 baseline (optimal LaSOT), x256'
 batch_size: 256
 learning_rate: 1e-3
 max_epochs: 12
@@ -24,4 +24,4 @@ logging_cfg:
 
 checkpoint_cfg:
   metric_monitor: 'val-epoch/loss'
-  resume_from: '/media/home/nodetracker-outputs/MOT20/RNNODE-MOT20-exp01-256dim-h10f30-JackDiffUnobs/checkpoints/last.ckpt'
+  resume_from: null

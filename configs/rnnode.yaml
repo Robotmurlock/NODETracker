@@ -1,12 +1,12 @@
 defaults:
   - resources: cuda.yaml
-  - dataset: mot20/h30f60.yaml
-  - transform: mot20/jack_of_all_trades_scaled.yaml
+  - dataset: mot17/h20f20.yaml
+  - transform: mot17/jack_of_all_trades.yaml
   - model: rnnode.yaml
   - train: rnnode.yaml
   - eval: default.yaml
   - visualize: default.yaml
-  - augmentations: camera_movement.yaml
+  - augmentations: less_noise.yaml
   - path: lasot.yaml
   - end_to_end: default.yaml
   - tracker: rnnode_sort.yaml

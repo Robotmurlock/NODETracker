@@ -3,10 +3,16 @@ before_transform_config:
   augs:
     - _target_: nodetracker.datasets.augmentations.trajectory.DetectorNoiseAugmentation
       sigma: 0.05
-      proba: 0.10
+      proba: 0.15
+      unobs_noise: True
     - _target_: nodetracker.datasets.augmentations.trajectory.DetectorNoiseAugmentation
       sigma: 0.10
+      proba: 0.5
+      unobs_noise: True
+    - _target_: nodetracker.datasets.augmentations.trajectory.DetectorNoiseAugmentation
+      sigma: 0.25
       proba: 0.01
+      unobs_noise: True
     - _target_: nodetracker.datasets.augmentations.trajectory.CameraMovementAugmentation
       max_magnitude: 0.5
       proba: 0.2

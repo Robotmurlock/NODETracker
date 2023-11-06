@@ -1,4 +1,4 @@
-experiment: 'BaselineRNNCNP-MOT20-exp11-256-MOT17Config-h30f60-scale60-ScaledDiff-LessNoise-Bounded'
+experiment: 'BaselineRNNCNP-MOT17-exp27-256-h10f20-scale20-ScaledDiff-LessNoise-Bounded'
 description: 'Baseline RNN-CNP, warmup'
 batch_size: 256
 learning_rate: 1e-3

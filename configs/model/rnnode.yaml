@@ -9,3 +9,6 @@ params:
   solver_name: 'rk4'
   solver_params:
     max_step_size: 0.25
+
+  bounded_variance: true
+  bounded_value: 0.01
