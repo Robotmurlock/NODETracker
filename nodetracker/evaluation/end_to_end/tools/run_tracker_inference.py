@@ -48,7 +48,7 @@ def populate_tracker_params(
     for key in ['filter_name', 'filter_params']:
         assert key in params, f'Expected `{key}` field for filter based tracker!'
 
-    if not params['filter_name'] == 'akf':
+    if params['filter_name'] not in ['baseline', 'akf']:
         model = create_inference_model(cfg, experiment_path)
         transform_func = transforms.transform_factory(cfg.transform.name, cfg.transform.params)
         params = copy.deepcopy(params)

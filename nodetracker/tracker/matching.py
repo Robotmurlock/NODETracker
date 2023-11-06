@@ -11,7 +11,7 @@ from typing import List, Tuple, Optional, Any, Dict, Union
 import numpy as np
 import scipy
 
-from nodetracker.library.cv.bbox import PredBBox
+from nodetracker.library.cv.bbox import PredBBox, BBox
 from nodetracker.tracker.tracklet import Tracklet, TrackletState
 
 LabelType = Union[int, str]
@@ -182,132 +182,6 @@ class HungarianAlgorithmIOU(AssociationAlgorithm):
         return hungarian(cost_matrix)
 
 
-class Byte(AssociationAlgorithm, ABC):
-    """
-    ByteTrack matching algorithm.
-
-    Reference: https://arxiv.org/abs/2110.06864
-    """
-    def __init__(
-        self,
-        detection_threshold: float = 0.60,
-        *args, **kwargs
-    ):
-        """
-        Args:
-            detection_threshold: Detection threshold between "high priority" detections and "low priority" detections.
-                - Matching is first performed between all tracklets and detections with high detection scores.
-                - Mathing is then performed between unmatched tracklets and detections with low detection scores
-        """
-        super().__init__(*args, **kwargs)
-
-        self._detection_threshold = detection_threshold
-
-    @abstractmethod
-    def _match(
-        self,
-        tracklet_estimations: List[PredBBox],
-        detections: List[PredBBox],
-        tracklets: Optional[List[Tracklet]] = None,
-        high: bool = True
-    ) -> Tuple[List[Tuple[int, int]], List[int], List[int]]:
-        """
-        Custom matcher function that can be integrated in the Byte algorithm.
-
-        Args:
-            tracklet_estimations: Tracked object from previous frames
-            detections: Currently detected objects
-            tracklets: Full tracklet info (optional)
-            high: Perform high or low matching
-
-        Returns:
-            - List of matches (pairs)
-            - list of unmatched tracklets
-            - list of unmatched detections
-        """
-        pass
-
-    def match(
-        self,
-        tracklet_estimations: List[PredBBox],
-        detections: List[PredBBox],
-        tracklets: Optional[List[Tracklet]] = None
-    ) -> Tuple[List[Tuple[int, int]], List[int], List[int]]:
-        high_detections = [d for d in detections if d.conf >= self._detection_threshold]
-        high_det_indices = [i for i, d in enumerate(detections) if d.conf >= self._detection_threshold]
-        low_detections = [d for d in detections if d.conf < self._detection_threshold]
-        low_det_indices = [i for i, d in enumerate(detections) if d.conf < self._detection_threshold]
-
-        # Perform high detection matching
-        high_matches, remaining_tracklet_indices, high_unmatched_detections = \
-            self._match(tracklet_estimations, high_detections, tracklets, high=True)
-        remaining_tracklet_estimations = [tracklet_estimations[t_i] for t_i in remaining_tracklet_indices
-                                          if tracklets[t_i].state == TrackletState.ACTIVE]
-        remaining_tracklets = [tracklets[t_i] for t_i in remaining_tracklet_indices if tracklets[t_i].state == TrackletState.ACTIVE]
-
-        # Perform low detection matching
-        low_matches, low_unmatched_tracklets, _ = \
-            self._match(remaining_tracklet_estimations, low_detections, remaining_tracklets, high=False)
-
-        # Map relative indices to the original ones
-        high_matches = [(t_i, high_det_indices[d_i]) for t_i, d_i in high_matches]
-        low_matches = [(remaining_tracklet_indices[t_i], low_det_indices[d_i]) for t_i, d_i in low_matches]
-        matches = high_matches + low_matches
-
-        unmatched_tracklets = [remaining_tracklet_indices[t_i] for t_i in low_unmatched_tracklets]
-
-        high_unmatched_detections = [high_det_indices[d_i] for d_i in high_unmatched_detections]
-        unmatched_detections = high_unmatched_detections  # Does not include low unmatched detections
-
-        return matches, unmatched_tracklets, unmatched_detections
-
-
-class ByteIOU(Byte):
-    """
-    Standard ByteTrack matching algorithm.
-    """
-    def __init__(
-        self,
-        detection_threshold: float = 0.60,
-        match_threshold: float = 0.30,  # high_match_threshold
-        low_match_threshold: float = 0.50,
-        label_gating: Optional[Union[LabelType, List[Tuple[LabelType, LabelType]]]] = None,
-        *args, **kwargs
-    ):
-        """
-        Args:
-            detection_threshold: Detection threshold between "high priority" detections and "low priority" detections.
-                - Matching is first performed between all tracklets and detections with high detection scores.
-                - Mathing is then performed between unmatched tracklets and detections with low detection scores
-            match_threshold: Min threshold do match tracklet with object.
-                If threshold is not met then cost is equal to infinity.
-            label_gating: Define which object labels can be matched
-                - If not defined, matching is label agnostic
-        """
-        super().__init__(detection_threshold=detection_threshold, *args, **kwargs)
-
-        self._high_hungarian = HungarianAlgorithmIOU(
-            match_threshold=match_threshold,
-            label_gating=label_gating
-        )
-
-        self._low_hungarian = HungarianAlgorithmIOU(
-            match_threshold=low_match_threshold,
-            label_gating=label_gating
-        )
-
-    def _match(
-        self,
-        tracklet_estimations: List[PredBBox],
-        detections: List[PredBBox],
-        tracklets: Optional[List[Tracklet]] = None,
-        high: bool = True
-    ) -> Tuple[List[Tuple[int, int]], List[int], List[int]]:
-        if high:
-            return self._high_hungarian(tracklet_estimations, detections, tracklets)
-        return self._low_hungarian(tracklet_estimations, detections, tracklets)
-
-
 def distance(name: str, x: np.ndarray, y: np.ndarray) -> float:
     if name == 'l1':
         return np.abs(x - y).sum()
@@ -315,7 +189,6 @@ def distance(name: str, x: np.ndarray, y: np.ndarray) -> float:
         return np.sqrt(np.square(x - y).sum())
 
     raise AssertionError('Invalid Program State!')
-
 
 
 class MotionAssoc(HungarianAlgorithmIOU):
@@ -475,6 +348,111 @@ class HungarianDistanceAndMotion(AssociationAlgorithm):
         return hungarian(cost_matrix)
 
 
+class HungarianBIoU(HungarianAlgorithmIOU):
+    """
+    BIoU matching algorithm. Ref: https://arxiv.org/pdf/2211.14317.pdf
+    """
+    def __init__(
+        self,
+        b: float = 0.3,
+        match_threshold: float = 0.30,
+        label_gating: Optional[Union[LabelType, List[Tuple[LabelType, LabelType]]]] = None,
+        *args, **kwargs
+    ):
+        """
+        Args:
+            b: BBox buffer
+            match_threshold: IOU match gating
+            label_gating: Gating between different types of objects
+        """
+        super().__init__(
+            match_threshold=match_threshold,
+            label_gating=label_gating,
+            *args, **kwargs
+        )
+        self._b = b
+
+    def _buffer_bbox(self, bbox: PredBBox) -> PredBBox:
+        center = bbox.center
+        w, h = bbox.width, bbox.height
+        w *= (1 + 2 * self._b)
+        h *= (1 + 2 * self._b)
+
+        return PredBBox.create(
+            bbox=BBox.from_cxyhw(center.x, center.y, h, w),
+            label=bbox.label,
+            conf=bbox.conf
+        )
+
+    def match(
+        self,
+        tracklet_estimations: List[PredBBox],
+        detections: List[PredBBox],
+        tracklets: Optional[List[Tracklet]] = None
+    ) -> Tuple[List[Tuple[int, int]], List[int], List[int]]:
+        tracklet_estimations = [self._buffer_bbox(bbox) for bbox in tracklet_estimations]
+        detections = [self._buffer_bbox(bbox) for bbox in detections]
+        cost_matrix = self._form_iou_cost_matrix(tracklet_estimations, detections)
+        return hungarian(cost_matrix)
+
+
+class HungarianCBIoU(AssociationAlgorithm):
+    """
+    C-BIoU matching algorithm. Ref: https://arxiv.org/pdf/2211.14317.pdf
+    """
+    def __init__(
+        self,
+        b1: float = 0.3,
+        b2: float = 0.4,
+        match_threshold: float = 0.30,
+        label_gating: Optional[Union[LabelType, List[Tuple[LabelType, LabelType]]]] = None,
+        *args, **kwargs
+    ):
+        """
+        Args:
+            b1: First buffer matching threshold
+            b2: Second buffer matching threshold
+            match_threshold: IoU match gating
+            label_gating: Gating between different types of objects
+        """
+        self._biou1_matcher = HungarianBIoU(
+            b=b1,
+            match_threshold=match_threshold,
+            label_gating=label_gating,
+            *args, **kwargs
+        )
+
+        self._biou1_matcher = HungarianBIoU(
+            b=b2,
+            match_threshold=match_threshold,
+            label_gating=label_gating,
+            *args, **kwargs
+        )
+
+    def match(
+        self,
+        tracklet_estimations: List[PredBBox],
+        detections: List[PredBBox],
+        tracklets: Optional[List[Tracklet]] = None
+    ) -> Tuple[List[Tuple[int, int]], List[int], List[int]]:
+        # First matching
+        matches1, unmatched_tracklet_indices1, unmatched_detection_indices1 = \
+            self._biou1_matcher(tracklet_estimations, detections, tracklets)
+        unmatched_tracklet_estimations = [tracklet_estimations[t_i] for t_i in unmatched_tracklet_indices1]
+        unmatched_tracklets = [tracklets[t_i] for t_i in unmatched_tracklet_indices1]
+        unmatched_detections = [detections[d_i] for d_i in unmatched_detection_indices1]
+
+        # Second matching
+        matches2, unmatched_tracklet_indices2, unmatched_detection_indices2 = \
+            self._biou1_matcher(unmatched_tracklet_estimations, unmatched_detections, unmatched_tracklets)
+        unmatched_tracklet_indices = [unmatched_tracklet_indices1[t_i] for t_i in unmatched_tracklet_indices2]
+        unmatched_detection_indices = [unmatched_detection_indices1[t_i] for t_i in unmatched_detection_indices2]
+        matches2 = [(unmatched_tracklet_indices1[t_i], unmatched_detection_indices1[d_i]) for t_i, d_i in matches2]
+        matches = matches1 + matches2
+
+        return matches, unmatched_tracklet_indices, unmatched_detection_indices
+
+
 def association_algorithm_factory(name: str, params: Dict[str, Any]) -> AssociationAlgorithm:
     """
     Association algorithm factory. Not case-sensitive.
@@ -490,11 +468,12 @@ def association_algorithm_factory(name: str, params: Dict[str, Any]) -> Associat
 
     catalog = {
         'hungarian_iou': HungarianAlgorithmIOU,
-        'byte': ByteIOU,
         'hungarian_iou_motion': MotionAssoc,
         'motion_assoc': MotionAssoc,  # alias
         'move': MotionAssoc,  # alias
-        'hungarian_distance_motion': HungarianDistanceAndMotion
+        'hungarian_distance_motion': HungarianDistanceAndMotion,
+        'biou': HungarianBIoU,
+        'cbiou': HungarianCBIoU
     }
 
     if name not in catalog:
