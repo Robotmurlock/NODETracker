@@ -1,5 +1,5 @@
 """
-Implementation of Filter Sort tracker
+Implementation of ByteTrack.
 """
 import copy
 from typing import Optional, Dict, Any, List, Tuple
@@ -43,7 +43,8 @@ class ByteTracker(MotionBasedTracker):
         remember_threshold: int = 1,
         initialization_threshold: int = 3,
         new_tracklet_detection_threshold: Optional[float] = None,
-        duplicate_iou_threshold: float = 0.85
+        duplicate_iou_threshold: float = 0.85,
+        use_observation_if_lost: bool = False
     ):
         super().__init__(
             filter_name=filter_name,
@@ -82,6 +83,7 @@ class ByteTracker(MotionBasedTracker):
         # Parameters
         self._initialization_threshold = initialization_threshold
         self._remember_threshold = remember_threshold
+        self._use_observation_if_lost = use_observation_if_lost
         self._detection_threshold = detection_threshold
         self._new_tracklet_detection_threshold = new_tracklet_detection_threshold \
             if new_tracklet_detection_threshold is not None else detection_threshold
@@ -94,7 +96,8 @@ class ByteTracker(MotionBasedTracker):
     def track(self, tracklets: List[Tracklet], detections: List[PredBBox], frame_index: int, inplace: bool = True) \
             -> Tuple[List[Tracklet], List[Tracklet]]:
         # (0) Estimate priors for all tracklets
-        prior_tracklet_bboxes = [(self._predict(t)[0] if t.is_tracked else t.bbox) for t in tracklets]
+        prior_tracklet_estimates = [self._predict(t) for t in tracklets]
+        prior_tracklet_bboxes = [bbox for bbox, _, _ in prior_tracklet_estimates]
 
         # (1) Split detections into low and high
         high_detections = [d for d in detections if d.conf >= self._detection_threshold]
@@ -159,14 +162,12 @@ class ByteTracker(MotionBasedTracker):
         for tracklet_index, det_index in all_matches:
             tracklet = tracklets[tracklet_index] if inplace else copy.deepcopy(tracklets[tracklet_index])
             det_bbox = detections[det_index] if inplace else copy.deepcopy(detections[det_index])
+            tracklet_bbox, _, _ = self._update(tracklets[tracklet_index], det_bbox)
+            new_bbox = det_bbox if self._use_observation_if_lost and tracklet.state != TrackletState.ACTIVE \
+                else tracklet_bbox
+            tracklets[tracklet_index] = tracklet.update(new_bbox, frame_index, state=TrackletState.ACTIVE)
 
-            if tracklet.is_tracked:
-                tracklet_bbox, _, _ = self._update(tracklets[tracklet_index], det_bbox)
-            else:
-                tracklet_bbox = tracklet.bbox
-            tracklets[tracklet_index] = tracklet.update(tracklet_bbox, frame_index, state=TrackletState.ACTIVE)
-
-        # (8) Delete new unmatched and long lost tracklets
+        # (8) Delete new unmatched and long-lost tracklets
         tracklets_indices_to_delete: List[int] = []
         for tracklet_index in range(len(tracklets)):
             tracklet = tracklets[tracklet_index]
