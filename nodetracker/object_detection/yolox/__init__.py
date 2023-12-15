@@ -1,1 +1,1 @@
-from nodetracker.object_detection.yolox.core import YOLOXPredictor
+from nodetracker.object_detection.yolox.core import YOLOXPredictor, DEFAULT_EXP_PATH, DEFAULT_EXP_NAME

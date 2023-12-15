@@ -153,15 +153,21 @@ class YOLOXInference(ObjectDetectionInference):
         conf: float = 0.01,
         min_bbox_area: int = 0,
         cache_path: Optional[str] = None,
+        exp_path: Optional[str] = None,
+        exp_name: Optional[str] = None,
         legacy: bool = True
     ):
         super().__init__(dataset=dataset, lookup=lookup)
-        from nodetracker.object_detection.yolox import YOLOXPredictor
+        from nodetracker.object_detection.yolox import YOLOXPredictor, DEFAULT_EXP_PATH, DEFAULT_EXP_NAME
+        exp_path = exp_path if exp_path is not None else DEFAULT_EXP_PATH
+        exp_name = exp_name if exp_name is not None else DEFAULT_EXP_NAME
 
         self._yolox = YOLOXPredictor(
             checkpoint_path=model_path,
             accelerator=accelerator,
             conf_threshold=conf,
+            exp_path=exp_path,
+            exp_name=exp_name,
             legacy=legacy
         )
         self._conf = conf

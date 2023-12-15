@@ -73,7 +73,7 @@ class SortTracker(MotionBasedTracker):
             tracklet = tracklets[tracklet_index] if inplace else copy.deepcopy(tracklets[tracklet_index])
             det_bbox = detections[det_index] if inplace else copy.deepcopy(detections[det_index])
             tracklet_bbox, _, _ = self._update(tracklets[tracklet_index], det_bbox)
-            new_bbox = det_bbox if self._use_observation_if_lost and tracklet.state != TrackletState.ACTIVE \
+            new_bbox = det_bbox if self._use_observation_if_lost and tracklet.state == TrackletState.LOST \
                 else tracklet_bbox
             tracklets[tracklet_index] = tracklet.update(new_bbox, frame_index, state=TrackletState.ACTIVE)
 

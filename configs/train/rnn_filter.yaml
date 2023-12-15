@@ -1,5 +1,5 @@
 # experiment: 'RNNFilterModel-lasot-exp21-128dim-no-occ-no-oov-lasot-joat-augs-baseline-5-steps-ahead-wd-fixed-augs'
-experiment: 'RNNFilterModel-lasot-exp02-128dim-no-occ-no-oov-lasot-joat-augs-baseline-5-steps-ahead-wd-update-rnn'
+experiment: 'RNNFilterModel-LaSOT-exp01-DiffObs'
 description: 'RNNFilter like exp01 but with RNN update layer'
 batch_size: 256
 learning_rate: 1e-3

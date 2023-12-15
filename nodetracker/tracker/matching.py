@@ -494,7 +494,7 @@ class DCM(AssociationAlgorithm):
 
             prev_depth = depth
 
-        assert masks.any(axis=0).all(), f'Invalid Mask! Info:\n{masks=}\n{masks.any(axis=1)=}\n{depths_range=}\n{bottoms=}\n{bboxes}'
+        assert masks.any(axis=0).all(), f'Invalid Mask! Info:\n{masks=}\n{masks.any(axis=1)=}\n{depths_range=}\n{neg_bottoms=}\n{bboxes}'
         return masks
 
     def match(

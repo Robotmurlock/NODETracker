@@ -73,7 +73,7 @@ def main(cfg: DictConfig):
     logger.info(f'Visualizing tracker inference on path "{tracker_output_option}".')
 
     additional_params = cfg.dataset.additional_params
-    if cfg.dataset.name in ['DanceTrack', 'MOT20'] and cfg.eval.split == 'test':
+    if cfg.dataset.name in ['DanceTrack', 'MOT20', 'MOT17'] and cfg.eval.split == 'test':
         additional_params['test'] = True  # Skip labels parsing
 
     dataset = dataset_factory(

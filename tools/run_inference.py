@@ -25,6 +25,7 @@ from nodetracker.datasets import transforms, dataset_factory, TorchTrajectoryDat
 from nodetracker.datasets.utils import OdeDataloaderCollateFunctional
 from nodetracker.library.cv import BBox
 from nodetracker.node.odernn.node_filter import LightningNODEFilterModel
+from nodetracker.standard.rnn.rnn_filter import LightningRNNFilterModel
 from nodetracker.utils import pipeline
 from tools.utils import create_inference_model
 
@@ -81,8 +82,8 @@ def run_inference(
                 metadata[key] = metadata[key].to(accelerator)
 
         # FIXME: Improvisation
-        if isinstance(model, LightningNODEFilterModel):
-            output = model.inference(t_bboxes_obs, t_ts_obs, t_bboxes_unobs, t_ts_unobs)  # inference
+        if isinstance(model, (LightningNODEFilterModel, LightningRNNFilterModel)):
+            output = model.inference(t_bboxes_obs, t_ts_obs, t_bboxes_unobs, t_ts_unobs, mask_unobserved=False)  # inference
         else:
             output = model.inference(t_bboxes_obs, t_ts_obs, t_ts_unobs, metadata)  # inference
         # In case of multiple suffix values output (tuple) ignore everything except first output

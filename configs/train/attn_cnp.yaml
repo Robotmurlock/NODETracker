@@ -1,4 +1,4 @@
-experiment: 'BaselineAttnCNP-MOT17-exp21-256-h20f20-scale30-ScaledDiff-LessNoise-Bounded'
+experiment: 'BaselineAttnCNP-Dancetrack-exp22-256-scale10-RelObs-Bounded'
 description: 'Baseline AttnCNP, x160 (LaSOT optimal)'
 batch_size: 256
 max_epochs: 15

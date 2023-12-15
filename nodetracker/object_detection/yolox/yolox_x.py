@@ -34,5 +34,15 @@ class Exp(MyExp):
         self.warmup_epochs = 1
 
 
+class MOT20Exp(Exp):
+    """
+    Experiment class for YOLOX model for MOT20.
+    """
+    def __init__(self):
+        super(MOT20Exp).__init__()
+        self.input_size = (896, 1600)
+        self.test_size = (896, 1600)
+
+
 DEFAULT_EXP_PATH = __file__
 DEFAULT_EXP_NAME = Exp.__name__

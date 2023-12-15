@@ -33,6 +33,7 @@ def main(cfg: DictConfig):
 
     kf = BotSortKalmanFilter()
     total_iou = 0.0
+    total_last_iou = 0.0
     total_predictions = 0
     total_successful_matches = 0
     total_match_attempts = 0
@@ -61,10 +62,12 @@ def main(cfg: DictConfig):
             if j == bboxes_unobs.shape[0] - 1:
                 total_successful_matches += (1 if iou_score >= MR_THRESHOLD else 0)
                 total_match_attempts += 1
+                total_last_iou += iou_score
 
     accuracy = total_iou / total_predictions
     match_ratio = total_successful_matches / total_match_attempts
-    logger.info(f'KF Accuracy: {100 * accuracy:.2f}. Match ratio: {100 * match_ratio:.2f}')
+    accuracy_last = total_last_iou / total_match_attempts
+    logger.info(f'KF Accuracy[1-60]: {100 * accuracy:.2f}. KF Accuracy[60]: {100 * accuracy_last:.2f}, Match ratio[60, 35]: {100 * match_ratio:.2f}')
 
 
 if __name__ == '__main__':

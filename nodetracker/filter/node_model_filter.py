@@ -2,7 +2,7 @@
 Implementation of NODEFilter - Gaussian Model.
 """
 from dataclasses import dataclass
-from typing import Tuple, Optional
+from typing import Tuple, Optional, List
 
 import torch
 
@@ -225,19 +225,29 @@ class BufferedNodeModelFilter(StateModelFilter):
 
             return buffer, x_unobs_mean_hat[:, 0, :], x_unobs_std_hat[:, 0, :], z1_prior
 
+        ts_first = ts_obs[0, 0, 0]
+        ts_obs = ts_obs - ts_first + 1
+        ts_unobs = ts_unobs - ts_first + 1
+        t_obs_last, t_unobs_last = ts_obs[-1, 0, 0], ts_unobs[-1, 0, 0]
+        if self._recursive_inverse:
+            ts_unobs = torch.tensor(list(range(int(t_obs_last) + 1, int(t_unobs_last) + 1)), dtype=torch.float32).view(-1, 1, 1)
+
         t_x_obs, _, t_ts_obs, t_ts_unobs, *_ = self._transform.apply(data=[x_obs, None, ts_obs, ts_unobs, None], shallow=False)
         t_x_obs, t_ts_obs, t_ts_unobs = t_x_obs.to(self._accelerator), t_ts_obs.to(self._accelerator), t_ts_unobs.to(
             self._accelerator)
-        z0, t0 = self._model.core.encode_obs_trajectory(t_x_obs, t_ts_obs)
-        t_x_prior_mean, t_x_prior_log_var, z_prior = self._model.core.estimate_prior(z0, t0, t_ts_unobs[0])
-        t_x_prior_mean, t_x_prior_log_var, z_prior = \
-            t_x_prior_mean.detach().cpu(), t_x_prior_log_var.detach().cpu(), z_prior.detach().cpu()
-        t_x_prior_var = self._model.core.postprocess_log_var(t_x_prior_log_var)
-        t_x_prior_mean = t_x_prior_mean.unsqueeze(0)  # Adding temporal dimension before inverse transform
+        x_unobs_dummy = torch.zeros(1, 1, 4).to(self._accelerator)
+        t_x_prior_mean, t_x_prior_var, _, _, z_prior = \
+            self._model.forward(t_x_obs, t_ts_obs, x_unobs_dummy, t_ts_unobs, mask=[False for _ in range(ts_unobs.shape[0])])
+        x_unobs_dummy.detach().cpu()
+        t_x_prior_mean = t_x_prior_mean.detach().cpu()
+        t_x_prior_mean = t_x_prior_mean.detach().cpu()
+        z_prior = z_prior.detach().cpu()
+
         _, prior_mean, *_ = self._transform.inverse(data=[x_obs, t_x_prior_mean, None], shallow=False)
-        prior_mean = prior_mean[0]  # Removing temporal dimension after inverse transform
+
+        prior_mean = prior_mean[-1]  # Removing temporal dimension after inverse transform
         prior_var = self._transform.inverse_var(t_x_prior_var, additional_data=[x_obs, None], shallow=False)
-        prior_std = torch.sqrt(prior_var)
+        prior_std = torch.sqrt(prior_var)[0]
 
         return buffer, prior_mean, prior_std, z_prior
 
@@ -252,9 +262,22 @@ class BufferedNodeModelFilter(StateModelFilter):
     def update(self, state: State, measurement: torch.Tensor) -> State:
         buffer, _, _, z_prior = state
         x_obs, ts_obs, ts_unobs = buffer.get_input(1)
-        t_obs, t_unobs = ts_obs[0], ts_unobs[0]
 
-        _, t_measurement, *_ = self._transform.apply(data=[x_obs, measurement.view(1, 1, -1), t_obs, t_unobs, None], shallow=False)
+        if ts_obs.shape[0] == 1:
+            # Only one bbox in history - using baseline (propagate last bbox) instead of NN model
+            x_unobs_mean_hat = torch.stack([x_obs[-1].clone() for _ in range(ts_unobs.shape[0])]).to(ts_obs)
+            x_unobs_std_hat = 10 * torch.ones_like(x_unobs_mean_hat).to(ts_obs)
+
+            z0, _ = self._model.core.initialize(batch_size=1, device=self._accelerator)
+            t_obs, t_unobs = self._get_ts()
+            t_obs, t_unobs = t_obs.to(self._accelerator), t_unobs.to(self._accelerator)
+            _, _, z1_prior = self._model.core.estimate_prior(z0, t_obs, t_unobs)
+            z1_prior = z1_prior.detach().cpu()
+
+            buffer.push(measurement)
+            return buffer, x_unobs_mean_hat[0, 0, :], x_unobs_std_hat[0, 0, :], z1_prior
+
+        _, t_measurement, *_ = self._transform.apply(data=[x_obs, measurement.view(1, 1, -1), ts_obs, ts_unobs, None], shallow=False)
         t_measurement, z_prior = t_measurement[0].to(self._accelerator), z_prior.to(self._accelerator)
         z_evidence = self._model.core.encode_unobs(t_measurement)
         t_posterior_mean, t_posterior_log_var, z_posterior = self._model.core.estimate_posterior(z_prior, z_evidence)

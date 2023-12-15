@@ -7,4 +7,4 @@ params:
   bounded_variance: true
   bounded_value: 0.01
 
-  t_scale: 30.0
+  t_scale: 10.0
