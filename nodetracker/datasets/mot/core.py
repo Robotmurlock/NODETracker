@@ -24,6 +24,7 @@ from nodetracker.datasets.common.scene_info import BasicSceneInfo
 
 CATEGORY = 'pedestrian'
 N_IMG_DIGITS = 6
+OBJ_ID_SEP = '+'
 
 class LabelType(enum.Enum):
     DETECTION = 'det'
@@ -123,7 +124,7 @@ class MOTDataset(TrajectoryDataset):
 
     def parse_object_id(self, object_id: str) -> Tuple[str, str]:
         assert object_id in self._data_labels, f'Unknown object id "{object_id}".'
-        scene_name, scene_object_id = object_id.split('_')
+        scene_name, scene_object_id = object_id.split(OBJ_ID_SEP)
         return scene_name, scene_object_id
 
     def get_object_category(self, object_id: str) -> str:
@@ -319,7 +320,7 @@ class MOTDataset(TrajectoryDataset):
             df = df.iloc[:, :6]
             df.columns = ['frame_id', 'object_id', 'ymin', 'xmin', 'w', 'h']  # format: yxwh
             df['object_global_id'] = \
-                scene_name + '_' + df['object_id'].astype(str)  # object id is not unique over all scenes
+                scene_name + OBJ_ID_SEP + df['object_id'].astype(str)  # object id is not unique over all scenes
             df = df.drop(columns='object_id', axis=1)
             df = df.sort_values(by=['object_global_id', 'frame_id'])
             n_labels += df.shape[0]
@@ -421,7 +422,7 @@ class MOTDataset(TrajectoryDataset):
         expected_traj_len = self._history_len + self._future_len
         assert traj_len == self._history_len + self._future_len, f'Expected length {expected_traj_len} but got {traj_len}!'
 
-        scene_name = object_id.split('_')[0]
+        scene_name = object_id.split(OBJ_ID_SEP)[0]
         scene_info = self._scene_info_index[scene_name]
 
         # Metadata

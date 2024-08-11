@@ -52,7 +52,9 @@ def main(cfg: DictConfig):
     scene_names = [scene_name for scene_name in scene_names if re.match(cfg.tracker.scene_pattern, scene_name)]
 
     # Stats
-    BIN_SIZE = 15
+    BIN_SIZE = 16
+    LOST_THRESHOLD = 30
+    MIN_OCCLUSION_LENGTH = 5
     tp_refind, fp_refind, any_refind = Counter(), Counter(), Counter()
     fn_total = 0
 
@@ -105,12 +107,12 @@ def main(cfg: DictConfig):
                         gt_id = gt_tracklet_ids[gt_i]
 
                         # Check if there is a refind
-                        if pred_id in pred_last_frame_index and index - pred_last_frame_index[pred_id] > 1 \
+                        if pred_id in pred_last_frame_index and index - pred_last_frame_index[pred_id] >= MIN_OCCLUSION_LENGTH \
                                 and pred_id in pred_id_to_gt_id:
                             last_gt_id = pred_id_to_gt_id[pred_id]
                             time_diff = index - pred_last_frame_index[pred_id]
-                            group_id = time_diff // BIN_SIZE
-                            group_name = f'{group_id * BIN_SIZE}-{(group_id + 1) * BIN_SIZE - 1}'
+                            group_id = (time_diff - 1) // BIN_SIZE
+                            group_name = f'{group_id * BIN_SIZE + 1}-{(group_id + 1) * BIN_SIZE}'
 
                             any_refind[group_name] += 1
 
@@ -126,7 +128,7 @@ def main(cfg: DictConfig):
                     # Update state
                     gt_ids_to_delete: List[int] = []
                     for gt_id, last_frame_index in gt_last_frame_index.items():
-                        if index - last_frame_index >= 60:
+                        if index - last_frame_index >= LOST_THRESHOLD:
                             fn_total += 1
                             gt_ids_to_delete.append(gt_id)
 

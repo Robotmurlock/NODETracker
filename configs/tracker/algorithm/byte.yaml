@@ -1,11 +1,7 @@
 name: 'filter-sort-tracker'
 params:
-  filter_name: node_kalman
-  filter_params:
-    accelerator: 'cuda:0'
-    det_uncertainty_multiplier: 0.05
-    buffer_size: 10
-    buffer_min_size: 1
+  filter_name: akf
+  filter_params: {}
   remember_threshold: 30
   initialization_threshold: 3
   matcher_algorithm: byte

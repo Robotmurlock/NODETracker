@@ -1,6 +1,7 @@
 type: 'baseline-rnn-cnp'
 params:
   observable_dim: 4
+  # hidden_dim: 384
   hidden_dim: 256
   t_scale: 30.0
 

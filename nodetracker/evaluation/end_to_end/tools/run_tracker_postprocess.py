@@ -122,7 +122,7 @@ def main(cfg: DictConfig):
     tracker_postprocess_output = os.path.join(tracker_output, 'postprocess')
 
     additional_params = cfg.dataset.additional_params
-    if cfg.dataset.name in ['DanceTrack', 'MOT20'] and cfg.eval.split == 'test':
+    if cfg.dataset.name in ['DanceTrack', 'MOT20', 'SportsMOT'] and cfg.eval.split == 'test':
         additional_params['test'] = True  # Skip labels parsing
 
     dataset = dataset_factory(
@@ -179,7 +179,8 @@ def main(cfg: DictConfig):
                             keep = True
 
                         # (2) Linear interpolation
-                        if index not in tracklet_indices and min(tracklet_indices) <= index <= max(tracklet_indices):
+                        if index not in tracklet_indices and min(tracklet_indices) <= index <= max(tracklet_indices) \
+                                and tracklet_presence_counter[tracklet_id] >= cfg.tracker.postprocess.linear_interpolation_min_tracklet_length:
                             prev_index = find_closest_prev_element(index, tracklet_indices)
                             next_index = find_closest_next_element(index, tracklet_indices)
                             if next_index - prev_index > cfg.tracker.postprocess.linear_interpolation_threshold:

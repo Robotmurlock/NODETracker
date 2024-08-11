@@ -1,8 +1,10 @@
 name: 'sort'
 params:
-  remember_threshold: 1
+  filter_name: akf
+  filter_params: {}
+  remember_threshold: 30
   initialization_threshold: 3
-  no_motion: false
   matcher_algorithm: hungarian_iou
+  use_observation_if_lost: true
   matcher_params:
-    match_threshold: 0.3
+    match_threshold: 0.2

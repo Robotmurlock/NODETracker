@@ -1,0 +1,7 @@
+type: yolox
+params:
+  conf: 0.6
+  accelerator: cuda:0
+  model_path: /media/home/models/detection/sportsmot.pth.tar
+  cache_path: /media/home/cache/yolox/sportsmot
+  min_bbox_area: 100

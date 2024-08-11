@@ -1,4 +1,5 @@
-experiment: 'NODEFilterModel-MOT20-exp26-256-h30f60-DiffUnobs-FixedStats'
+# experiment: 'NODEFilterModel-SportsMOT-exp01-256-h30f60-RelUnobs'
+experiment: 'NODEFilterModel-dancetrack-exp08-128dim-bounded-variance-30f-256dim'
 description: 'NODEFilter baseline (256)'
 batch_size: 256
 max_epochs: 30

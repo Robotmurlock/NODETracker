@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import re
+import time
 from dataclasses import asdict
 from typing import List, Dict, Any
 
@@ -76,7 +77,7 @@ def main(cfg: DictConfig):
         lookup = LookupTable.deserialize(json.load(f))
 
     additional_params = cfg.dataset.additional_params
-    if cfg.dataset.name in ['DanceTrack', 'MOT20'] and cfg.eval.split == 'test':
+    if cfg.dataset.name in ['DanceTrack', 'MOT20', 'SportsMOT'] and cfg.eval.split == 'test':
         additional_params['test'] = True  # Skip labels parsing
 
     dataset = dataset_factory(
@@ -101,6 +102,10 @@ def main(cfg: DictConfig):
         experiment_path=experiment_path
     )
 
+    od_times = []
+    global_times = []
+    tracker_times = []
+
     scene_names = dataset.scenes
     scene_names = [scene_name for scene_name in scene_names if re.match(cfg.tracker.scene_pattern, scene_name)]
     for scene_name in tqdm(scene_names, desc='Simulating tracker', unit='scene'):
@@ -120,19 +125,25 @@ def main(cfg: DictConfig):
             tracklets: List[Tracklet] = []
             for index in tqdm(range(scene_length), desc=f'Simulating "{scene_name}"', unit='frame'):
                 # Perform OD inference
+                global_start_time = time.time()
                 inf_bboxes, inf_classes, inf_conf = od_inference.predict(
                     scene_name=scene_name,
                     frame_index=index
                 )
                 detection_bboxes = create_bbox_objects(inf_bboxes, inf_classes, inf_conf, clip=False)
                 detection_bboxes = [bbox for bbox in detection_bboxes if bbox.aspect_ratio <= 1.6]
+                od_times.append(time.time() - global_start_time)
 
                 # Perform tracking step
+                tracker_start_time = time.time()
                 active_tracklets, tracklets = tracker.track(
                     tracklets=tracklets,
                     detections=detection_bboxes,
                     frame_index=index + 1  # Counts from 1 instead of 0
                 )
+
+                global_times.append(time.time() - global_start_time)
+                tracker_times.append(time.time() - tracker_start_time)
 
                 # Save inference
                 for tracklet in active_tracklets:
@@ -140,6 +151,10 @@ def main(cfg: DictConfig):
 
                 for tracklet in tracklets:
                     tracker_all_inf_writer.write(index, tracklet)
+
+    print('AVG global FPS:', len(global_times) / sum(global_times))
+    print('AVG OD FPS:', len(global_times) / sum(global_times))
+    print('AVG tracker FPS:', len(tracker_times) / sum(tracker_times))
 
 
     # Save tracker config

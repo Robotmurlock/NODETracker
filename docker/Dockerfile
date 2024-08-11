@@ -27,7 +27,6 @@ RUN pip install -r /tmp/requirements.txt
 RUN apt-get install -y git
 RUN git clone https://github.com/Megvii-BaseDetection/YOLOX /YOLOX
 WORKDIR /YOLOX
-RUN apt-get install -y nvidia-container-toolkitYOLOX
 RUN pip3 install -v -e .  # or  python3 setup.py develop
 
 ENV PYTHONPATH="/node"

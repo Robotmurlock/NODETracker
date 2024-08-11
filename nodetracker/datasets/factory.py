@@ -11,6 +11,7 @@ DATASET_CATALOG = {
     'MOT17': MOTDataset,
     'MOT20': MOTDataset,
     'DanceTrack': MOTDataset,
+    'SportsMOT': MOTDataset,
     'LaSOT': LaSOTDataset
 }
 

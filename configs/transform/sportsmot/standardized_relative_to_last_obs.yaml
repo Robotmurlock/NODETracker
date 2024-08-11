@@ -1,0 +1,14 @@
+# All bbox coordinates are standardizes separately
+name: 'standardized_relative_to_last_obs'
+params:
+  # Acquired from analysis_tools/run_dataset_diff_stats.py
+  mean:
+  - 8.585845353081822e-05
+  - 0.00086908636149019
+  - 0.00014708061644341797
+  - 0.0004919619532302022
+  std:
+  - 0.07095923274755478
+  - 0.03217124938964844
+  - 0.0143790477886796
+  - 0.01792237162590027
