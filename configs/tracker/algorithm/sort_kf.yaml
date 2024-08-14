@@ -2,9 +2,9 @@ name: 'sort'
 params:
   filter_name: akf
   filter_params: {}
-  remember_threshold: 30
+  remember_threshold: 60
   initialization_threshold: 3
   matcher_algorithm: hungarian_iou
   use_observation_if_lost: true
   matcher_params:
-    match_threshold: 0.2
+    match_threshold: 0.05

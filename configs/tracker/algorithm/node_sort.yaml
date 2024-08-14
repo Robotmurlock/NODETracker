@@ -3,14 +3,15 @@ params:
   filter_name: buffered_node_model
   filter_params:
     accelerator: 'cuda:0'
-    buffer_size: 10
+    buffer_size: 30
     buffer_min_size: 1
-  remember_threshold: 30
+  remember_threshold: 60
   initialization_threshold: 3
-  new_tracklet_detection_threshold: 0.7  # MOT17
+  # new_tracklet_detection_threshold: 0.7  # MOT17
   matcher_algorithm: hungarian_iou_motion
   matcher_params:
-    match_threshold: 0.2
-    motion_lambda: 5
+    # match_threshold: 0.2
+    match_threshold: 0.05
+    motion_lambda: 10
     distance_name: 'l1'
     only_matched: false

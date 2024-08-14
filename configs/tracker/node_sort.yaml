@@ -1,5 +1,6 @@
 defaults:
-  - object_detection: mot17_yolox.yaml
+  # - object_detection: yolox.yaml
+  - object_detection: sportsmot_yolox.yaml
   - algorithm: node_sort.yaml
 
 lookup_path: '/media/home/DanceTrack/.lookup.json'

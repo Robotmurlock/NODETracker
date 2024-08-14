@@ -1,5 +1,6 @@
 # experiment: 'BaselineAttnCNP-SportsMOT-exp02-256-h30f60-RelUnobs'
-experiment: 'BaselineAttnCNP-dancetrack-exp04-256dim-wd'
+# experiment: 'BaselineAttnCNP-dancetrack-exp04-256dim-wd'
+experiment: 'BaselineAttnCNP-SportsMOT-exp02-256-h30f60-RelUnobs'
 description: 'Baseline AttnCNP, x160 (LaSOT optimal)'
 batch_size: 256
 max_epochs: 15

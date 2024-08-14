@@ -1,5 +1,6 @@
 # experiment: 'RNNODE-SportsMOT-exp01-256-h30f60-RelObs'
-experiment: 'RNNODE-dancetrack-exp02-256dim'
+# experiment: 'RNNODE-dancetrack-exp02-256dim'
+experiment: 'RNNODE-SportsMOT-exp01-256-h30f60-RelObs'
 description: 'RNNODE MOT17 baseline (optimal LaSOT), x256'
 batch_size: 256
 learning_rate: 1e-3

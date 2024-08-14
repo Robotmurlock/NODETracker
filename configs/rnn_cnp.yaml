@@ -1,9 +1,9 @@
 defaults:
   - resources: cuda.yaml
-#  - dataset: sportsmot/h30f60.yaml
-#  - transform: sportsmot/jack_of_all_trades_scaled.yaml
-  - dataset: dancetrack/default.yaml
-  - transform: dancetrack/standardized_relative_to_last_obs.yaml
+  - dataset: sportsmot/h30f60.yaml
+  - transform: sportsmot/standardized_relative_to_last_obs.yaml
+#  - dataset: dancetrack/default.yaml
+#  - transform: dancetrack/standardized_relative_to_last_obs.yaml
   - model: rnn_cnp.yaml
   - train: rnn_cnp.yaml
   - eval: default.yaml
@@ -11,6 +11,6 @@ defaults:
   - augmentations: less_noise.yaml
   - path: default.yaml
   - end_to_end: default.yaml
-  - tracker: rnnode_sort.yaml
-  # - tracker: sort_kf.yaml
+  # - tracker: rnnode_sort.yaml
+  - tracker: sort_kf.yaml
   - _self_
