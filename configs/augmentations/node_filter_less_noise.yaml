@@ -1,0 +1,25 @@
+before_transform_config:
+  _target_: nodetracker.datasets.augmentations.trajectory.CompositionAugmentation
+  augs:
+    - _target_: nodetracker.datasets.augmentations.trajectory.DetectorNoiseAugmentation
+      sigma: 0.05
+      proba: 0.15
+      unobs_noise: True
+    - _target_: nodetracker.datasets.augmentations.trajectory.DetectorNoiseAugmentation
+      sigma: 0.10
+      proba: 0.05
+      unobs_noise: True
+    - _target_: nodetracker.datasets.augmentations.trajectory.DetectorNoiseAugmentation
+      sigma: 0.25
+      proba: 0.01
+      unobs_noise: True
+after_transform_config: null
+after_batch_collate_config:
+  _target_: nodetracker.datasets.augmentations.trajectory.CompositionAugmentation
+  augs:
+    - _target_: nodetracker.datasets.augmentations.trajectory.RemoveRandomPointsTrajectoryAugmentation
+      min_length: 2
+      proba: 0.10
+    - _target_: nodetracker.datasets.augmentations.trajectory.ShortenTrajectoryAugmentation
+      min_length: 2
+      proba: 0.05

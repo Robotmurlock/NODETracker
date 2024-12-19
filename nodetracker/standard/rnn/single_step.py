@@ -86,6 +86,9 @@ class LightningSingleStepRNN(LightningGaussianModel):
         head_n_layers: int = 1,
         rnn_n_layers: int = 1,
 
+        bounded_variance: bool = False,
+        bounded_value: float = 0.01,
+
         model_gaussian: bool = False,
         transform_func: Optional[Union[InvertibleTransform, InvertibleTransformWithVariance]] = None,
 
@@ -109,7 +112,9 @@ class LightningSingleStepRNN(LightningGaussianModel):
             model=model,
             model_gaussian=model_gaussian,
             transform_func=transform_func,
-            log_epoch_metrics=log_epoch_metrics
+            log_epoch_metrics=log_epoch_metrics,
+            bounded_variance=bounded_variance,
+            bounded_value=bounded_value
         )
 
 

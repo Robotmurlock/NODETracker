@@ -2,13 +2,13 @@ type: rnn_filter
 params:
   observable_dim: 12
   output_dim: 4
-  latent_dim: 128
+  latent_dim: 256
 
-  n_rnn_layers: 2
   rnn_update_layer: True
+  scale: 10.0
 
   homogeneous: False
-  bounded_variance: False
+  bounded_variance: True
   augmentation_remove_points_enable: True
   augmentation_remove_random_points_proba: 0.05
   augmentation_remove_sequence_proba: 0.05

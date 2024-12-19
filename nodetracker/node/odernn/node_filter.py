@@ -153,8 +153,9 @@ class NODEFilterModel(nn.Module):
         return z0, t0
 
     def forward(self, x_obs: torch.Tensor, t_obs: torch.Tensor, x_unobs: torch.Tensor, t_unobs: torch.Tensor, mask: Optional[List[bool]] = None) \
-            -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+            -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         z0, t0 = self.encode_obs_trajectory(x_obs, t_obs)
+        z1 = None
 
         n_estimation_steps, _, _ = t_unobs.shape
         priors_mean, priors_log_var, posteriors_mean, posteriors_log_var = [], [], [], []
@@ -183,7 +184,8 @@ class NODEFilterModel(nn.Module):
             [(torch.stack(v) if len(v) > 0 else torch.empty(0, dtype=torch.float32))
              for v in [priors_mean, priors_log_var, posteriors_mean, posteriors_log_var]]
 
-        return priors_mean, priors_log_var, posteriors_mean, posteriors_log_var
+        assert z0 is not None
+        return priors_mean, priors_log_var, posteriors_mean, posteriors_log_var, z0
 
     def postprocess_log_var(self, x: torch.Tensor) -> torch.Tensor:
         if not self._bounded_variance:
@@ -267,7 +269,7 @@ class LightningNODEFilterModel(LightningModuleBase):
 
     def forward(self, x_obs: torch.Tensor, t_obs: torch.Tensor, x_unobs: torch.Tensor, t_unobs: torch.Tensor,
                 mask: Optional[List[bool]] = None, *args, **kwargs) \
-            -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+            -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         return self._model(x_obs, t_obs, x_unobs, t_unobs, mask=mask, *args, **kwargs)
 
     def inference(self, x_obs: torch.Tensor, t_obs: torch.Tensor, x_unobs: torch.Tensor, t_unobs: torch.Tensor,
@@ -286,7 +288,7 @@ class LightningNODEFilterModel(LightningModuleBase):
         Returns:
             Prior and posterior estimation for future trajectory
         """
-        mask = [False for _ in range(t_unobs.shape[0])]
+        mask = [mask_unobserved for _ in range(t_unobs.shape[0])]
         return self._model(x_obs, t_obs, x_unobs, t_unobs, mask=mask, *args, **kwargs)
 
     def _calc_loss_and_metrics(
@@ -416,7 +418,7 @@ class LightningNODEFilterModel(LightningModuleBase):
                     orig_bboxes_unobs_posterior = \
                         torch.cat([orig_bboxes_unobs_posterior[:start, :, :], orig_bboxes_unobs_posterior[end:n, :, :]], dim=0)
 
-        bboxes_prior_mean, bboxes_prior_log_var, bboxes_posterior_mean, bboxes_posterior_log_var = \
+        bboxes_prior_mean, bboxes_prior_log_var, bboxes_posterior_mean, bboxes_posterior_log_var, _ = \
             self.forward(bboxes_obs, ts_obs, bboxes_aug_unobs, ts_unobs, mask=mask)
 
         # noinspection PyTypeChecker
@@ -441,7 +443,7 @@ class LightningNODEFilterModel(LightningModuleBase):
     def validation_step(self, batch: Dict[str, Union[dict, torch.Tensor]], *args, **kwargs) -> torch.Tensor:
         bboxes_obs, bboxes_aug_unobs, ts_obs, ts_unobs, orig_bboxes_obs, orig_bboxes_unobs, bboxes_unobs, metadata = batch.values()
 
-        bboxes_prior_mean, bboxes_prior_log_var, bboxes_posterior_mean, bboxes_posterior_log_var = \
+        bboxes_prior_mean, bboxes_prior_log_var, bboxes_posterior_mean, bboxes_posterior_log_var, _ = \
             self.forward(bboxes_obs, ts_obs, bboxes_aug_unobs, ts_unobs)
 
         # noinspection PyTypeChecker

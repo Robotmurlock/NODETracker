@@ -1,7 +1,9 @@
-experiment: 'BaselineAttnCNP-lasot-exp14-with-augs-128dim-warmup-lower-lr-residuals-3layers-x160-bounded-variance'
-description: 'Baseline AttnCNP, x160, warmup 3 epochs, lr 1e-4, 6 scheduler steps'
+# experiment: 'BaselineAttnCNP-SportsMOT-exp02-256-h30f60-RelUnobs'
+# experiment: 'BaselineAttnCNP-dancetrack-exp04-256dim-wd'
+experiment: 'BaselineAttnCNP-SportsMOT-exp02-256-h30f60-RelUnobs'
+description: 'Baseline AttnCNP, x160 (LaSOT optimal)'
 batch_size: 256
-max_epochs: 30
+max_epochs: 15
 
 inverse_transform_before_loss: True
 gradient_clip_val: 100
@@ -13,7 +15,7 @@ train_params:
   n_warmup_epochs: 3
   sched_lr_gamma: 0.1
   sched_lr_step: 6
-  weight_decay: 0.0000
+  weight_decay: 1e-4
 
   loss_name: 'gaussian_nllloss'
   loss_params: {}

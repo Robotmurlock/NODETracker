@@ -1,0 +1,8 @@
+name: 'SportsMOT'
+path: 'SportsMOT/sportsmot_publish/nodemot'
+split_index_path: '${dataset.path}/.split_index.yaml'
+history_len: 30
+future_len: 30
+additional_params:
+  allow_missing_annotations: true
+  skip_corrupted: True

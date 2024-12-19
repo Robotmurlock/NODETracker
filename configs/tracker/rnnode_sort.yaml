@@ -1,0 +1,6 @@
+defaults:
+  - object_detection: yolov8.yaml
+  - algorithm: rnnode_sort.yaml
+
+lookup_path: '/media/home/DanceTrack/.lookup.json'
+output_path: 'tracker_inference'

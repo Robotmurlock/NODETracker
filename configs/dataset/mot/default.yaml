@@ -1,7 +1,0 @@
-name: 'MOT20'
-path: '${dataset.name}'
-split_index_path: '${dataset.name}/.split_index_3to1to4.yaml'
-history_len: 10 
-future_len: 5
-additional_params:
-  skip_corrupted: True

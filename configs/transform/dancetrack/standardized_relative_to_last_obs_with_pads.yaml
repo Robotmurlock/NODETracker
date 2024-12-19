@@ -1,0 +1,14 @@
+name: 'standardized_relative_to_last_obs_with_pad'
+params:
+  length: ${dataset.history_len}
+  # Acquired from analysis_tools/run_dataset_diff_stats.py
+  mean:
+    - 0.00010969798313453794
+    - -1.5658542906749062e-05
+    - 5.664653508574702e-05
+    - 7.218673272291198e-05
+  std:
+    - 0.021549083292484283
+    - 0.03144141659140587
+    - 0.022063350304961205
+    - 0.03079182840883732

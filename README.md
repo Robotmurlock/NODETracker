@@ -1,16 +1,44 @@
-# NODETracker
+# MoveSORT
+
+Official code for paper [Beyond Kalman Filters: Deep Learning-Based Filters for Improved Object Tracking](https://arxiv.org/abs/2402.09865), 
+i.e. **MoveSORT** tracker. Journal publication: [MVAA](https://link.springer.com/journal/138). Abstract:
+
+```text
+Traditional tracking-by-detection systems typically employ Kalman filters (KF) for state estimation. 
+However, the KF requires domain-specific design choices and it is ill-suited to handling non-linear motion patterns. 
+To address these limitations, we propose two innovative data-driven filtering methods. Our first method employs a Bayesian filter with a 
+trainable motion model to predict an object's future location and combines its predictions with observations gained from an object detector to 
+enhance bounding box prediction accuracy. Moreover, it dispenses with most domain-specific design choices characteristic of the KF. 
+The second method, an end-to-end trainable filter, goes a step further by learning to correct detector errors, further minimizing the need 
+for domain expertise. Additionally, we introduce a range of motion model architectures based on Recurrent Neural Networks, 
+Neural Ordinary Differential Equations, and Conditional Neural Processes, that are combined with the proposed filtering methods. 
+Our extensive evaluation across multiple datasets demonstrates that our proposed filters outperform the traditional KF in object tracking, 
+especially in the case of non-linear motion patterns -- the use case our filters are best suited to. We also conduct noise robustness analysis 
+of our filters with convincing positive results. We further propose a new cost function for associating observations with tracks. 
+Our tracker, which incorporates this new association cost with our proposed filters, outperforms the conventional SORT method and other motion-based 
+trackers in multi-object tracking according to multiple metrics on motion-rich DanceTrack and SportsMOT datasets. 
+```
+
+**Note**: Initial tracker name was `NODETracker` because of the `NODEFilter` motion model. However, MoveSORT
+offers a generalized framework for deep-learning based Bayesian and end-to-end filters. 
+
+## Filters
+
+Supported filter architectures/methods:
+- AR-RNN (AutoRegressive RNN, Bayesian filter)
+- ACNP (Attentive Conditional Neural Processes, Bayesian filter)
+- RNN-CNP (RNN Conditional Neural Processes, Bayesian filter)
+- RNN-ODE (RNN + Neural ODE, Bayesian filter)
+- RNNFilter (RNN-based end-to-end)
+- RNNFilter (Neural ODE end-to-end)
 
 ## Datasets
 
-Overview of all datasets.
-
-### MOT20
-
-**MOT20** is multi-object-tracking pedestrian tracking dataset. All scenes have static camera views. 
-Detailed dataset information can be found in the original [paper](https://arxiv.org/pdf/2003.09003.pdf).
-
-Dataset can be acquired [here](https://motchallenge.net/data/MOT20/) or
-by running the bash script `nodetracker/utility_tools/run_download_and_setup_mot20.sh` (recommended).
+Supported datasets: 
+- [MOT17](https://motchallenge.net/), 
+- [MOT20](https://motchallenge.net/), 
+- [DanceTrack](https://github.com/DanceTrack/DanceTrack), 
+- [SportsMOT](https://github.com/MCG-NJU/SportsMOT)
 
 ## Environment setup
 
@@ -23,20 +51,20 @@ All required packages can be found in `requirements.txt`:
 
 Alternative to python virtual environment is to just create a docker container. Build docker image:
 
-```
-docker build -t nodetracker-image .
+```bash
+docker-compose -f docker/docker-compose --env-file=.env build 
 ```
 
 Run a container:
 
+```bash
+docker-compose -f docker/docker-compose --env-file=.env up -d
 ```
-docker run -it \
-    -v {CODE_PATH}:/node \  # Link code
-    -v {ASSETS_PATH}:/media/home \  # Link datasets path
-    --gpus '"device={GPU_NUMBER}"' \  # Link GPU
-    --device /dev/nvidia1:/dev/nvidia1 \  # 
-    --name {NAME} \
-    nodetracker-image bash
+
+Container attach:
+
+```bash
+docker attach nodetracker-env
 ```
 
 ## Scripts
@@ -58,12 +86,17 @@ Configuration components:
 
 Every run of `tools` scripts saves the configuration in the logs directory.
 
-### Script tools
+### Training tools
 
 The current set of `tools` scripts is:
-- `run_train`: training;
-- `run_inference`: inference and evaluation;
-- `run_visualize`: inference visualization.
+- `python3 tools/run_train.py --config-path=<config_path> --config-name=<config_name>`: motion-model/filter training;
+- `python3 tools/run_inference.py --config-path=<config_path> --config-name=<config_name>`: filtering inference and evaluation;
+- `python3 tools/run_visualize.py --config-path=<config_path> --config-name=<config_name>`: filtering inference visualization.
+
+Set of scripts for tracker evaluation:
+- `python3 nodetracker/evaluation/end_to_end/tools/run_tracker_inference.py --config-path=<config_path> --config-name=<config_name>`, tracker inference
+- `python3 nodetracker/evaluation/end_to_end/tools/run_tracker_postprocess.py --config-path=<config_path> --config-name=<config_name>`, tracker postprocess (interpolation)
+- `python3 nodetracker/evaluation/end_to_end/tools/run_tracker_visualize_inference.py --config-path=<config_path> --config-name=<config_name>`, tracker inference visualization
 
 ### Generated data structure
 
@@ -84,10 +117,18 @@ All generated data is stored in `master_path` path which is configurable. Struct
         tensorboard_logs/*
 ```
 
-### Model Zoo
+## Citation
 
-Configurations for all models and links to model checkpoints can be found in `models` section.
+@article{movesort,
+  author = {Momir Adžemović and Predrag Tadić and Andrija Petrović and Mladen Nikolić},
+  title = {Beyond Kalman filters: deep learning-based filters for improved object tracking},
+  journal = {Machine Vision and Applications},
+  volume = {36},
+  number = {1},
+  pages = {20},
+  year = {2024},
+  doi = {10.1007/s00138-024-01644-x},
+  url = {https://doi.org/10.1007/s00138-024-01644-x},
+  issn = {1432-1769}
+}
 
-## Papers
-
-Published versions of paper can be found in `papers` section.

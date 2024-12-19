@@ -1,7 +1,7 @@
 """
 Implementation of NODEKalmanFilter - Gaussian Model.
 """
-from typing import Tuple
+from typing import Tuple, List, Optional
 
 import torch
 
@@ -24,8 +24,10 @@ class NODEKalmanFilter(StateModelFilter):
 
         buffer_size: int,
         buffer_min_size: int = 1,
+        buffer_min_history: int = 1,
         dtype: torch.dtype = torch.float32,
-        autoregressive: bool = False
+        autoregressive: bool = False,
+        recursive_inverse: bool = False
     ):
         self._model = model
         self._transform = transform
@@ -37,14 +39,18 @@ class NODEKalmanFilter(StateModelFilter):
 
         self._buffer_size = buffer_size
         self._buffer_min_size = buffer_min_size
+        self._buffer_min_history = buffer_min_history
         self._dtype = dtype
 
+        assert not autoregressive or not recursive_inverse
         self._autoregressive = autoregressive
+        self._recursive_inverse = recursive_inverse
 
     def initiate(self, measurement: torch.Tensor) -> State:
         buffer = ODETorchTensorBuffer(
             size=self._buffer_size,
             min_size=self._buffer_min_size,
+            min_history=self._buffer_min_history,
             dtype=self._dtype
         )
         buffer.push(measurement)
@@ -66,27 +72,78 @@ class NODEKalmanFilter(StateModelFilter):
             x_unobs_std_hat = 10 * torch.ones_like(x_unobs_mean_hat).to(ts_obs)
             return buffer, x_unobs_mean_hat[:, 0, :], x_unobs_std_hat[:, 0, :]
 
-        t_obs_last, t_unobs_lat = ts_obs[-1, 0, 0], ts_unobs[-1, 0, 0]
-        n_ar_steps = 1 if not self._autoregressive else int(t_unobs_lat - t_obs_last)
+        t_x_obs, _, t_ts_obs, t_ts_unobs, *_ = self._transform.apply(data=[x_obs, None, ts_obs, ts_unobs, None], shallow=False)
+        t_x_obs, t_ts_obs, t_ts_unobs = t_x_obs.to(self._accelerator), t_ts_obs.to(self._accelerator), t_ts_unobs.to(
+            self._accelerator)
+        # print('A-INPUT', t_x_obs)
+        t_x_unobs_mean_hat, t_x_unobs_std_hat, *_ = self._model.inference(t_x_obs, t_ts_obs, t_ts_unobs)
+        # print('A', t_x_unobs_std_hat)
+        # print('A', t_x_unobs_mean_hat)
+        t_x_unobs_mean_hat, t_x_unobs_std_hat = t_x_unobs_mean_hat.detach().cpu(), t_x_unobs_std_hat.detach().cpu()
+        # print('A-MEAN', t_x_unobs_mean_hat)
+        # print('A-STD', t_x_unobs_std_hat, end='\n\n')
+        _, prior_mean, *_ = self._transform.inverse(data=[x_obs, t_x_unobs_mean_hat, None], shallow=False)
+        prior_std = self._transform.inverse_std(t_x_unobs_std_hat, additional_data=[x_obs, None], shallow=False)
 
-        for i in range(n_ar_steps):
-            t_curr = int(t_obs_last) + i + 1
-            t_x_obs, _, t_ts_obs, t_ts_unobs, *_ = self._transform.apply(data=[x_obs, None, ts_obs, ts_unobs, None], shallow=False)
-            t_x_obs, t_ts_obs, t_ts_unobs = t_x_obs.to(self._accelerator), t_ts_obs.to(self._accelerator), t_ts_unobs.to(
-                self._accelerator)
-            t_x_unobs_mean_hat, t_x_unobs_std_hat, *_ = self._model.inference(t_x_obs, t_ts_obs, t_ts_unobs)
-            t_x_unobs_mean_hat, t_x_unobs_std_hat = t_x_unobs_mean_hat.detach().cpu(), t_x_unobs_std_hat.detach().cpu()
-            _, prior_mean, *_ = self._transform.inverse(data=[x_obs, t_x_unobs_mean_hat, None], shallow=False)
-            prior_std = self._transform.inverse_std(t_x_unobs_std_hat, additional_data=[x_obs, None], shallow=False)
-
-            x_obs = torch.cat([x_obs, prior_mean], dim=0)
-            ts_obs = torch.cat([ts_obs, torch.tensor([t_curr], dtype=self._dtype).view(1, 1, 1)])
-
-            prior_mean = prior_mean[:, 0, :]
-            prior_std = prior_std[:, 0, :]
+        prior_mean = prior_mean[-1:, 0, :]
+        prior_std = prior_std[-1:, 0, :]
 
         # noinspection PyUnboundLocalVariable
         return buffer, prior_mean, prior_std
+
+    def batch_predict(self, states: List[State]) -> List[State]:
+        buffers = [state[0] for state in states]
+        if any(not buffer.has_input for buffer in buffers):
+            raise BufferError('Buffer does not have an input!')
+
+        x_obs_list, ts_obs_list, ts_unobs_list = zip(*[buffer.get_input(1) for buffer in buffers])
+        results: List[Optional[Tuple[ODETorchTensorBuffer, torch.Tensor, torch.Tensor]]] = [None] * len(states)
+
+        other_indices = []
+        for i in range(len(states)):
+            if ts_obs_list[i].shape[0] == 1:
+                # Only one bbox in history - using baseline (propagate last bbox) instead of NN model
+                x_obs, ts_obs, ts_unobs = x_obs_list[i], ts_obs_list[i], ts_unobs_list[i]
+                x_unobs_mean_hat = torch.stack([x_obs[-1].clone() for _ in range(ts_unobs.shape[0])])
+                x_unobs_std_hat = 10 * torch.ones_like(x_unobs_mean_hat)
+                results[i] = buffers[i], x_unobs_mean_hat[0, 0, :], x_unobs_std_hat[0, 0, :]
+            else:
+                other_indices.append(i)
+
+        if len(other_indices) == 0:
+            return results
+
+        t_x_obs_list, t_ts_obs_list, t_ts_unobs_list = [], [], []
+        for i in other_indices:
+            x_obs, ts_obs, ts_unobs = x_obs_list[i], ts_obs_list[i], ts_unobs_list[i]
+            t_x_obs, _, t_ts_obs, t_ts_unobs, *_ = self._transform.apply(data=[x_obs, None, ts_obs, ts_unobs, None], shallow=False)
+            t_x_obs_list.append(t_x_obs)
+            t_ts_obs_list.append(t_ts_obs)
+            t_ts_unobs_list.append(t_ts_unobs)
+
+        # t_x_obs_list.append(torch.zeros_like(t_x_obs_list[-1]))
+        # t_ts_obs_list.append(torch.zeros_like(t_ts_obs_list[-1]))
+        # t_ts_unobs_list.append(torch.zeros_like(t_ts_unobs_list[-1]))
+        t_x_obs, t_ts_obs, t_ts_unobs = (torch.cat(t_x_obs_list, dim=1).to(self._accelerator),
+                                         torch.cat(t_ts_obs_list, dim=1).to(self._accelerator),
+                                         torch.cat(t_ts_unobs_list, dim=1).to(self._accelerator))
+        # print('B-INPUT', t_x_obs)
+        t_x_unobs_mean_hat, t_x_unobs_std_hat, *_ = self._model.inference(t_x_obs, t_ts_obs, t_ts_unobs)
+        # print('B-MEAN', t_x_unobs_mean_hat)
+        # print('B-STD', t_x_unobs_std_hat, end='\n\n')
+        # print('B', t_x_unobs_mean_hat)
+        # t_x_unobs_mean_hat, t_x_unobs_std_hat = t_x_unobs_mean_hat[:, :-1, :].detach().cpu(), t_x_unobs_std_hat[:, :-1, :].detach().cpu()
+        t_x_unobs_mean_hat, t_x_unobs_std_hat = t_x_unobs_mean_hat.detach().cpu(), t_x_unobs_std_hat.detach().cpu()
+
+        for ri, i in enumerate(other_indices):
+            x_obs = x_obs_list[i]
+            _, prior_mean, *_ = self._transform.inverse(data=[x_obs, t_x_unobs_mean_hat[:, ri:ri+1, :], None], shallow=False)
+            prior_std = self._transform.inverse_std(t_x_unobs_std_hat[:, ri:ri+1, :], additional_data=[x_obs, None], shallow=False)
+            # print('B', prior_std, end='\n\n')
+            results[i] = buffers[i], prior_mean[-1, 0, :], prior_std[-1, 0, :]
+
+        assert all(r is not None for r in results)
+        return results
 
     def predict(self, state: State) -> State:
         buffer, prior_mean, prior_std = self.multistep_predict(state, n_steps=1)
@@ -116,7 +173,7 @@ class NODEKalmanFilter(StateModelFilter):
 
         buffer.push(measurement)
 
-        return posterior_mean, posterior_std
+        return buffer, posterior_mean, posterior_std
 
     def missing(self, state: State) -> State:
         buffer, mean, std = state

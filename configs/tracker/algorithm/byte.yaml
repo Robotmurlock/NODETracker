@@ -1,0 +1,12 @@
+name: 'filter-sort-tracker'
+params:
+  filter_name: akf
+  filter_params: {}
+  remember_threshold: 30
+  initialization_threshold: 3
+  matcher_algorithm: byte
+  matcher_params:
+    detection_threshold: 0.6
+    match_threshold: 0.2
+
+  new_tracklet_detection_threshold: 0.7

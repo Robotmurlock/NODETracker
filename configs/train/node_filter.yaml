@@ -1,5 +1,7 @@
-experiment: 'NODEFilterModel-dancetrack-exp04-128dim-tuned-preprocess-bounded-variance'
-description: 'NODEFilter baseline (128) with tuned DanceTrack preprocess and bounded variance'
+# experiment: 'NODEFilterModel-SportsMOT-exp01-256-h30f60-RelUnobs'
+# experiment: 'NODEFilterModel-dancetrack-exp08-128dim-bounded-variance-30f-256dim'
+experiment: 'NODEFilterModel-SportsMOT-exp01-256-h30f60-RelUnobs'
+description: 'NODEFilter baseline (256)'
 batch_size: 256
 max_epochs: 30
 

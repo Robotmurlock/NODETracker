@@ -66,7 +66,7 @@ class AutoregressiveForecasterDecorator(nn.Module):
         return torch.cat(result)
 
     @torch.no_grad()
-    def inference(self, x: torch.Tensor, t_obs: torch.Tensor, t_unobs: Optional[torch.Tensor] = None) -> torch.Tensor:
+    def inference(self, x: torch.Tensor, t_obs: torch.Tensor, t_unobs: Optional[torch.Tensor] = None, metadata: Optional[dict] = None) -> torch.Tensor:
         """
         Alias for `forward` method.
 
@@ -78,7 +78,7 @@ class AutoregressiveForecasterDecorator(nn.Module):
         Returns:
             Model prediction
         """
-        return self(x, t_obs, t_unobs)
+        return self(x, t_obs, t_unobs, metadata=metadata)
 
 
 def run_test():

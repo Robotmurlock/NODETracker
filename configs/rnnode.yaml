@@ -1,12 +1,15 @@
 defaults:
   - resources: cuda.yaml
-  - dataset: lasot.yaml
-  - transform: lasot/jack_of_all_trades.yaml
+  - dataset: sportsmot/h30f60.yaml
+  - transform: sportsmot/jack_of_all_trades_scaled.yaml
+#  - dataset: dancetrack/default.yaml
+#  - transform: dancetrack/jack_of_all_trades_v2.yaml
   - model: rnnode.yaml
   - train: rnnode.yaml
   - eval: default.yaml
   - visualize: default.yaml
-  - augmentations: lasot/default.yaml
+  - augmentations: camera_movement_v2.yaml
   - path: lasot.yaml
   - end_to_end: default.yaml
+  - tracker: rnnode_sort.yaml
   - _self_

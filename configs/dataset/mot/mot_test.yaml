@@ -1,5 +1,0 @@
-name: 'MOT20'
-path: 'MOT20-Test'
-split_index_path: 'MOT20-Test/.split_index.yaml'
-history_len: 10
-future_len: 5

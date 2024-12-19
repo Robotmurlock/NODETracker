@@ -1,4 +1,0 @@
-name: 'standardized_first_difference'
-params:
-  mean: -8.65566333861711e-05  # Acquired from analysis_tools/run_dataset_diff_stats.py
-  std: 0.0009227107879355021

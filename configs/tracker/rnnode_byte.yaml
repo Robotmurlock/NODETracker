@@ -1,0 +1,6 @@
+defaults:
+  - object_detection: mot17_yolox_lower_conf.yaml
+  - algorithm: byte.yaml
+
+lookup_path: '/media/home/DanceTrack/.lookup.json'
+output_path: 'tracker_inference'

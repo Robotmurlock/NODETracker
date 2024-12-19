@@ -25,6 +25,7 @@ from nodetracker.datasets import transforms, dataset_factory, TorchTrajectoryDat
 from nodetracker.datasets.utils import OdeDataloaderCollateFunctional
 from nodetracker.library.cv import BBox
 from nodetracker.node.odernn.node_filter import LightningNODEFilterModel
+from nodetracker.standard.rnn.rnn_filter import LightningRNNFilterModel
 from nodetracker.utils import pipeline
 from tools.utils import create_inference_model
 
@@ -32,7 +33,8 @@ logger = logging.getLogger('InferenceScript')
 
 
 _CONFIG_SAVE_FILENAME = 'config-eval.yaml'
-_METRIC_NAMES = ['MSE', 'Accuracy']
+_METRIC_NAMES = ['MSE', 'Accuracy', 'MatchRatio']
+MR_THRESHOLD = 0.35
 
 
 @torch.no_grad()
@@ -80,8 +82,8 @@ def run_inference(
                 metadata[key] = metadata[key].to(accelerator)
 
         # FIXME: Improvisation
-        if isinstance(model, LightningNODEFilterModel):
-            output = model.inference(t_bboxes_obs, t_ts_obs, t_bboxes_unobs, t_ts_unobs)  # inference
+        if isinstance(model, (LightningNODEFilterModel, LightningRNNFilterModel)):
+            output = model.inference(t_bboxes_obs, t_ts_obs, t_bboxes_unobs, t_ts_unobs, mask_unobserved=False)  # inference
         else:
             output = model.inference(t_bboxes_obs, t_ts_obs, t_ts_unobs, metadata)  # inference
         # In case of multiple suffix values output (tuple) ignore everything except first output
@@ -101,6 +103,7 @@ def run_inference(
             sample_id = [scene_name, object_id, frame_range]
 
             iou_scores = []
+            last_iou_score = None
             # Save sample predictions (inference) with gt values
             # format: ymin, xmin, w, h
             for frame_relative_index in range(curr_unobs_time_len):
@@ -126,18 +129,21 @@ def run_inference(
                 bbox_pred = BBox.from_xyhw(*[bboxes_unobs_pred_list[ind] for ind in xyhw_indices], clip=True)
                 iou_score = bbox_gt.iou(bbox_pred)
                 iou_scores.append(iou_score)
+                last_iou_score = iou_score
                 dataset_metrics[f'Accuracy-{frame_relative_index+1}'].append(iou_score)
 
             # Save sample eval metrics
             # format: mse
             mse_val = mse_func(bboxes_unobs, bboxes_unobs_hat).detach().item()
             avg_iou_score = sum(iou_scores) / len(iou_scores)
-            s_metrics = sample_id + [mse_val, avg_iou_score]
+            match_ratio = (1.0 if last_iou_score >= MR_THRESHOLD else 0.0)
+            s_metrics = sample_id + [mse_val, avg_iou_score, match_ratio]
             sample_metrics.append(s_metrics)
 
             # Save sample eval metrics for aggregation
             dataset_metrics['MSE'].append(mse_val)
             dataset_metrics['Accuracy'].append(avg_iou_score)
+            dataset_metrics['MatchRatio'].append(match_ratio)
 
         batch_cnt += 1
         if batch_cnt >= n_batch_steps:

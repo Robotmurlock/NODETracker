@@ -19,7 +19,8 @@ class RNNMultiStepModule(nn.Module):
     def __init__(
         self,
         latent_dim: int,
-        n_rnn_layers: int = 1
+        n_rnn_layers: int = 1,
+        scale: float = 5.0
     ):
         """
         Args:
@@ -30,9 +31,10 @@ class RNNMultiStepModule(nn.Module):
 
         self._latent_dim = latent_dim
         self._n_rnn_layers = n_rnn_layers
+        self._scale = scale
 
         self._rnn = nn.GRU(
-            input_size=latent_dim,
+            input_size=1,
             hidden_size=latent_dim,
             num_layers=n_rnn_layers,
             batch_first=False
@@ -40,15 +42,13 @@ class RNNMultiStepModule(nn.Module):
 
     def forward(self, z: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
         n_steps = round(float(t[0, 0, 0]))
-        batch_size = z.shape[0]
 
-        prev_h = torch.zeros(self._n_rnn_layers, batch_size, self._latent_dim, dtype=torch.float32).to(z).requires_grad_()
-        for _ in range(n_steps):
-            z = z.unsqueeze(0)
-            z, prev_h = self._rnn(z, prev_h.detach())
-            z = z[-1]
+        z = z.unsqueeze(0)
+        for t_i in range(1, n_steps + 1):
+            t_i = torch.tensor([t_i], dtype=torch.float32).view(1, 1, 1).repeat(1, z.shape[1], 1).to(z)
+            _, z = self._rnn(t_i, z)
 
-        return z
+        return z[-1]
 
 
 class RNNFilterModel(nn.Module):
@@ -65,10 +65,11 @@ class RNNFilterModel(nn.Module):
         bounded_variance: bool = False,
         rnn_update_layer: bool = False,
 
-        n_rnn_layers: int = 2,
-        n_update_layers: int = 2,
+        n_rnn_layers: int = 1,
+        n_update_layers: int = 1,
         n_head_mlp_layers: int = 2,
-        n_obs2latent_mlp_layers: int = 1
+        n_obs2latent_mlp_layers: int = 1,
+        scale: float = 5.0
     ):
         super().__init__()
         self._bounded_variance = bounded_variance
@@ -80,7 +81,8 @@ class RNNFilterModel(nn.Module):
 
         self._rnn = RNNMultiStepModule(
             latent_dim=latent_dim,
-            n_rnn_layers=n_rnn_layers
+            n_rnn_layers=n_rnn_layers,
+            scale=scale
         )
 
         self._prior_head_mean = nn.Sequential(
@@ -186,7 +188,7 @@ class RNNFilterModel(nn.Module):
         return z0, t0
 
     def forward(self, x_obs: torch.Tensor, t_obs: torch.Tensor, x_unobs: torch.Tensor, t_unobs: torch.Tensor, mask: Optional[List[bool]] = None) \
-            -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+            -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         z0, t0 = self.encode_obs_trajectory(x_obs, t_obs)
 
         n_estimation_steps, _, _ = t_unobs.shape
@@ -213,9 +215,11 @@ class RNNFilterModel(nn.Module):
             priors_log_var.append(x1_prior_log_var)
 
         priors_mean, priors_log_var, posteriors_mean, posteriors_log_var = \
-            [torch.stack(v) for v in [priors_mean, priors_log_var, posteriors_mean, posteriors_log_var]]
+            [(torch.stack(v) if len(v) > 0 else torch.empty(0, dtype=torch.float32))
+             for v in [priors_mean, priors_log_var, posteriors_mean, posteriors_log_var]]
 
-        return priors_mean, priors_log_var, posteriors_mean, posteriors_log_var
+        assert z0 is not None
+        return priors_mean, priors_log_var, posteriors_mean, posteriors_log_var, z0
 
     def postprocess_log_var(self, x: torch.Tensor) -> torch.Tensor:
         if not self._bounded_variance:
@@ -240,12 +244,12 @@ class LightningRNNFilterModel(LightningModuleBase):
 
         transform_func: Optional[Union[InvertibleTransform, InvertibleTransformWithVariance]] = None,
 
-        n_rnn_layers: int = 2,
-        n_update_layers: int = 2,
+        n_rnn_layers: int = 1,
+        n_update_layers: int = 1,
         n_head_mlp_layers: int = 2,
         n_obs2latent_mlp_layers: int = 1,
+        scale: float = 5.0,
 
-        # FIXME: Refactor - move augmentation from collate to trainer in order to support this case!
         augmentation_remove_points_enable: bool = False,
         augmentation_remove_random_points_proba: float = 0.15,
         augmentation_remove_sequence_proba: float = 0.15,
@@ -268,7 +272,8 @@ class LightningRNNFilterModel(LightningModuleBase):
             n_rnn_layers=n_rnn_layers,
             n_update_layers=n_update_layers,
             n_head_mlp_layers=n_head_mlp_layers,
-            n_obs2latent_mlp_layers=n_obs2latent_mlp_layers
+            n_obs2latent_mlp_layers=n_obs2latent_mlp_layers,
+            scale=scale
         )
 
         self._augmentation_remove_points_enable = augmentation_remove_points_enable
@@ -293,10 +298,10 @@ class LightningRNNFilterModel(LightningModuleBase):
 
     def forward(self, x_obs: torch.Tensor, t_obs: torch.Tensor, x_unobs: torch.Tensor, t_unobs: torch.Tensor,
                 mask: Optional[List[bool]] = None, *args, **kwargs) \
-            -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+            -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         return self._model(x_obs, t_obs, x_unobs, t_unobs, mask=mask, *args, **kwargs)
 
-    def inference(self, x_obs: torch.Tensor, t_obs: torch.Tensor, x_unobs: torch.Tensor, t_unobs: torch.Tensor, *args, **kwargs) \
+    def inference(self, x_obs: torch.Tensor, t_obs: torch.Tensor, x_unobs: torch.Tensor, t_unobs: torch.Tensor, mask_unobserved: bool = False, *args, **kwargs) \
             -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Inference (alias for forward)
@@ -310,7 +315,8 @@ class LightningRNNFilterModel(LightningModuleBase):
         Returns:
             Prior and posterior estimation for future trajectory
         """
-        return self._model(x_obs, t_obs, x_unobs, t_unobs, *args, **kwargs)
+        mask = [mask_unobserved for _ in range(t_unobs.shape[0])]
+        return self._model(x_obs, t_obs, x_unobs, t_unobs, mask=mask, *args, **kwargs)
 
     def _calc_loss_and_metrics(
         self,
@@ -439,7 +445,7 @@ class LightningRNNFilterModel(LightningModuleBase):
                     orig_bboxes_unobs_posterior = \
                         torch.cat([orig_bboxes_unobs_posterior[:start, :, :], orig_bboxes_unobs_posterior[end:n, :, :]], dim=0)
 
-        bboxes_prior_mean, bboxes_prior_log_var, bboxes_posterior_mean, bboxes_posterior_log_var = \
+        bboxes_prior_mean, bboxes_prior_log_var, bboxes_posterior_mean, bboxes_posterior_log_var, _ = \
             self.forward(bboxes_obs, ts_obs, bboxes_aug_unobs, ts_unobs, mask=mask)
 
         # noinspection PyTypeChecker
@@ -463,7 +469,7 @@ class LightningRNNFilterModel(LightningModuleBase):
     def validation_step(self, batch: Dict[str, Union[dict, torch.Tensor]], *args, **kwargs) -> torch.Tensor:
         bboxes_obs, bboxes_aug_unobs, ts_obs, ts_unobs, orig_bboxes_obs, orig_bboxes_unobs, bboxes_unobs, metadata = batch.values()
 
-        bboxes_prior_mean, bboxes_prior_log_var, bboxes_posterior_mean, bboxes_posterior_log_var = \
+        bboxes_prior_mean, bboxes_prior_log_var, bboxes_posterior_mean, bboxes_posterior_log_var, _ = \
             self.forward(bboxes_obs, ts_obs, bboxes_aug_unobs, ts_unobs)
 
         # noinspection PyTypeChecker

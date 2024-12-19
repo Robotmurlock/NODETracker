@@ -7,10 +7,11 @@ from nodetracker.datasets.lasot.core import LaSOTDataset
 from nodetracker.datasets.mot.core import MOTDataset
 from nodetracker.datasets.torch import TrajectoryDataset
 
-
 DATASET_CATALOG = {
+    'MOT17': MOTDataset,
     'MOT20': MOTDataset,
     'DanceTrack': MOTDataset,
+    'SportsMOT': MOTDataset,
     'LaSOT': LaSOTDataset
 }
 

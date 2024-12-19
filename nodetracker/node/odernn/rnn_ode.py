@@ -57,8 +57,10 @@ class RNNODE(nn.Module):
             n_mlp_layers=n_decoder_mlp_layers
         )
 
-    def forward(self, x: torch.Tensor, t_obs: torch.Tensor, t_unobs: Optional[torch.Tensor] = None) \
+    def forward(self, x: torch.Tensor, t_obs: torch.Tensor, t_unobs: Optional[torch.Tensor] = None, metadata: Optional[dict] = None) \
             -> Tuple[torch.Tensor, torch.Tensor]:
+        _ = metadata  # (ignored)
+
         z0 = self._encoder(x, t_obs)
         z0 = z0[-1]  # Removing temporal dim
         t_last = t_obs[-1, :, :]
@@ -90,6 +92,9 @@ class LightningRNNODE(LightningGaussianModel):
         decoder_solver_name: Optional[str] = None,
         decoder_solver_params: Optional[dict] = None,
 
+        bounded_variance: bool = False,
+        bounded_value: float = 0.01,
+
         train_config: Optional[LightningTrainConfig] = None,
         log_epoch_metrics: bool = True
     ):
@@ -114,7 +119,9 @@ class LightningRNNODE(LightningGaussianModel):
             model=model,
             model_gaussian=model_gaussian,
             transform_func=transform_func,
-            log_epoch_metrics=log_epoch_metrics
+            log_epoch_metrics=log_epoch_metrics,
+            bounded_variance=bounded_variance,
+            bounded_value=bounded_value
         )
 
 

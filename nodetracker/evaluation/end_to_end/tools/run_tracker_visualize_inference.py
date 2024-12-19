@@ -3,6 +3,8 @@ Tracker inference visualization.
 """
 import logging
 import os
+import re
+from collections import Counter
 
 import cv2
 import hydra
@@ -10,23 +12,18 @@ import numpy as np
 import torch
 from omegaconf import DictConfig
 from tqdm import tqdm
-from collections import Counter
 
 from nodetracker.common.project import CONFIGS_PATH
 from nodetracker.datasets.factory import dataset_factory
 from nodetracker.evaluation.end_to_end.config import TrackerGlobalConfig
 from nodetracker.evaluation.end_to_end.tracker_utils import TrackerInferenceReader
+from nodetracker.library.cv import color_palette
 from nodetracker.library.cv.bbox import PredBBox, BBox
 from nodetracker.library.cv.drawing import draw_text
-from nodetracker.library.cv import color_palette
 from nodetracker.library.cv.video_writer import MP4Writer
 from nodetracker.utils import pipeline
 
-
 logger = logging.getLogger('TrackerVizualization')
-
-
-NEW_OBJECT_LEN = 5  # Number of frames for which the object is considered `new`
 
 
 def draw_tracklet(
@@ -34,7 +31,8 @@ def draw_tracklet(
     tracklet_id: str,
     tracklet_age: int,
     bbox: PredBBox,
-    color = color_palette.RED
+    new: bool = False,
+    active: bool = True
 ) -> np.ndarray:
     """
     Draw tracklet on the frame.
@@ -44,26 +42,39 @@ def draw_tracklet(
         tracklet_id: Tracklet id
         tracklet_age: How long does the tracklet exist
         bbox: BBox
-        color: Bbox color
+        new: Is the tracking object new (new id)
+            - New object has thick bbox
+        active: Is tracklet active or not
 
     Returns:
         Frame with drawn tracklet info
     """
-    frame = BBox.draw(bbox, frame, color=color)
+    color = color_palette.ALL_COLORS_EXPECT_BLACK[int(tracklet_id) % len(color_palette.ALL_COLORS_EXPECT_BLACK)] \
+        if active else color_palette.BLACK
+    thickness = 5 if new else 2
+    frame = BBox.draw(bbox, frame, color=color, thickness=thickness)
     left, top, _, _ = bbox.scaled_yxyx_from_image(frame)
-    text = f'[{tracklet_id} ({tracklet_age})] {bbox.label} ({100 * bbox.conf:.0f}%)'
+    text = f'id={tracklet_id}, age={tracklet_age}, conf={100 * bbox.conf:.0f}%'
     return draw_text(frame, text, round(left), round(top), color=color)
 
 
 @torch.no_grad()
 @hydra.main(config_path=CONFIGS_PATH, config_name='default', version_base='1.1')
 def main(cfg: DictConfig):
-    cfg, experiment_path = pipeline.preprocess(cfg, name='tracker_visualization', cls=TrackerGlobalConfig)
+    cfg, experiment_path = pipeline.preprocess(cfg, name='tracker_postprocess', cls=TrackerGlobalConfig)
     cfg: TrackerGlobalConfig
+    tracker_name = cfg.tracker.algorithm.name + (f'_{cfg.tracker.suffix}' if cfg.tracker.suffix is not None else '')
     tracker_output = os.path.join(experiment_path, cfg.tracker.output_path, cfg.eval.split,
-                                  cfg.tracker.object_detection.type, cfg.tracker.algorithm.name)
-    assert os.path.exists(tracker_output), f'Path "{tracker_output}" does not exist!'
-    logger.info(f'Visualizing tracker inference on path "{tracker_output}".')
+                                  cfg.tracker.object_detection.type, tracker_name)
+    tracker_output_option = os.path.join(tracker_output, cfg.tracker.visualize.option)
+    tracker_output_active = os.path.join(tracker_output, 'active')
+    assert os.path.exists(tracker_output_option), f'Path "{tracker_output_option}" does not exist!'
+    assert os.path.exists(tracker_output_active), f'Path "{tracker_output_active}" does not exist!'
+    logger.info(f'Visualizing tracker inference on path "{tracker_output_option}".')
+
+    additional_params = cfg.dataset.additional_params
+    if cfg.dataset.name in ['DanceTrack', 'MOT20', 'MOT17'] and cfg.eval.split == 'test':
+        additional_params['test'] = True  # Skip labels parsing
 
     dataset = dataset_factory(
         name=cfg.dataset.name,
@@ -71,18 +82,29 @@ def main(cfg: DictConfig):
         history_len=1,  # Not relevant
         future_len=1,  # not relevant
         sequence_list=cfg.dataset.split_index[cfg.eval.split],
-        additional_params=cfg.dataset.additional_params
+        additional_params=additional_params
     )
 
     scene_names = dataset.scenes
+    scene_names = [scene_name for scene_name in scene_names if re.match(cfg.tracker.scene_pattern, scene_name)]
     for scene_name in tqdm(scene_names, desc='Visualizing tracker', unit='scene'):
         scene_info = dataset.get_scene_info(scene_name)
         scene_length = scene_info.seqlength
         imheight = scene_info.imheight
         imwidth = scene_info.imwidth
 
-        scene_video_path = os.path.join(tracker_output, f'{scene_name}.mp4')
-        with TrackerInferenceReader(tracker_output, scene_name, image_height=imheight, image_width=imwidth) as tracker_inf_reader, \
+        active_bboxes = set()
+        with TrackerInferenceReader(tracker_output_active, scene_name, image_height=imheight, image_width=imwidth) as tracker_inf_reader:
+            for _ in tqdm(range(scene_length), desc=f'Preprocessing "{scene_name}"', unit='frame'):
+                read = tracker_inf_reader.read()
+                if read is None:
+                    continue
+
+                for tracklet_id in read.objects.keys():
+                    active_bboxes.add((tracklet_id, read.frame_index))
+
+        scene_video_path = os.path.join(tracker_output_option, f'{scene_name}.mp4')
+        with TrackerInferenceReader(tracker_output_option, scene_name, image_height=imheight, image_width=imwidth) as tracker_inf_reader, \
             MP4Writer(scene_video_path, fps=cfg.tracker.visualize.fps) as mp4_writer:
             last_read = tracker_inf_reader.read()
             tracklet_presence_counter = Counter()  # Used to visualize new, appearing tracklets
@@ -101,7 +123,8 @@ def main(cfg: DictConfig):
                             tracklet_id=tracklet_id,
                             tracklet_age=tracklet_presence_counter[tracklet_id],
                             bbox=bbox,
-                            color=color_palette.GREEN if tracklet_presence_counter[tracklet_id] <= NEW_OBJECT_LEN else color_palette.RED
+                            new=tracklet_presence_counter[tracklet_id] <= cfg.tracker.visualize.new_object_length,
+                            active=(tracklet_id, index) in active_bboxes
                         )
 
                     last_read = tracker_inf_reader.read()

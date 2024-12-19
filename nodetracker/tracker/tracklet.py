@@ -4,11 +4,18 @@ Tracklet Dataclass.
 from multiprocessing import Value, Lock
 from typing import Tuple, ClassVar, Optional, List
 from nodetracker.library.cv.bbox import PredBBox
+import enum
 
 
 _TRACKLET_DEFAULT_MAX_HISTORY = 8
 
 TrackletHistoryType = List[Tuple[int, PredBBox]]
+
+
+class TrackletState(enum.Enum):
+    NEW = enum.auto()
+    ACTIVE = enum.auto()
+    LOST = enum.auto
 
 
 class Tracklet:
@@ -23,7 +30,8 @@ class Tracklet:
         bbox: PredBBox,
         frame_index: int,
         max_history: int = _TRACKLET_DEFAULT_MAX_HISTORY,
-        _id: Optional[int] = None
+        _id: Optional[int] = None,
+        state: TrackletState = TrackletState.NEW
     ):
         """
         Initializes new tracklet.
@@ -33,6 +41,7 @@ class Tracklet:
             frame_index: Frame index when tracklet was created
             max_history: Max tracklet history (old data is deleted)
             _id: Set tracklet if explicitly
+            state: Initial state
 
         Returns:
             Initialized tracklet
@@ -48,13 +57,68 @@ class Tracklet:
         bbox.id = self._id
 
         self._max_history = max_history
+        self._start_frame_index = frame_index
 
         # State
         self._history: TrackletHistoryType = [(frame_index, bbox)]
         self._total_matches = 1
+        self._state = state
+
+    def __repr__(self) -> str:
+        return f'Tracklet(id={self._id}, bbox={self.bbox}, state={self._state})'
 
     def __hash__(self) -> int:
         return self._id
+
+    @property
+    def state(self) -> TrackletState:
+        """
+        Gets tracklet state.
+
+        Returns:
+            Tracklets state.
+        """
+        return self._state
+
+    @state.setter
+    def state(self, new_state: TrackletState) -> None:
+        """
+        Sets tracklet state.
+
+        Args:
+            new_state: New tracklet state
+        """
+        self._state = new_state
+
+    @property
+    def is_tracked(self) -> bool:
+        """
+        Checks if tracklet is being tracked.
+
+        Returns:
+            True if tracklets is tracked else False
+        """
+        return self._state in [TrackletState.ACTIVE, TrackletState.LOST]
+
+    @property
+    def start_frame_index(self) -> int:
+        """
+        Gets frame when the Tracklet was initialized.
+
+        Returns:
+            Tracklet first frame.
+        """
+        return self._start_frame_index
+
+    @property
+    def age(self) -> int:
+        """
+        Gets tracklet age.
+
+        Returns:
+            Tracklet age
+        """
+        return self.frame_index - self._start_frame_index
 
     def number_of_unmatched_frames(self, current_frame_index: int) -> int:
         """
@@ -149,7 +213,7 @@ class Tracklet:
         """
         return len(self._history)
 
-    def update(self, bbox: PredBBox, frame_index: int, matched: bool = True) -> 'Tracklet':
+    def update(self, bbox: PredBBox, frame_index: int, state: Optional[TrackletState] = None) -> 'Tracklet':
         """
         Updates tracklet BBox (and history).
         Disclaimer: Updates bbox id!
@@ -157,7 +221,7 @@ class Tracklet:
         Args:
             bbox: New bbox
             frame_index: Current frame index
-            matched: Is tracklet matched or not (updates counter if matched)
+            state: New tracklet state
         """
         bbox.id = self._id  # Update bbox id
 
@@ -167,7 +231,10 @@ class Tracklet:
 
         self._history.append((frame_index, bbox))
 
-        if matched:
+        if state is not None:
+            self._state = state
+
+        if self._state == TrackletState.ACTIVE:
             self._total_matches += 1
 
         return self

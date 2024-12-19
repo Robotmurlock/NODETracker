@@ -43,8 +43,8 @@ class ResNetEncoder(nn.Module):
             n_bottleneck_layers=n_resnet_bottleneck_layers
         )
 
-    def forward(self, x: torch.Tensor, t_obs: torch.Tensor, t_unobs: Optional[torch.Tensor] = None) -> torch.Tensor:
-        _ = t_unobs  # Unused
+    def forward(self, x: torch.Tensor, t_obs: torch.Tensor, t_unobs: Optional[torch.Tensor] = None, metadata: Optional[dict] = None) -> torch.Tensor:
+        _, _ = t_unobs, metadata  # Unused
 
         # Add relative time points to input data
         xt = torch.cat([x, t_obs], dim=-1)

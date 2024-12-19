@@ -1,0 +1,8 @@
+name: 'MOT20'
+path: '${dataset.name}'
+split_index_path: '${dataset.name}/.split_index.yaml'
+history_len: 10 
+future_len: 30
+additional_params:
+  skip_corrupted: True
+  allow_missing_annotations: true

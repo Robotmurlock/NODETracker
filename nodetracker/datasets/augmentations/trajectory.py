@@ -191,7 +191,7 @@ def remove_points(xs: List[torch.Tensor], min_length: int) -> Tuple[List[torch.T
     points_to_remove = random.sample(all_point_indices, k=n_points_to_remove)
     points_to_keep = [point for point in all_point_indices if point not in points_to_remove]
 
-    return [x[points_to_keep, :, :] for x in xs], points_to_remove, points_to_keep
+    return [x[points_to_keep] for x in xs], points_to_remove, points_to_keep
 
 
 class RemoveRandomPointsTrajectoryAugmentation(NonDeterministicAugmentation):
@@ -232,6 +232,29 @@ class RemoveRandomPointsUnobservedTrajectoryAugmentation(NonDeterministicAugment
     def _apply(self, x_obs: torch.Tensor, x_unobs: torch.Tensor, t_obs: torch.Tensor, t_unobs: torch.Tensor) \
             -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         (x_unobs, t_unobs), _, _ = remove_points([x_unobs, t_unobs], self._min_length)
+        return x_obs, x_unobs, t_obs, t_unobs
+
+
+class CameraMovementAugmentation(NonDeterministicAugmentation):
+    def __init__(self, max_magnitude: float, proba: float):
+        super().__init__(proba=proba)
+        self._max_magnitude = max_magnitude
+
+    def _apply(self, x_obs: torch.Tensor, x_unobs: torch.Tensor, t_obs: torch.Tensor, t_unobs: torch.Tensor) \
+        -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+
+        angle = torch.tensor(random.uniform(-0.95, 0.95) * torch.pi, dtype=torch.float32)
+        m = torch.tensor(random.uniform(-1, 1) * self._max_magnitude)
+        n_obs_steps, n_unobs_steps = t_obs.shape[0], t_unobs.shape[0]
+        n_steps = n_obs_steps + n_unobs_steps
+        x_end, y_end = m * torch.cos(angle), m * torch.sin(angle)
+
+        obs_steps = torch.tensor(list(range(n_obs_steps)), dtype=torch.float32) / (n_steps - 1)
+        unobs_steps = torch.tensor(list(range(n_obs_steps, n_obs_steps + n_unobs_steps)), dtype=torch.float32) / (n_steps - 1)
+        x_obs[..., 0] += x_end * obs_steps.expand_as(x_obs[..., 0])
+        x_obs[..., 1] += y_end * obs_steps.expand_as(x_obs[..., 1])
+        x_unobs[..., 0] += x_end * unobs_steps.expand_as(x_unobs[..., 0])
+        x_unobs[..., 1] += y_end * unobs_steps.expand_as(x_unobs[..., 1])
         return x_obs, x_unobs, t_obs, t_unobs
 
 

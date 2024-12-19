@@ -2,10 +2,13 @@ type: rnnode
 params:
   observable_dim: 12
   output_dim: 4
-  hidden_dim: 128
+  hidden_dim: 256
 
   model_gaussian: true
 
   solver_name: 'rk4'
   solver_params:
     max_step_size: 0.25
+
+  bounded_variance: true
+  bounded_value: 0.01

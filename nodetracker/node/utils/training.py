@@ -309,7 +309,6 @@ class LightningModuleForecaster(LightningModuleBase):
             )
 
             loss = self._loss_func(bboxes_unobs_hat_mean, bboxes_unobs, bboxes_unobs_hat_var)
-            # metrics = self._calc_metrics(bboxes_obs, metadata, bboxes_unobs, bboxes_unobs_hat_mean)
 
             if self._transform_func is not None:
                 # Invert mean
@@ -323,7 +322,6 @@ class LightningModuleForecaster(LightningModuleBase):
             return loss, metrics
 
         loss = self._loss_func(bboxes_unobs_hat, bboxes_unobs)
-        # metrics = self._calc_metrics(bboxes_obs, metadata, bboxes_unobs, bboxes_unobs_hat)
 
         if self._transform_func is not None:
             _, bboxes_unobs_hat, *_ = self._transform_func.inverse([bboxes_obs, bboxes_unobs_hat, metadata, None], shallow=False)
@@ -381,7 +379,7 @@ class LightningModuleForecaster(LightningModuleBase):
             self._meter.push(f'{prefix}-metrics/{name}', value)
 
     def training_step(self, batch: Dict[str, Union[dict, torch.Tensor]], *args, **kwargs) -> torch.Tensor:
-        bboxes_obs, bboxes_aug_unobs, ts_obs, ts_unobs, orig_bboxes_obs, orig_bboxes_unobs, bboxes_unobs, metadata = batch.values()
+        bboxes_obs, _, ts_obs, ts_unobs, orig_bboxes_obs, _, bboxes_unobs, metadata = batch.values()
 
         output = self.forward(bboxes_obs, ts_obs, ts_unobs, metadata)
         bboxes_unobs_hat = output[0] if isinstance(output, tuple) else output
@@ -395,7 +393,7 @@ class LightningModuleForecaster(LightningModuleBase):
         return loss
 
     def validation_step(self, batch: Dict[str, Union[dict, torch.Tensor]], *args, **kwargs) -> torch.Tensor:
-        bboxes_obs, bboxes_aug_unobs, ts_obs, ts_unobs, orig_bboxes_obs, orig_bboxes_unobs, bboxes_unobs, metadata = batch.values()
+        bboxes_obs, _, ts_obs, ts_unobs, orig_bboxes_obs, _, bboxes_unobs, metadata = batch.values()
 
         output = self.forward(bboxes_obs, ts_obs, ts_unobs, metadata)
         bboxes_unobs_hat = output[0] if isinstance(output, tuple) else output

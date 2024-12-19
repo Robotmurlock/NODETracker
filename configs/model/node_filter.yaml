@@ -2,14 +2,14 @@ type: node_filter
 params:
   observable_dim: 12
   output_dim: 4
-  latent_dim: 128
+  latent_dim: 256
 
   homogeneous: False
   bounded_variance: true
   rnn_update_layer: True
   augmentation_remove_points_enable: True
-  augmentation_remove_random_points_proba: 0.15
-  augmentation_remove_sequence_proba: 0.15
+  augmentation_remove_random_points_proba: 0.05
+  augmentation_remove_sequence_proba: 0.05
 
   solver_name: 'rk4'
   solver_params:

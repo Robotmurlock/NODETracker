@@ -1,8 +1,10 @@
+# experiment: 'SSRNN-SportsMOT-exp01-256-h60f1-RelObs'
 experiment: 'SSRNN-dancetrack-exp01-robust-baseline'
+# experiment: 'SSRNN-SportsMOT-exp01-256-h60f1-RelObs'
 description: 'SSRNN - Simplicity'
 batch_size: 256
 learning_rate: 1e-3
-max_epochs: 30
+max_epochs: 15
 
 inverse_transform_before_loss: True
 gradient_clip_val: 100

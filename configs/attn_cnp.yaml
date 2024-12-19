@@ -1,13 +1,15 @@
 defaults:
   - resources: cuda.yaml
-  - dataset: lasot.yaml
-  # - dataset: mot.yaml
-  - transform: lasot/standardized_first_difference.yaml
+  - dataset: sportsmot/h30f60.yaml
+  - transform: sportsmot/standardized_relative_to_last_obs.yaml
+#  - dataset: dancetrack/default.yaml
+#  - transform: dancetrack/standardized_relative_to_last_obs.yaml
   - model: attn_cnp.yaml
   - train: attn_cnp.yaml
   - eval: default.yaml
   - visualize: default.yaml
-  - augmentations: lasot/obs_only.yaml
-  - path: lasot.yaml
+  - augmentations: less_noise.yaml
+  - path: default.yaml
   - end_to_end: default.yaml
+  - tracker: rnnode_sort.yaml
   - _self_

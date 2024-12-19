@@ -1,6 +1,6 @@
 type: yolo
 params:
   accelerator: cuda:0
-  conf: 0.3
+  conf: 0.6
   known_class: true
-  model_path: /media/home/YOLO-DanceTrack/result/weights/best.pt
+  model_path: /media/home/detectors/DanceTrack/weights/best.pt

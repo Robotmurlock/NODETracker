@@ -5,6 +5,7 @@ from typing import TextIO, Dict, Optional
 
 from nodetracker.library.cv.bbox import PredBBox, BBox
 from nodetracker.tracker import Tracklet
+import copy
 
 TRACKER_INFERENCE_HEADER = [
     'frame_id', 'id',
@@ -18,19 +19,21 @@ class TrackerInferenceWriter:
     Writes tracker inference in MOT format. Can be used afterward for evaluation.
     (RAII)
     """
-    def __init__(self, output_path: str, scene_name: str, image_height: int, image_width: int):
+    def __init__(self, output_path: str, scene_name: str, image_height: int, image_width: int, clip: bool = True):
         """
         Args:
             output_path: Tracker inference output directory path
             scene_name: Scene name
             image_height: Image height (required for coordinates up-scaling)
             image_width: Image height (required for coordinates up-scaling)
+            clip: Clip tracklet bbox
         """
         self._output_path = output_path
         self._scene_name = scene_name
         self._scene_output_path = os.path.join(output_path, f'{scene_name}.txt')
         self._image_height = image_height
         self._image_width = image_width
+        self._clip = clip
 
         # State
         self._writer = None
@@ -59,6 +62,10 @@ class TrackerInferenceWriter:
             tracklet: Tracklet
         """
         bbox = tracklet.bbox
+        if self._clip:
+            bbox = copy.deepcopy(bbox)
+            bbox.clip()
+
         left = round(bbox.upper_left.y * self._image_width)
         top = round(bbox.upper_left.x * self._image_height)
         width = round(bbox.width * self._image_width)
@@ -95,6 +102,8 @@ class TrackerInferenceReader:
     Reads tracker inference in MOT format.
     (RAII)
     """
+    BBOX_LABEL = 'Person'
+
     def __init__(self, output_path: str, scene_name: str, image_height: int, image_width: int):
         """
         Args:
@@ -167,7 +176,7 @@ class TrackerInferenceReader:
                         bbox_width / self._image_width,
                         bbox_height / self._image_height
                     ),
-                    label='Person',  # Note: This is specialized for MOT20 format
+                    label=self.BBOX_LABEL,  # Note: This is specialized for MOT20 format
                     conf=conf
                 )
                 data.objects[tracklet_id] = bbox

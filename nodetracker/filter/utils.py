@@ -4,15 +4,25 @@ import torch
 
 
 class ODETorchTensorBuffer:
-    def __init__(self, size: int, min_size: int, dtype: torch.dtype):
+    def __init__(
+        self,
+        size: int,
+        min_size: int,
+        dtype: torch.dtype,
+        min_history: int = 1
+    ):
         assert size >= 1, f'Invalid size {size}. Minimum size is 1.'
 
         self._size = size
         self._min_size = min_size
         self._dtype = dtype
+        self._min_history = min_history
 
         self._buffer: List[Tuple[int, torch.Tensor]] = []
         self._t = 0
+
+    def __repr__(self) -> str:
+        return f'Buffer(t={self._t}, data={self._buffer})'
 
     @property
     def time(self) -> int:
@@ -27,7 +37,7 @@ class ODETorchTensorBuffer:
         self.increment()
 
     def increment(self) -> None:
-        if len(self._buffer) > 1 and (self._t - self._buffer[0][0]) >= self._size:
+        if len(self._buffer) > self._min_history and (self._t - self._buffer[0][0]) >= self._size:
             self._buffer.pop(0)
 
         self._t += 1

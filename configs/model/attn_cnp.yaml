@@ -1,13 +1,10 @@
 type: 'baseline-attn-cnp'
 params:
   observable_dim: 4
-  hidden_dim: 160
+  hidden_dim: 256
   n_heads: 8
-
-  n_input2hidden_layers: 3
-  n_target2hidden_layers: 3
-  n_enc_layers: 3
-  n_head_layers: 3
 
   bounded_variance: true
   bounded_value: 0.01
+
+  t_scale: 10.0

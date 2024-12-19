@@ -1,4 +1,3 @@
-# All bbox coordinates are standardizes separately
 name: 'standardized_relative_to_last_obs'
 params:
   # Acquired from analysis_tools/run_dataset_diff_stats.py
