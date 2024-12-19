@@ -83,6 +83,7 @@ Configuration components:
 - `train`: Training configuration (max epochs, batch size, ...);
 - `eval`: Evaluation (with inference) configuration;
 - `visualize`: Inference visualization configuration.
+- `end_to_end`: Tracker inference configuration.
 
 Every run of `tools` scripts saves the configuration in the logs directory.
 
@@ -119,6 +120,8 @@ All generated data is stored in `master_path` path which is configurable. Struct
 
 ## Citation
 
+If you find this work useful, please consider to cite our paper:
+```
 @article{movesort,
   author = {Momir Adžemović and Predrag Tadić and Andrija Petrović and Mladen Nikolić},
   title = {Beyond Kalman filters: deep learning-based filters for improved object tracking},
@@ -131,4 +134,4 @@ All generated data is stored in `master_path` path which is configurable. Struct
   url = {https://doi.org/10.1007/s00138-024-01644-x},
   issn = {1432-1769}
 }
-
+```
