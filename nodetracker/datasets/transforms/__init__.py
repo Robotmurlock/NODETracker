@@ -13,6 +13,7 @@ from nodetracker.datasets.transforms.bbox import (
     BBoxStandardizedFirstOrderDifferenceTransform,
     BBoxRelativeToLastObsTransform,
     BBoxStandardizedRelativeToLastObsTransform,
+    BBoxRelativeToLastObsWithPadTransform,
     BBoxCompositeTransform,
     BBoxAddLabelTransform,
     BBoxCategoryStandardizationTransform,

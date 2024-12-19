@@ -301,6 +301,34 @@ class BBoxStandardizedRelativeToLastObsTransform(BBoxCompositeTransform):
         super().__init__(transforms=transforms)
 
 
+class BBoxRelativeToLastObsWithPadTransform(BBoxStandardizedRelativeToLastObsTransform):
+    def __init__(self, mean: float, std: float, length: int):
+        super().__init__(
+            mean=mean,
+            std=std
+        )
+        self._length = length
+
+    def apply(self, data: TensorCollection, shallow: bool = True) -> TensorCollection:
+        data = super().apply(data, shallow=shallow)
+        bbox_obs, bbox_unobs, ts_obs, ts_unobs, *other = data
+
+        obs_length = ts_obs.shape[0]
+        assert obs_length <= self._length, \
+            f'Invalid input length. Max length is {self._length} but found {ts_obs.shape[0]}.'
+
+        bbox_obs_padded = torch.zeros(self._length, *bbox_obs.shape[1:], dtype=bbox_obs.dtype)
+        bbox_obs_padded[-obs_length:] = bbox_obs
+        ts_obs_padded = torch.zeros(self._length, *ts_obs.shape[1:], dtype=ts_obs.dtype)
+        ts_obs_padded[-obs_length:] = ts_obs
+
+        # mask = torch.zeros(self._length, *bbox_obs.shape[1:-1], 1, dtype=bbox_obs.dtype)
+        # mask[-obs_length:] = 1.0
+        # bbox_obs_padded = torch.cat([bbox_obs_padded, mask], dim=-1)
+
+        return bbox_obs_padded, bbox_unobs, ts_obs_padded, ts_unobs, *other
+
+
 class BBoxAddLabelTransform(InvertibleTransformWithVariance):
     def __init__(
         self,
@@ -808,16 +836,16 @@ def run_test_standardized_first_difference() -> None:
 def run_test_relative_to_last_obs() -> None:
     bbox_obs = torch.randn(2, 2, 4)
     bbox_unobs = torch.randn(3, 2, 4)
-    ts_obs = torch.randn(2, 2, 1)
-    ts_unobs = torch.randn(3, 2, 1)
-    first_diff = BBoxRelativeToLastObsTransform()
+    ts_obs = torch.tensor([1, 2], dtype=torch.float32).view(-1, 1, 1).repeat(1, 2, 1)
+    ts_unobs = torch.tensor([3, 4, 5], dtype=torch.float32).view(-1, 1, 1).repeat(1, 2, 1)
+    rel_to_last_obs_transform = BBoxRelativeToLastObsTransform()
 
-    transformed_bbox_obs, transformed_bbox_unobs, *_ = \
-        first_diff.apply([bbox_obs, bbox_unobs, ts_obs, ts_unobs, None], shallow=False)
-    assert transformed_bbox_obs.shape == (1, 2, 4)
-    assert transformed_bbox_unobs.shape == (3, 2, 4)
+    t_bbox_obs, t_bbox_unobs, t_ts_obs, t_ts_unobs, *_ = \
+        rel_to_last_obs_transform.apply([bbox_obs, bbox_unobs, ts_obs, ts_unobs, None], shallow=False)
+    assert t_bbox_obs.shape == (1, 2, 4)
+    assert t_bbox_unobs.shape == (3, 2, 4)
 
-    _, inv_transformed_bbox_unobs, *_ = first_diff.inverse([bbox_obs, transformed_bbox_unobs, None])
+    _, inv_transformed_bbox_unobs, *_ = rel_to_last_obs_transform.inverse([bbox_obs, t_bbox_unobs, None])
     assert torch.abs(inv_transformed_bbox_unobs - bbox_unobs).sum().item() < 1e-3
 
 
@@ -836,6 +864,26 @@ def run_test_standardized_relative_to_last_obs() -> None:
 
     _, inv_transformed_bbox_unobs, *_ = first_diff.inverse([bbox_obs, transformed_bbox_unobs, None])
     assert torch.abs(inv_transformed_bbox_unobs - bbox_unobs).sum().item() < 1e-3
+
+
+def run_test_standardized_relative_to_last_obs_with_pad() -> None:
+    bbox_obs = torch.randn(2, 2, 4)
+    bbox_unobs = torch.randn(3, 2, 4)
+    ts_obs = torch.randn(2, 2, 1)
+    ts_unobs = torch.randn(3, 2, 1)
+    first_diff = BBoxRelativeToLastObsWithPadTransform(1, 2.0, length=10)
+
+    transformed_bbox_obs, transformed_bbox_unobs, *_ = \
+        first_diff.apply([bbox_obs, bbox_unobs, ts_obs, ts_unobs, None], shallow=False)
+    assert transformed_bbox_obs.shape == (10, 2, 5)
+    assert torch.abs(transformed_bbox_obs[:9]).sum() <= 1e-6
+    assert torch.abs(transformed_bbox_obs[:9, :, -1]).sum() <= 1e-6
+    assert torch.abs(transformed_bbox_obs[9:, :, -1] - 1).sum() <= 1e-6
+    assert transformed_bbox_unobs.shape == (3, 2, 4)
+
+    _, inv_transformed_bbox_unobs, *_ = first_diff.inverse([bbox_obs, transformed_bbox_unobs, None])
+    assert torch.abs(inv_transformed_bbox_unobs - bbox_unobs).sum().item() < 1e-3
+
 
 # noinspection DuplicatedCode
 def run_test_log_relative_to_last_obs() -> None:
@@ -916,8 +964,9 @@ def run_test_normalize_to_last_obs() -> None:
 def run_test_normalized_differences() -> None:
     bbox_obs = torch.randn(2, 2, 4)
     bbox_unobs = torch.randn(3, 2, 4)
-    ts_obs = torch.randn(2, 2, 1)
-    ts_unobs = torch.randn(3, 2, 1)
+    ts_obs = torch.tensor([1, 2], dtype=torch.float32).view(-1, 1, 1).repeat(1, 2, 1)
+    ts_unobs = torch.tensor([3, 4, 5], dtype=torch.float32).view(-1, 1, 1).repeat(1, 2, 1)
+
     normalize = BBoxNormalizedDifferencesTransform()
 
     transformed_bbox_obs, transformed_bbox_unobs, *_ = \
@@ -930,13 +979,14 @@ def run_test_normalized_differences() -> None:
 
 
 if __name__ == '__main__':
-    run_test_first_difference()
-    run_test_standardization()
-    run_test_standardized_first_difference()
-    run_test_relative_to_last_obs()
-    run_test_standardized_relative_to_last_obs()
-    run_add_category_label_index()
-    run_test_log_relative_to_last_obs()
-    run_test_jack_of_all_trades()
-    run_test_normalize_to_last_obs()
-    run_test_normalized_differences()
+    # run_test_first_difference()
+    # run_test_standardization()
+    # run_test_standardized_first_difference()
+    # run_test_relative_to_last_obs()
+    # run_test_standardized_relative_to_last_obs()
+    run_test_standardized_relative_to_last_obs_with_pad()
+    # run_add_category_label_index()
+    # run_test_log_relative_to_last_obs()
+    # run_test_jack_of_all_trades()
+    # run_test_normalize_to_last_obs()
+    # run_test_normalized_differences()

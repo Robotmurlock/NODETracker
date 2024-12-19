@@ -21,6 +21,9 @@ class ODETorchTensorBuffer:
         self._buffer: List[Tuple[int, torch.Tensor]] = []
         self._t = 0
 
+    def __repr__(self) -> str:
+        return f'Buffer(t={self._t}, data={self._buffer})'
+
     @property
     def time(self) -> int:
         return self._t

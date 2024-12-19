@@ -1,7 +1,7 @@
 """
 Implementation of Filter Sort tracker
 """
-from typing import Tuple, Optional
+from typing import Tuple, Optional, List
 
 import numpy as np
 from abc import ABC
@@ -82,10 +82,30 @@ class MotionBasedTracker(Tracker, ABC):
         assert tracklet.id in self._filter_states, f'Tracklet id "{tracklet.id}" can\'t be found in filter states!'
         state = self._filter_states[tracklet.id]
         state = self._filter.predict(state)
-        prior_mean, prior_std = self._filter.project(state)
         self._filter_states[tracklet.id] = state
+        prior_mean, prior_std = self._filter.project(state)
         bbox = self._raw_to_bbox(tracklet, prior_mean)
         return bbox, prior_mean, prior_std
+
+    def _batch_predict(self, tracklets: List[Tracklet]) -> List[Tuple[PredBBox, torch.Tensor, torch.Tensor]]:
+        if len(tracklets) == 0:
+            return []
+
+        try:
+            # NODEKalmanFilter (RNN-CNP) has optimization for batch inference if trained with trajectory padding.
+            from nodetracker.filter.node_kalman_filter import NODEKalmanFilter
+            if not isinstance(self._filter, NODEKalmanFilter):
+                raise NotImplementedError
+            self._filter: NODEKalmanFilter
+            states = [self._filter_states[t.id] for t in tracklets]
+            states = self._filter.batch_predict(states)
+            prior_means, prior_stds = zip(*[self._filter.project(state) for state in states])
+            bboxes = [self._raw_to_bbox(t, pm) for t, pm in zip(tracklets, prior_means)]
+            for i, t in enumerate(tracklets):
+                self._filter_states[t.id] = states[i]
+            return list(zip(bboxes, prior_means, prior_stds))
+        except NotImplementedError:
+            return [self._predict(t) for t in tracklets]
 
     def _update(self, tracklet: Tracklet, detection: PredBBox) -> Tuple[PredBBox, torch.Tensor, torch.Tensor]:
         """

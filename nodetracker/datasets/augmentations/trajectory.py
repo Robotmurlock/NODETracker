@@ -191,7 +191,7 @@ def remove_points(xs: List[torch.Tensor], min_length: int) -> Tuple[List[torch.T
     points_to_remove = random.sample(all_point_indices, k=n_points_to_remove)
     points_to_keep = [point for point in all_point_indices if point not in points_to_remove]
 
-    return [x[points_to_keep, :, :] for x in xs], points_to_remove, points_to_keep
+    return [x[points_to_keep] for x in xs], points_to_remove, points_to_keep
 
 
 class RemoveRandomPointsTrajectoryAugmentation(NonDeterministicAugmentation):

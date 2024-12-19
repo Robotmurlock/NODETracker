@@ -30,6 +30,9 @@ from tools.utils import create_inference_model
 logger = logging.getLogger('TrackerEvaluation')
 
 
+torch.set_printoptions(sci_mode=False, precision=5, linewidth=160)
+
+
 def populate_tracker_params(
     params: Dict[str, Any],
     cfg: TrackerGlobalConfig,
@@ -152,9 +155,9 @@ def main(cfg: DictConfig):
                 for tracklet in tracklets:
                     tracker_all_inf_writer.write(index, tracklet)
 
-    print('AVG global FPS:', len(global_times) / sum(global_times))
-    print('AVG OD FPS:', len(global_times) / sum(global_times))
-    print('AVG tracker FPS:', len(tracker_times) / sum(tracker_times))
+    logger.info(f'Average global FPS: {len(global_times) / sum(global_times)}.')
+    logger.info(f'Average OD FPS: {len(od_times) / sum(od_times)}.')
+    logger.info(f'Average tracker FPS: {len(tracker_times) / sum(tracker_times)}.')
 
 
     # Save tracker config

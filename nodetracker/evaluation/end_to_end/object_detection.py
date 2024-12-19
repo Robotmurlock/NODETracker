@@ -94,7 +94,8 @@ class YOLOv8Inference(ObjectDetectionInference):
         accelerator: str,
         verbose: bool = False,
         conf: float = 0.25,
-        known_class: bool = False
+        known_class: bool = False,
+        is_rgb: bool = True
     ):
         super().__init__(dataset=dataset, lookup=lookup)
         self._yolo = ultralytics.YOLO(model_path)

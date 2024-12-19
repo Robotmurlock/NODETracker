@@ -62,7 +62,7 @@ class SortTracker(MotionBasedTracker):
     def track(self, tracklets: List[Tracklet], detections: List[PredBBox], frame_index: int, inplace: bool = True) \
             -> Tuple[List[Tracklet], List[Tracklet]]:
         # Estimate priors for all tracklets
-        prior_tracklet_estimates = [self._predict(t) for t in tracklets]
+        prior_tracklet_estimates = self._batch_predict(tracklets)
         prior_tracklet_bboxes = [bbox for bbox, _, _ in prior_tracklet_estimates]
 
         # Perform matching

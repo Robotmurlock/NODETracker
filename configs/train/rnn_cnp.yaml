@@ -1,6 +1,7 @@
 # experiment: 'BaselineRNNCNP-SportsMOT-exp05-384-h30f60-RelUnobs'
 # experiment: 'BaselineRNNCNP-dancetrack-exp02-256-R4'
-experiment: 'BaselineRNNCNP-SportsMOT-exp03-256-h30f60-RelUnobs'
+# experiment: 'BaselineRNNCNP-SportsMOT-exp03-256-h30f60-RelUnobs'
+experiment: 'BaselineRNNCNP-DanceTrack-exp101-256-h10f30-RelUnobsPad'
 description: 'Baseline RNN-CNP, warmup'
 batch_size: 256
 learning_rate: 1e-3
