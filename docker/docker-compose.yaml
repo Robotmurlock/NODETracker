@@ -17,7 +17,7 @@ services:
       - "${PORT_PREFIX}07:6007"
       - "${PORT_PREFIX}08:6008"
     shm_size: 16gb
-    cpuset: '${CPUSET}'
+    cpuset: '${CPUSET:-1}'
     deploy:
       resources:
         reservations:
